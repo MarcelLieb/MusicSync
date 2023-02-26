@@ -3,5 +3,5 @@
 version = 3
 
 [[package]]
-name = "MusicSync"
+name = "music_sync"
 version = "0.1.0"
