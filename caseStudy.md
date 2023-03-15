@@ -11,3 +11,5 @@
 * <https://flowdsp.io/talks/talk-adc20/#1>
 * <https://github.com/HEnquist/wasapi-rs> <https://docs.rs/wasapi/latest/wasapi/>
 * <https://github.com/dheijl/swyh-rs/blob/master/src/utils/audiodevices.rs>
+* <https://ieeexplore.ieee.org/abstract/document/1495485>
+* <https://www.dafx12.york.ac.uk/papers/dafx12_submission_4.pdf>
