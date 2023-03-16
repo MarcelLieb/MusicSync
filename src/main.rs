@@ -64,15 +64,9 @@ fn main() {
 }
 
 fn print_data<T>(data: &[T])
-where T: Sample + std::fmt::Display + ToSample<f32> {
-    //println!("Frame length: {}", data.len());
-    let mut sound = false;
-    for i in data {
-        if i.to_sample::<f32>() != 0.0 {
-            sound = true;
-        }
-        // println!("Sample: {}", i);
-    }
+where T: Sample + ToSample<f32> {
+    println!("Frame length: {}", data.len());
+    let sound = data.iter().any(|i| *i != Sample::EQUILIBRIUM);
     if sound {
         println!("Sound!");
     }
