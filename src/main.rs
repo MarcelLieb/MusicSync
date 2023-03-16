@@ -1,4 +1,4 @@
-use cpal::{self, traits::{HostTrait, DeviceTrait}, InputCallbackInfo};
+use cpal::{self, traits::{HostTrait, DeviceTrait}, Sample};
 
 fn main() {
     let _hosts = cpal::available_hosts();
@@ -9,16 +9,66 @@ fn main() {
     .default_output_config()
     .expect("No default output config found");
 
-    let _out = default_output.build_input_stream(&audio_cfg.config(), |data:&[i32], _:&InputCallbackInfo| print_data(data), |_| {} , None);
-
-    loop {
+    let out = default_output;
+    let _outstream = match audio_cfg.sample_format() {
+        cpal::SampleFormat::F32 => match out.build_input_stream(
+            &audio_cfg.config(),
+            move |data, _: &_| print_data::<f32>(data),
+            capture_err_fn,
+            None,
+        ) {
+            Ok(stream) => Some(stream),
+            Err(e) => {
+                panic!("{:?}", e)
+            }
+        },
+        cpal::SampleFormat::I16 => {
+            match out.build_input_stream(
+                &audio_cfg.config(),
+                move |data, _: &_| print_data::<i16>(data),
+                capture_err_fn,
+                None,
+            ) {
+                Ok(stream) => Some(stream),
+                Err(e) => {
+                    panic!("{:?}", e)
+                }
+            }
+        }
+        cpal::SampleFormat::U16 => {
+            match out.build_input_stream(
+                &audio_cfg.config(),
+                move |data, _: &_| print_data::<u16>(data),
+                capture_err_fn,
+                None,
+            ) {
+                Ok(stream) => Some(stream),
+                Err(e) => {
+                    panic!("{:?}", e)
+                }
+            }
+        }
+        _ => None,
+    }.unwrap();
+    println!("Default output device: {:?}", out.name().unwrap());
+    println!("Default output sample format: {:?}", audio_cfg.sample_format());
+    println!("Default output sample rate: {:?}", audio_cfg.sample_rate());
+    println!("Default output channels: {:?}", audio_cfg.channels());
+    //println!("Stream was created: {}", outstream.is_some());
+    for _ in 0..10 {
         std::thread::sleep(std::time::Duration::from_millis(1000));
     }
-    println!("Hello, world!");
+    println!("Stream was dropped");
 }
 
-fn print_data(data: &[i32]) {
+fn print_data<T>(data: &[T])
+where T: Sample + std::fmt::Display {
+    println!("Frame length: {}", data.len());
     for i in data {
-        println!("{}", i);
+        println!("Sample: {}", i);
     }
+}
+
+fn capture_err_fn(err: cpal::StreamError) {
+    eprintln!("an error occurred on stream: {}", err);
 }
