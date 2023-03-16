@@ -9,7 +9,16 @@ fn main() {
     .default_output_config()
     .expect("No default output config found");
 
-    default_output.build_input_stream(&audio_cfg.config(), |_:&[i32], _:&InputCallbackInfo| {}, |_| {} , None);
+    let _out = default_output.build_input_stream(&audio_cfg.config(), |data:&[i32], _:&InputCallbackInfo| print_data(data), |_| {} , None);
 
+    loop {
+        std::thread::sleep(std::time::Duration::from_millis(1000));
+    }
     println!("Hello, world!");
+}
+
+fn print_data(data: &[i32]) {
+    for i in data {
+        println!("{}", i);
+    }
 }
