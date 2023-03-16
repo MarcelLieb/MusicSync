@@ -5,12 +5,11 @@ fn main() {
     let _hosts = cpal::available_hosts();
     let default_host = cpal::default_host();
     
-    let default_output = default_host.default_output_device().unwrap();
-    let audio_cfg = default_output
-    .default_output_config()
-    .expect("No default output config found");
+    let out = default_host.default_output_device().unwrap();
+    let audio_cfg = out
+        .default_output_config()
+        .expect("No default output config found");
 
-    let out = default_output;
     let _outstream = match audio_cfg.sample_format() {
         cpal::SampleFormat::F32 => match out.build_input_stream(
             &audio_cfg.config(),
@@ -50,7 +49,8 @@ fn main() {
             }
         }
         _ => None,
-    }.unwrap();
+    };
+    println!("Stream was created: {}", _outstream.is_some());
     println!("Default output device: {:?}", out.name().unwrap());
     println!("Default output sample format: {:?}", audio_cfg.sample_format());
     println!("Default output buffer size: {:?}", audio_cfg.buffer_size());
