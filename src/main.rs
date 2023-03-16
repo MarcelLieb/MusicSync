@@ -57,9 +57,8 @@ fn main() {
     println!("Default output sample rate: {:?}", audio_cfg.sample_rate());
     println!("Default output channels: {:?}", audio_cfg.channels());
     //println!("Stream was created: {}", outstream.is_some());
-    for _ in 0..10 {
-        std::thread::sleep(std::time::Duration::from_millis(1000));
-    }
+    std::thread::sleep(std::time::Duration::from_millis(10000));
+
     println!("Stream was dropped");
 }
 
