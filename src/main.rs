@@ -1,4 +1,5 @@
 use cpal::{self, traits::{HostTrait, DeviceTrait}, Sample};
+use dasp_sample::ToSample;
 
 fn main() {
     let _hosts = cpal::available_hosts();
@@ -52,6 +53,7 @@ fn main() {
     }.unwrap();
     println!("Default output device: {:?}", out.name().unwrap());
     println!("Default output sample format: {:?}", audio_cfg.sample_format());
+    println!("Default output buffer size: {:?}", audio_cfg.buffer_size());
     println!("Default output sample rate: {:?}", audio_cfg.sample_rate());
     println!("Default output channels: {:?}", audio_cfg.channels());
     //println!("Stream was created: {}", outstream.is_some());
@@ -62,10 +64,17 @@ fn main() {
 }
 
 fn print_data<T>(data: &[T])
-where T: Sample + std::fmt::Display {
-    println!("Frame length: {}", data.len());
+where T: Sample + std::fmt::Display + ToSample<f32> {
+    //println!("Frame length: {}", data.len());
+    let mut sound = false;
     for i in data {
-        println!("Sample: {}", i);
+        if i.to_sample::<f32>() != 0.0 {
+            sound = true;
+        }
+        // println!("Sample: {}", i);
+    }
+    if sound {
+        println!("Sound!");
     }
 }
 
