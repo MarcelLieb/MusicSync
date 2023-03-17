@@ -4,7 +4,12 @@
 
 * [Implementation of loopback audio capture](https://github.com/dheijl/swyh-rs/blob/master/src/utils/audiodevices.rs)
 
-## Onset detection
+## Audio processing
+
+* [Digital audio processing crate](https://crates.io/crates/dasp)
+* [Digital audio concepts](https://developer.mozilla.org/en-US/docs/Web/Media/Formats/Audio_concepts)
+
+### Onset detection
 
 * [A tutorial on onset detection in music signals](https://ieeexplore.ieee.org/abstract/document/1495485)
 * [State of the art real time onset detection](https://www.dafx12.york.ac.uk/papers/dafx12_submission_4.pdf)
