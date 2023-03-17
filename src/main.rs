@@ -57,17 +57,19 @@ fn main() {
     println!("Default output sample rate: {:?}", audio_cfg.sample_rate());
     println!("Default output channels: {:?}", audio_cfg.channels());
     //println!("Stream was created: {}", outstream.is_some());
-    std::thread::sleep(std::time::Duration::from_millis(10000));
+    std::thread::sleep(std::time::Duration::from_millis(20000));
 
     println!("Stream was dropped");
 }
 
 fn print_data<T>(data: &[T])
 where T: Sample + ToSample<f32> {
-    println!("Frame length: {}", data.len());
+    //println!("Frame length: {}", data.len());
     let sound = data.iter().any(|i| *i != Sample::EQUILIBRIUM);
+    let volume: f32 = data.iter().fold(0.0, |acc, e:&T| acc +  T::to_sample::<f32>(*e).abs()) / data.len() as f32;
+    let peak = data.iter().map(|s| T::to_sample::<f32>(*s)).into_iter().fold(-1.0,|max, f| if f > max {f} else {max});
     if sound {
-        println!("Sound!");
+        println!("RMS: {:.3}, Peak: {:.3}", volume, peak);
     }
 }
 
