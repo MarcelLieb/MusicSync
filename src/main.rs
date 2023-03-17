@@ -1,11 +1,11 @@
-use cpal::{self, traits::{HostTrait, DeviceTrait}, Sample};
+use cpal::{self, traits::{HostTrait, DeviceTrait, StreamTrait}, Sample};
 use dasp_sample::ToSample;
 
 fn main() {
     let _hosts = cpal::available_hosts();
     let default_host = cpal::default_host();
     
-    let out = default_host.default_output_device().unwrap();
+    let out = default_host.default_output_device().expect("no output device available");
     let audio_cfg = out
         .default_output_config()
         .expect("No default output config found");
@@ -49,8 +49,8 @@ fn main() {
             }
         }
         _ => None,
-    };
-    println!("Stream was created: {}", _outstream.is_some());
+    } .unwrap();
+    _outstream.play().unwrap();
     println!("Default output device: {:?}", out.name().unwrap());
     println!("Default output sample format: {:?}", audio_cfg.sample_format());
     println!("Default output buffer size: {:?}", audio_cfg.buffer_size());
