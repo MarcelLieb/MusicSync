@@ -8,10 +8,11 @@ edition = "2021"
 [dependencies]
 cpal = "0.15.0"
 crossbeam-channel = "0.5.7"
+dasp_ring_buffer = "0.11.0"
 dasp_sample = "0.11.0"
 log = { version = "0.4.17", features = [
     "max_level_trace",
     "release_max_level_debug",
     "serde",
 ] }
-parking_lot = "0.12.1"
+rustfft = "6.1.0"
