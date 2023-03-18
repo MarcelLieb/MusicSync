@@ -8,6 +8,7 @@
 
 * [Digital audio processing crate](https://crates.io/crates/dasp)
 * [Digital audio concepts](https://developer.mozilla.org/en-US/docs/Web/Media/Formats/Audio_concepts)
+* [Website containing DSP related articles](https://www.dsprelated.com/)
 
 ### Onset detection
 
