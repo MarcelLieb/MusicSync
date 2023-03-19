@@ -17,7 +17,7 @@ where T: Sample + ToSample<f32> {
         .iter().fold(0.0, |acc, e:&T| acc +  T::to_sample::<f32>(*e).abs()) / data.len() as f32;
     let peak = data
         .iter().map(|s| T::to_sample::<f32>(*s))
-        .into_iter().fold(0.0,|max, f| if f.abs() > max {f} else {max});
+        .into_iter().fold(0.0,|max, f| if f.abs() > max {f.abs()} else {max});
     if sound {
         println!("RMS: {:.3}, Peak: {:.3}", volume, peak);
     }
