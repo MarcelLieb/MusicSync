@@ -13,8 +13,8 @@ fn print_data<T>(data: &[T])
 where T: Sample + ToSample<f32> {
     //println!("Frame length: {}", data.len());
     let sound = data.iter().any(|i| *i != Sample::EQUILIBRIUM);
-    let volume: f32 = data
-        .iter().fold(0.0, |acc, e:&T| acc +  T::to_sample::<f32>(*e).abs()) / data.len() as f32;
+    let volume: f32 = (data
+        .iter().fold(0.0, |acc, e:&T| acc +  T::to_sample::<f32>(*e) * T::to_sample::<f32>(*e)) / data.len() as f32).sqrt();
     let peak = data
         .iter().map(|s| T::to_sample::<f32>(*s))
         .into_iter().fold(0.0,|max, f| if f.abs() > max {f.abs()} else {max});
