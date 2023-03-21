@@ -3,8 +3,6 @@ use std::vec;
 use cpal::{self, traits::{HostTrait, DeviceTrait}, Sample, StreamConfig};
 use dasp_sample::ToSample;
 use realfft::RealFftPlanner;
-//use rustfft::num_complex::Complex;
-//use rustfft::num_traits::Zero;
 use log::debug;
 
 
@@ -15,18 +13,30 @@ fn capture_err_fn(err: cpal::StreamError) {
 fn print_data<T>(data: &[T], f32_samples: &mut Vec<f32>)
 where T: Sample + ToSample<f32> {
     f32_samples.clear();
-    f32_samples.extend(data.iter().map(|x: &T| T::to_sample::<f32>(*x)));
+    f32_samples.extend(
+        data.iter()
+            .map(|x: &T| x.to_sample::<f32>())
+    );
     let buffer_size = f32_samples.len();
 
+    // Pad with trailing zeros
     f32_samples.extend(vec![0.0; f32_samples.capacity() - f32_samples.len()]);
+
     // println!("Frame length: {}", buffer_size);
 
     // Calculate RMS and peak volume
-    let sound = f32_samples.iter().any(|i| *i != Sample::EQUILIBRIUM);
+    let sound = f32_samples
+        .iter()
+        .any(|i| *i != Sample::EQUILIBRIUM);
+
     let volume: f32 = (f32_samples
-        .iter().fold(0.0, |acc, e| acc +  e * e) / buffer_size as f32).sqrt();
+        .iter()
+        .fold(0.0, |acc, e| acc +  e * e) / buffer_size as f32)
+        .sqrt();
+
     let peak = f32_samples
         .iter().fold(0.0,|max, f| if f.abs() > max {f.abs()} else {max});
+
     if sound {
         println!("RMS: {:.3}, Peak: {:.3}", volume, peak);
     }
@@ -41,7 +51,10 @@ where T: Sample + ToSample<f32> {
         Err(e) => println!("Error: {:?}", e)
     }
 
-    let output = output.iter().map(|e| e.re.abs()).collect::<Vec<f32>>();
+    let output = output
+        .iter()
+        .map(|e| e.re.abs())
+        .collect::<Vec<f32>>();
 
 }
 
@@ -105,11 +118,19 @@ pub fn create_default_output_stream() -> cpal::Stream {
 
 fn split_channels<T> (config: &StreamConfig, data: &[T]) -> Vec<Vec<f32>> 
 where T: Sample + ToSample<f32> {
-    let samples: Vec<f32> = data.iter().map(|s| s.to_sample::<f32>()).collect();
+    let samples: Vec<f32> = data
+        .iter()
+        .map(|s| s.to_sample::<f32>())
+        .collect();
     let channels = config.channels;
     let mut out: Vec<Vec<f32>> = Vec::new();
     for i in 0..channels {
-        out.push(samples.iter().enumerate().filter_map(|(index, f)| if index as u16 % channels == i {Some(*f)} else {None}).collect())
+        out.push(
+            samples.iter()
+            .enumerate()
+            .filter_map(|(index, f)| if index as u16 % channels == i {Some(*f)} else {None})
+            .collect()
+        )
     }
     out
 }
