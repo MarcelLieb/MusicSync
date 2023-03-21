@@ -360,6 +360,7 @@ dependencies = [
  "dasp_ring_buffer",
  "dasp_sample",
  "log",
+ "realfft",
  "rustfft",
 ]
 
@@ -579,6 +580,15 @@ name = "raw-window-handle"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4f851a03551ceefd30132e447f07f96cb7011d6b658374f3aed847333adb5559"
+
+[[package]]
+name = "realfft"
+version = "3.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "93d6b8e8f0c6d2234aa58048d7290c60bf92cd36fd2888cd8331c66ad4f2e1d2"
+dependencies = [
+ "rustfft",
+]
 
 [[package]]
 name = "redox_syscall"

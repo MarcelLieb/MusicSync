@@ -15,4 +15,5 @@ log = { version = "0.4.17", features = [
     "release_max_level_debug",
     "serde",
 ] }
+realfft = "3.2.0"
 rustfft = "6.1.0"
