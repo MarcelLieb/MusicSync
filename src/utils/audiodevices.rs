@@ -11,7 +11,6 @@ fn capture_err_fn(err: cpal::StreamError) {
 fn print_data<T>(data: &[T], channels: u16, f32_samples: &mut Vec<Vec<f32>>)
 where T: Sample + ToSample<f32> {
     split_channels(channels, data, f32_samples);
-    let buffer_size = f32_samples.len();
 
     // Pad with trailing zeros
     for channel in f32_samples.iter_mut() {
@@ -27,7 +26,7 @@ where T: Sample + ToSample<f32> {
 
     let volume: Vec<f32> = f32_samples.iter()
         .map(|c| (c.iter()
-            .fold(0.0, |acc, e| acc +  e * e) / buffer_size as f32)
+            .fold(0.0, |acc, e| acc +  e * e) / c.len() as f32)
             .sqrt())
         .collect();
 
