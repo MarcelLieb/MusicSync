@@ -1,8 +1,11 @@
+use std::collections::VecDeque;
+
 use cpal::Sample;
 use dasp_sample::ToSample;
 use realfft::RealFftPlanner;
+use log::info;
 
-pub fn print_data<T>(data: &[T], channels: u16, f32_samples: &mut Vec<Vec<f32>>)
+pub fn print_data<T>(data: &[T], channels: u16, f32_samples: &mut Vec<Vec<f32>>, threshold: &mut DynamicThreshold)
 where T: Sample + ToSample<f32> {
     split_channels(channels, data, f32_samples);
 
@@ -30,7 +33,7 @@ where T: Sample + ToSample<f32> {
             )
             .reduce(f32::max).unwrap();
 
-        println!("RMS: {:.3}, Peak: {:.3}", volume.iter().sum::<f32>() / volume.len() as f32, peak);
+        info!("RMS: {:.3}, Peak: {:.3}", volume.iter().sum::<f32>() / volume.len() as f32, peak);
 
         let mut planner = RealFftPlanner::<f32>::new();
         let fft = planner.plan_fft_forward(f32_samples[0].capacity());
@@ -54,16 +57,21 @@ where T: Sample + ToSample<f32> {
 
         let weight: f32 = weighted.iter().sum();
 
-        println!("{weight}");
+        if weight >= threshold.get_threshold(weight) {
+            println!("Onset!");
+        }
+        else {
+            println!();
+        }
 
         let index_of_max = output
             .iter()
             .enumerate()
             .max_by(|(_, a), (_, b)| a.total_cmp(b))
             .map(|(index, _)| index)
-            .unwrap();
+            .unwrap(); 
 
-        println!("Loudest frequency: {}Hz", index_of_max);
+        info!("Loudest frequency: {}Hz", index_of_max);
     }
 }
 
@@ -79,4 +87,39 @@ where T: Sample + ToSample<f32> {
             .filter_map(|(index, f)| if index % channels as usize == i {Some(f)} else {None})
         );
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct DynamicThreshold {
+    past_thresholds: VecDeque<f32>,
+    buffer_size: usize
+}
+
+#[allow(dead_code)]
+impl DynamicThreshold {
+    pub fn init() -> Self {
+        DynamicThreshold { 
+            past_thresholds: VecDeque::with_capacity(3), buffer_size: 3
+        }
+    }
+
+    pub fn init_buffer(buffer_size: usize) -> Self {
+        DynamicThreshold { 
+            past_thresholds: VecDeque::with_capacity(buffer_size), buffer_size: buffer_size
+        }
+    }
+
+    fn get_threshold(&mut self, value: f32) -> f32 {
+        let sum: f32 = self.past_thresholds.iter().sum();
+        if self.past_thresholds.len() >= self.buffer_size {
+            self.past_thresholds.pop_front();
+            self.past_thresholds.push_back(value);
+        }
+        else {
+            self.past_thresholds.push_back(value)
+        }
+        sum / self.past_thresholds.len() as f32
+    }
+
+
 }

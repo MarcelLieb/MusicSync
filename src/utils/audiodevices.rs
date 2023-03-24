@@ -1,6 +1,6 @@
 use cpal::{self, traits::{HostTrait, DeviceTrait}, BuildStreamError};
-use log::debug;
-use crate::utils::audioprocessing::print_data;
+use log::{debug};
+use crate::utils::audioprocessing::{print_data, DynamicThreshold};
 
 
 fn capture_err_fn(err: cpal::StreamError) {
@@ -21,17 +21,18 @@ pub fn create_default_output_stream() -> cpal::Stream {
     for _ in 0..channels {
         f32_samples.push(Vec::with_capacity(44100));
     }
+    let mut threshold = DynamicThreshold::init_buffer(5);
     let outstream = match audio_cfg.sample_format() {
         cpal::SampleFormat::F32 => out.build_input_stream(
             &audio_cfg.config(),
-            move |data: &[f32], _| print_data(data, channels, &mut f32_samples),
+            move |data: &[f32], _| print_data(data, channels, &mut f32_samples, &mut threshold),
             capture_err_fn,
             None,
         ),
         cpal::SampleFormat::I16 => {
             out.build_input_stream(
                 &audio_cfg.config(),
-                move |data: &[i16], _| print_data(data, channels, &mut f32_samples),
+                move |data: &[i16], _| print_data(data, channels, &mut f32_samples, &mut threshold),
                 capture_err_fn,
                 None,
             )
@@ -39,7 +40,7 @@ pub fn create_default_output_stream() -> cpal::Stream {
         cpal::SampleFormat::U16 => {
             out.build_input_stream(
                 &audio_cfg.config(),
-                move |data: &[u16], _| print_data(data, channels, &mut f32_samples),
+                move |data: &[u16], _| print_data(data, channels, &mut f32_samples, &mut threshold),
                 capture_err_fn,
                 None,
             )
