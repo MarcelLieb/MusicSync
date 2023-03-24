@@ -1,4 +1,4 @@
-use cpal::{self, traits::{HostTrait, DeviceTrait}, Sample};
+use cpal::{self, traits::{HostTrait, DeviceTrait}, Sample, BuildStreamError};
 use dasp_sample::ToSample;
 use realfft::RealFftPlanner;
 use log::debug;
@@ -17,9 +17,7 @@ where T: Sample + ToSample<f32> {
         channel.extend(vec![0.0; channel.capacity() - channel.len()])
     }
 
-    // println!("Frame length: {}", buffer_size);
-
-    // Calculate RMS and peak volume
+    // Check for silence
     let sound = f32_samples[0]
         .iter()
         .any(|i| *i != Sample::EQUILIBRIUM);
@@ -54,6 +52,16 @@ where T: Sample + ToSample<f32> {
             .map(|e| (e.re * e.re + e.im * e.im).sqrt())
             .collect::<Vec<f32>>();
 
+        let weighted: Vec<f32> = output
+            .iter()
+            .enumerate()
+            .map(|(k, freq)| k as f32 * freq)
+            .collect();
+
+        let weight: f32 = weighted.iter().sum();
+
+        println!("{weight}");
+
         let index_of_max = output
             .iter()
             .enumerate()
@@ -63,10 +71,6 @@ where T: Sample + ToSample<f32> {
 
         println!("Loudest frequency: {}Hz", index_of_max);
     }
-
-
-    
-
 }
 
 pub fn create_default_output_stream() -> cpal::Stream {
@@ -84,51 +88,36 @@ pub fn create_default_output_stream() -> cpal::Stream {
         f32_samples.push(Vec::with_capacity(44100));
     }
     let outstream = match audio_cfg.sample_format() {
-        cpal::SampleFormat::F32 => match out.build_input_stream(
+        cpal::SampleFormat::F32 => out.build_input_stream(
             &audio_cfg.config(),
             move |data: &[f32], _| print_data(data, channels, &mut f32_samples),
             capture_err_fn,
             None,
-        ) {
-            Ok(stream) => Some(stream),
-            Err(e) => {
-                panic!("{:?}", e)
-            }
-        },
+        ),
         cpal::SampleFormat::I16 => {
-            match out.build_input_stream(
+            out.build_input_stream(
                 &audio_cfg.config(),
                 move |data: &[i16], _| print_data(data, channels, &mut f32_samples),
                 capture_err_fn,
                 None,
-            ) {
-                Ok(stream) => Some(stream),
-                Err(e) => {
-                    panic!("{:?}", e)
-                }
-            }
+            )
         }
         cpal::SampleFormat::U16 => {
-            match out.build_input_stream(
+            out.build_input_stream(
                 &audio_cfg.config(),
                 move |data: &[u16], _| print_data(data, channels, &mut f32_samples),
                 capture_err_fn,
                 None,
-            ) {
-                Ok(stream) => Some(stream),
-                Err(e) => {
-                    panic!("{:?}", e)
-                }
-            }
+            )
         }
-        _ => None,
-    };
+        _ => Err(BuildStreamError::StreamConfigNotSupported)
+    }.ok().unwrap();
     debug!("Default output device: {:?}", out.name().unwrap());
     debug!("Default output sample format: {:?}", audio_cfg.sample_format());
     debug!("Default output buffer size: {:?}", audio_cfg.buffer_size());
     debug!("Default output sample rate: {:?}", audio_cfg.sample_rate());
     debug!("Default output channels: {:?}", audio_cfg.channels());
-    outstream.unwrap()
+    outstream
 }
 
 fn split_channels<T> (channels: u16, data: &[T], f32_samples: &mut Vec<Vec<f32>>) 
