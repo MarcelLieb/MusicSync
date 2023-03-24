@@ -31,31 +31,31 @@ pub fn create_default_output_stream() -> cpal::Stream {
         .default_output_config()
         .expect("No default output config found");
 
-        let outstream = match audio_cfg.sample_format() {
-            cpal::SampleFormat::F32 => out.build_input_stream(
+    let outstream = match audio_cfg.sample_format() {
+        cpal::SampleFormat::F32 => out.build_input_stream(
+            &audio_cfg.config(),
+            move |data: &[f32], _| print_data(data),
+            capture_err_fn,
+            None,
+        ),
+        cpal::SampleFormat::I16 => {
+            out.build_input_stream(
                 &audio_cfg.config(),
-                move |data: &[f32], _| print_data(data),
+                move |data: &[i16], _| print_data(data),
                 capture_err_fn,
                 None,
-            ),
-            cpal::SampleFormat::I16 => {
-                out.build_input_stream(
-                    &audio_cfg.config(),
-                    move |data: &[i16], _| print_data(data),
-                    capture_err_fn,
-                    None,
-                )
-            }
-            cpal::SampleFormat::U16 => {
-                out.build_input_stream(
-                    &audio_cfg.config(),
-                    move |data: &[u16], _| print_data(data),
-                    capture_err_fn,
-                    None,
-                )
-            }
-            _ => Err(BuildStreamError::StreamConfigNotSupported)
-        }.ok().unwrap();
+            )
+        }
+        cpal::SampleFormat::U16 => {
+            out.build_input_stream(
+                &audio_cfg.config(),
+                move |data: &[u16], _| print_data(data),
+                capture_err_fn,
+                None,
+            )
+        }
+        _ => Err(BuildStreamError::StreamConfigNotSupported)
+    }.ok().unwrap();
     debug!("Default output device: {:?}", out.name().unwrap());
     debug!("Default output sample format: {:?}", audio_cfg.sample_format());
     debug!("Default output buffer size: {:?}", audio_cfg.buffer_size());
