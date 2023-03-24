@@ -6,9 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+biquad = "0.4.2"
 cpal = "0.15.0"
-crossbeam-channel = "0.5.7"
-dasp_ring_buffer = "0.11.0"
 dasp_sample = "0.11.0"
 log = { version = "0.4.17", features = [
     "max_level_trace",
