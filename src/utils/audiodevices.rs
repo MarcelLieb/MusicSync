@@ -24,46 +24,48 @@ where T: Sample + ToSample<f32> {
         .iter()
         .any(|i| *i != Sample::EQUILIBRIUM);
 
-    let volume: Vec<f32> = f32_samples.iter()
-        .map(|c| (c.iter()
-            .fold(0.0, |acc, e| acc +  e * e) / c.len() as f32)
-            .sqrt())
-        .collect();
-
-    let peak = f32_samples
-        .iter()
-        .map(|c| c.iter()
-            .fold(0.0,|max, f| if f.abs() > max {f.abs()} else {max})
-        )
-        .reduce(f32::max).unwrap();
-
     if sound {
+        let volume: Vec<f32> = f32_samples.iter()
+            .map(|c| (c.iter()
+                .fold(0.0, |acc, e| acc +  e * e) / c.len() as f32)
+                .sqrt())
+            .collect();
+
+        let peak = f32_samples
+            .iter()
+            .map(|c| c.iter()
+                .fold(0.0,|max, f| if f.abs() > max {f.abs()} else {max})
+            )
+            .reduce(f32::max).unwrap();
+
         println!("RMS: {:.3}, Peak: {:.3}", volume.iter().sum::<f32>() / volume.len() as f32, peak);
+
+        let mut planner = RealFftPlanner::<f32>::new();
+        let fft = planner.plan_fft_forward(f32_samples[0].capacity());
+
+        let mut output = fft.make_output_vec();
+        match fft.process(&mut f32_samples[0], &mut output) {
+            Ok(()) => (),
+            Err(e) => println!("Error: {:?}", e)
+        }
+
+        let output = output
+            .iter()
+            .map(|e| (e.re * e.re + e.im * e.im).sqrt())
+            .collect::<Vec<f32>>();
+
+        let index_of_max = output
+            .iter()
+            .enumerate()
+            .max_by(|(_, a), (_, b)| a.total_cmp(b))
+            .map(|(index, _)| index)
+            .unwrap();
+
+        println!("Loudest frequency: {}Hz", index_of_max);
     }
 
 
-    let mut planner = RealFftPlanner::<f32>::new();
-    let fft = planner.plan_fft_forward(f32_samples[0].capacity());
-
-    let mut output = fft.make_output_vec();
-    match fft.process(&mut f32_samples[0], &mut output) {
-        Ok(()) => (),
-        Err(e) => println!("Error: {:?}", e)
-    }
-
-    let output = output
-        .iter()
-        .map(|e| (e.re * e.re + e.im * e.im).sqrt())
-        .collect::<Vec<f32>>();
-
-    let index_of_max = output
-        .iter()
-        .enumerate()
-        .max_by(|(_, a), (_, b)| a.total_cmp(b))
-        .map(|(index, _)| index)
-        .unwrap();
-
-    println!("Loudest frequency: {}Hz", index_of_max);
+    
 
 }
 
