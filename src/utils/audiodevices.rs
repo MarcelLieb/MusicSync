@@ -47,14 +47,23 @@ where T: Sample + ToSample<f32> {
 
     let mut output = fft.make_output_vec();
     match fft.process(&mut f32_samples[0], &mut output) {
-        Ok(_) => (),
+        Ok(()) => (),
         Err(e) => println!("Error: {:?}", e)
     }
 
     let output = output
         .iter()
-        .map(|e| e.re.abs())
+        .map(|e| (e.re * e.re + e.im * e.im).sqrt())
         .collect::<Vec<f32>>();
+
+    let index_of_max = output
+        .iter()
+        .enumerate()
+        .max_by(|(_, a), (_, b)| a.total_cmp(b))
+        .map(|(index, _)| index)
+        .unwrap();
+
+    println!("Loudest frequency: {}Hz", index_of_max);
 
 }
 
@@ -70,7 +79,7 @@ pub fn create_default_output_stream() -> cpal::Stream {
     let channels = audio_cfg.channels();
     let mut f32_samples: Vec<Vec<f32>> = Vec::with_capacity(channels.into());
     for _ in 0..channels {
-        f32_samples.push(Vec::with_capacity(11025));
+        f32_samples.push(Vec::with_capacity(44100));
     }
     let outstream = match audio_cfg.sample_format() {
         cpal::SampleFormat::F32 => match out.build_input_stream(
