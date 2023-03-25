@@ -2,7 +2,7 @@ use std::{collections::VecDeque, f32::consts::PI};
 
 use cpal::Sample;
 use dasp_sample::ToSample;
-use realfft::RealFftPlanner;
+use realfft::{RealFftPlanner, num_traits::SaturatingMul};
 use log::info;
 
 pub fn print_data<T>(data: &[T], channels: u16, f32_samples: &mut Vec<Vec<f32>>, threshold: &mut DynamicThreshold)
@@ -41,8 +41,18 @@ where T: Sample + ToSample<f32> {
         let mut planner = RealFftPlanner::<f32>::new();
         let fft = planner.plan_fft_forward(f32_samples[0].capacity());
 
+        let mut input = f32_samples
+            .iter()
+            .fold(vec![0.0; f32_samples[0].len()],|sum: Vec<f32>, channel: &Vec<f32>|
+                sum
+                    .iter()
+                    .zip(channel)
+                    .map(|(s, c)| *s + c)
+                    .collect::<Vec<f32>>()
+            );
+
         let mut output = fft.make_output_vec();
-        match fft.process(&mut f32_samples[0], &mut output) {
+        match fft.process(&mut input, &mut output) {
             Ok(()) => (),
             Err(e) => println!("Error: {:?}", e)
         }
