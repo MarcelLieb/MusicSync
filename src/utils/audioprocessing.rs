@@ -1,18 +1,21 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, f32::consts::PI};
 
 use cpal::Sample;
 use dasp_sample::ToSample;
-use realfft::RealFftPlanner;
+use realfft::{RealFftPlanner, num_traits::Pow};
 use log::info;
 
 pub fn print_data<T>(data: &[T], channels: u16, f32_samples: &mut Vec<Vec<f32>>, threshold: &mut DynamicThreshold)
 where T: Sample + ToSample<f32> {
     split_channels(channels, data, f32_samples);
 
+    window(f32_samples);
     // Pad with trailing zeros
-    for channel in f32_samples.iter_mut() {
-        channel.extend(vec![0.0; channel.capacity() - channel.len()])
-    }
+    f32_samples
+        .iter_mut()
+        .for_each(|channel| 
+            channel
+                .extend(vec![0.0; channel.capacity() - channel.len()]));
 
     // Check for silence
     let sound = f32_samples[0]
@@ -110,16 +113,47 @@ impl DynamicThreshold {
     }
 
     fn get_threshold(&mut self, value: f32) -> f32 {
-        let sum: f32 = self.past_thresholds.iter().sum();
+        let mut sum: f32 = self.past_thresholds.iter().sum();
         if self.past_thresholds.len() >= self.buffer_size {
             self.past_thresholds.pop_front();
             self.past_thresholds.push_back(value);
+            sum = f32::MAX;
         }
         else {
-            self.past_thresholds.push_back(value)
+            self.past_thresholds.push_back(value);
         }
         sum / self.past_thresholds.len() as f32
     }
+}
 
+#[allow(unused_variables, non_snake_case)]
+fn window(samples: &mut Vec<Vec<f32>>) {
+    let N = samples[0].len();
+    //Hann window
+    let window_Hann: Vec<f32> = (0..N)
+        .map(|n| (PI * n as f32 / N as f32).sin().pow(2))
+        .collect();
 
+    // Matlab coefficents from wikipedia
+    const A: [f32; 5] = [0.21557895, 0.41663158, 0.277263158, 0.083578947, 0.006947368]; 
+    let window_flat_top: Vec<f32> = (0..N)
+        .map(|n| 
+            A[0] 
+            - A[1] * (2. * PI * n as f32 / N as f32).cos() 
+            + A[2] * (4. * PI * n as f32 / N as f32).cos() 
+            - A[3] * (6. * PI * n as f32 / N as f32).cos() 
+            + A[4] * (8. * PI * n as f32 / N as f32).cos()
+        )
+        .collect();
+
+    // Apply window
+    samples
+        .iter_mut()
+        .for_each(|channel|
+            channel
+                .iter_mut()
+                .zip(window_Hann.iter())
+                .map(|(x, w)| *x = *x * w)
+                .for_each(drop)
+        );
 }
