@@ -117,10 +117,10 @@ impl DynamicThreshold {
         if self.past_thresholds.len() >= self.buffer_size {
             self.past_thresholds.pop_front();
             self.past_thresholds.push_back(value);
-            sum = f32::MAX;
         }
         else {
             self.past_thresholds.push_back(value);
+            sum = f32::MAX;
         }
         sum / self.past_thresholds.len() as f32
     }
