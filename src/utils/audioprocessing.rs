@@ -2,7 +2,7 @@ use std::{collections::VecDeque, f32::consts::PI};
 
 use cpal::Sample;
 use dasp_sample::ToSample;
-use realfft::{RealFftPlanner, num_traits::Pow};
+use realfft::RealFftPlanner;
 use log::info;
 
 pub fn print_data<T>(data: &[T], channels: u16, f32_samples: &mut Vec<Vec<f32>>, threshold: &mut DynamicThreshold)
