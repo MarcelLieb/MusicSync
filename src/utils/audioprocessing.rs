@@ -153,7 +153,6 @@ fn window(samples: &mut Vec<Vec<f32>>) {
             channel
                 .iter_mut()
                 .zip(window_Hann.iter())
-                .map(|(x, w)| *x = *x * w)
-                .for_each(drop)
+                .for_each(|(x, w)| *x = *x * w)
         );
 }
