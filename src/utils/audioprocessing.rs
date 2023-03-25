@@ -131,7 +131,7 @@ fn window(samples: &mut Vec<Vec<f32>>) {
     let N = samples[0].len();
     //Hann window
     let window_Hann: Vec<f32> = (0..N)
-        .map(|n| (PI * n as f32 / N as f32).sin().pow(2))
+        .map(|n| 0.5 * (1. - f32::cos(2. * PI * n as f32 / N as f32)))
         .collect();
 
     // Matlab coefficents from wikipedia
