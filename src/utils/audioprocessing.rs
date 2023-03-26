@@ -4,6 +4,7 @@ use cpal::Sample;
 use dasp_sample::ToSample;
 use realfft::RealFftPlanner;
 use log::info;
+use colored::Colorize;
 
 pub fn print_data<T>(data: &[T], channels: u16, f32_samples: &mut Vec<Vec<f32>>, threshold: &mut DynamicThreshold)
 where T: Sample + ToSample<f32> {
@@ -71,10 +72,10 @@ where T: Sample + ToSample<f32> {
         let weight: f32 = weighted.iter().sum();
 
         if weight >= threshold.get_threshold(weight) {
-            println!("Onset!");
+            print!("\n{}", "■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■".bright_red());
         }
         else {
-            println!();
+            print!("\n{}", "---------------".black());
         }
 
         let index_of_max = output
