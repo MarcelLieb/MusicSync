@@ -6,12 +6,14 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+biquad = "0.4.2"
+colored = "2.0.0"
 cpal = "0.15.0"
-crossbeam-channel = "0.5.7"
 dasp_sample = "0.11.0"
 log = { version = "0.4.17", features = [
     "max_level_trace",
     "release_max_level_debug",
     "serde",
 ] }
-parking_lot = "0.12.1"
+realfft = "3.2.0"
+rustfft = "6.1.0"

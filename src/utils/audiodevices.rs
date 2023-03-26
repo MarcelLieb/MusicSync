@@ -1,25 +1,10 @@
-use cpal::{self, traits::{HostTrait, DeviceTrait}, Sample, BuildStreamError};
-use dasp_sample::ToSample;
-use log::debug;
+use cpal::{self, traits::{HostTrait, DeviceTrait}, BuildStreamError, StreamConfig};
+use log::{debug};
+use crate::utils::audioprocessing::{print_data, DynamicThreshold};
 
 
 fn capture_err_fn(err: cpal::StreamError) {
     eprintln!("an error occurred on stream: {}", err);
-}
-
-fn print_data<T>(data: &[T])
-where T: Sample + ToSample<f32> {
-    //println!("Frame length: {}", data.len());
-    let sound = data.iter().any(|i| *i != Sample::EQUILIBRIUM);
-    let volume: f32 = data
-        .iter().fold(0.0, |acc, e:&T| acc +  T::to_sample::<f32>(*e).abs()) / data.len() as f32;
-    let peak = data
-        .iter().map(|s| T::to_sample::<f32>(*s))
-        .into_iter().fold(-1.0,|max, f| if f > max {f} else {max})
-        .abs();
-    if sound {
-        println!("RMS: {:.3}, Peak: {:.3}", volume, peak);
-    }
 }
 
 pub fn create_default_output_stream() -> cpal::Stream {
@@ -31,25 +16,39 @@ pub fn create_default_output_stream() -> cpal::Stream {
         .default_output_config()
         .expect("No default output config found");
 
+    let channels = audio_cfg.channels();
+    let mut f32_samples: Vec<Vec<f32>> = Vec::with_capacity(channels.into());
+    for _ in 0..channels {
+        f32_samples.push(Vec::with_capacity(audio_cfg.sample_rate().0 as usize));
+    }
+    let samplerate = audio_cfg.config().sample_rate;
+    // Make sure buffer size is multiple of 4 while being aprox. 10 ms long
+    let buffer_size = (samplerate.0 as f32 * 0.01) as u32 + 4 - (samplerate.0 as f32 * 0.01) as u32 % 4;
+    let config = StreamConfig {
+        channels: channels,
+        sample_rate: samplerate,
+        buffer_size: cpal::BufferSize::Fixed(buffer_size)
+    };
+    let mut threshold = DynamicThreshold::init_buffer(20);
     let outstream = match audio_cfg.sample_format() {
         cpal::SampleFormat::F32 => out.build_input_stream(
-            &audio_cfg.config(),
-            move |data: &[f32], _| print_data(data),
+            &config,
+            move |data: &[f32], _| print_data(data, channels, &mut f32_samples, &mut threshold),
             capture_err_fn,
             None,
         ),
         cpal::SampleFormat::I16 => {
             out.build_input_stream(
-                &audio_cfg.config(),
-                move |data: &[i16], _| print_data(data),
+                &config,
+                move |data: &[i16], _| print_data(data, channels, &mut f32_samples, &mut threshold),
                 capture_err_fn,
                 None,
             )
         }
         cpal::SampleFormat::U16 => {
             out.build_input_stream(
-                &audio_cfg.config(),
-                move |data: &[u16], _| print_data(data),
+                &config,
+                move |data: &[u16], _| print_data(data, channels, &mut f32_samples, &mut threshold),
                 capture_err_fn,
                 None,
             )
