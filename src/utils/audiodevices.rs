@@ -29,7 +29,7 @@ pub fn create_default_output_stream() -> cpal::Stream {
         sample_rate: samplerate,
         buffer_size: cpal::BufferSize::Fixed(buffer_size)
     };
-    let mut threshold = DynamicThreshold::init_buffer(5);
+    let mut threshold = DynamicThreshold::init_buffer(20);
     let outstream = match audio_cfg.sample_format() {
         cpal::SampleFormat::F32 => out.build_input_stream(
             &config,

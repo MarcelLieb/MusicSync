@@ -104,7 +104,7 @@ where T: Sample + ToSample<f32> {
 
 #[derive(Debug, Clone)]
 pub struct DynamicThreshold {
-    past_thresholds: VecDeque<f32>,
+    past_samples: VecDeque<f32>,
     buffer_size: usize
 }
 
@@ -112,27 +112,38 @@ pub struct DynamicThreshold {
 impl DynamicThreshold {
     pub fn init() -> Self {
         DynamicThreshold { 
-            past_thresholds: VecDeque::with_capacity(3), buffer_size: 3
+            past_samples: VecDeque::with_capacity(3), buffer_size: 3
         }
     }
 
     pub fn init_buffer(buffer_size: usize) -> Self {
         DynamicThreshold { 
-            past_thresholds: VecDeque::with_capacity(buffer_size), buffer_size: buffer_size
+            past_samples: VecDeque::with_capacity(buffer_size), buffer_size: buffer_size
         }
     }
 
     fn get_threshold(&mut self, value: f32) -> f32 {
-        let mut sum: f32 = self.past_thresholds.iter().sum();
-        if self.past_thresholds.len() >= self.buffer_size {
-            self.past_thresholds.pop_front();
-            self.past_thresholds.push_back(value);
+        const DELTA: f32 = 0.2;
+        const LAMBDA: f32 = 0.15;
+        if self.past_samples.len() >= self.buffer_size {
+            self.past_samples.pop_front();
+            self.past_samples.push_back(value);
         }
         else {
-            self.past_thresholds.push_back(value);
-            sum = f32::MAX;
+            self.past_samples.push_back(value);
         }
-        sum / self.past_thresholds.len() as f32
+
+        let max = self.past_samples.iter().fold(f32::MIN, |a, b| f32::max(a, *b));
+        let mut normalized: Vec<f32> = self.past_samples.iter().map(|s| s / max).collect();
+        normalized
+            .iter_mut()
+            .for_each(|s| *s = s.powi(2));
+        normalized.extend(vec![0.0; self.buffer_size - 1]);
+        let mut pad = vec![normalized];
+        window(&mut pad);
+        let sum = pad[0].iter().sum::<f32>();
+        let threshold = (DELTA + LAMBDA * sum) * max;
+        threshold
     }
 }
 
@@ -144,6 +155,7 @@ fn window(samples: &mut Vec<Vec<f32>>) {
         .map(|n| 0.5 * (1. - f32::cos(2. * PI * n as f32 / N as f32)))
         .collect();
 
+    /*
     // Matlab coefficents from wikipedia
     const A: [f32; 5] = [0.21557895, 0.41663158, 0.277263158, 0.083578947, 0.006947368]; 
     let window_flat_top: Vec<f32> = (0..N)
@@ -155,6 +167,7 @@ fn window(samples: &mut Vec<Vec<f32>>) {
             + A[4] * (8. * PI * n as f32 / N as f32).cos()
         )
         .collect();
+     */
 
     // Apply window
     samples
