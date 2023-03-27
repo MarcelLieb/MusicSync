@@ -380,6 +380,7 @@ dependencies = [
  "colored",
  "cpal",
  "dasp_sample",
+ "lazy_static",
  "log",
  "realfft",
  "rustfft",

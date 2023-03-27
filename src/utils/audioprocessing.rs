@@ -5,12 +5,18 @@ use dasp_sample::ToSample;
 use realfft::RealFftPlanner;
 use log::info;
 use colored::Colorize;
+use lazy_static::lazy_static;
 
-pub fn print_data<T>(data: &[T], channels: u16, f32_samples: &mut Vec<Vec<f32>>, threshold: &mut DynamicThreshold)
+lazy_static! {
+    static ref FFT_WINDOW: Vec<f32> = window(480, WindowType::Hann);
+    static ref THRESHOLD_WINDOW: Vec<f32> = window(39, WindowType::Hann);
+}
+
+pub fn print_onset<T>(data: &[T], channels: u16, f32_samples: &mut Vec<Vec<f32>>, threshold: &mut DynamicThreshold)
 where T: Sample + ToSample<f32> {
     split_channels(channels, data, f32_samples);
 
-    apply_window(f32_samples, window(f32_samples[0].len(), WindowType::Hann).as_slice());
+    apply_window(f32_samples, FFT_WINDOW.as_slice());
     // Pad with trailing zeros
     f32_samples
         .iter_mut()
@@ -113,7 +119,7 @@ pub struct DynamicThreshold {
 impl DynamicThreshold {
     pub fn init() -> Self {
         DynamicThreshold { 
-            past_samples: VecDeque::with_capacity(3), buffer_size: 3
+            past_samples: VecDeque::with_capacity(20), buffer_size: 20
         }
     }
 
@@ -141,7 +147,13 @@ impl DynamicThreshold {
             .for_each(|s| *s = s.powi(2));
         normalized.extend(std::iter::repeat(0.0).take(self.buffer_size - 1));
         let size = normalized.len();
-        apply_window_mono(&mut normalized, window(size, WindowType::Hann).as_slice());
+        let wndw: Vec<f32>;
+        if self.buffer_size == 20 {
+            wndw = THRESHOLD_WINDOW.to_vec();
+        } else {
+            wndw = window(size, WindowType::Hann);
+        }
+        apply_window_mono(&mut normalized, wndw.as_slice());
         let sum = normalized.iter().sum::<f32>();
         let threshold = (DELTA + LAMBDA * sum) * max;
         threshold
