@@ -1,7 +1,10 @@
 use cpal::{self, traits::{HostTrait, DeviceTrait}, BuildStreamError, StreamConfig};
 use log::{debug};
-use crate::utils::audioprocessing::{print_data, DynamicThreshold};
+use crate::utils::audioprocessing::{print_onset, DynamicThreshold};
 
+
+pub const SAMPLE_RATE: u32 = 48000;
+pub const BUFFER_SIZE: u32 = 480;
 
 fn capture_err_fn(err: cpal::StreamError) {
     eprintln!("an error occurred on stream: {}", err);
@@ -21,26 +24,24 @@ pub fn create_default_output_stream() -> cpal::Stream {
     for _ in 0..channels {
         f32_samples.push(Vec::with_capacity(audio_cfg.sample_rate().0 as usize));
     }
-    let samplerate = audio_cfg.config().sample_rate;
-    // Make sure buffer size is multiple of 4 while being aprox. 10 ms long
-    let buffer_size = (samplerate.0 as f32 * 0.01) as u32 + 4 - (samplerate.0 as f32 * 0.01) as u32 % 4;
+    // buffer size is aprox. 10 ms long
     let config = StreamConfig {
         channels: channels,
-        sample_rate: samplerate,
-        buffer_size: cpal::BufferSize::Fixed(buffer_size)
+        sample_rate: cpal::SampleRate(SAMPLE_RATE),
+        buffer_size: cpal::BufferSize::Fixed(BUFFER_SIZE)
     };
     let mut threshold = DynamicThreshold::init_buffer(20);
     let outstream = match audio_cfg.sample_format() {
         cpal::SampleFormat::F32 => out.build_input_stream(
             &config,
-            move |data: &[f32], _| print_data(data, channels, &mut f32_samples, &mut threshold),
+            move |data: &[f32], _| print_onset(data, channels, &mut f32_samples, &mut threshold),
             capture_err_fn,
             None,
         ),
         cpal::SampleFormat::I16 => {
             out.build_input_stream(
                 &config,
-                move |data: &[i16], _| print_data(data, channels, &mut f32_samples, &mut threshold),
+                move |data: &[i16], _| print_onset(data, channels, &mut f32_samples, &mut threshold),
                 capture_err_fn,
                 None,
             )
@@ -48,7 +49,7 @@ pub fn create_default_output_stream() -> cpal::Stream {
         cpal::SampleFormat::U16 => {
             out.build_input_stream(
                 &config,
-                move |data: &[u16], _| print_data(data, channels, &mut f32_samples, &mut threshold),
+                move |data: &[u16], _| print_onset(data, channels, &mut f32_samples, &mut threshold),
                 capture_err_fn,
                 None,
             )
