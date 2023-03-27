@@ -7,8 +7,10 @@ use log::info;
 use colored::Colorize;
 use lazy_static::lazy_static;
 
+use crate::utils::audiodevices;
+
 lazy_static! {
-    static ref FFT_WINDOW: Vec<f32> = window(480, WindowType::Hann);
+    static ref FFT_WINDOW: Vec<f32> = window(audiodevices::BUFFER_SIZE as usize, WindowType::Hann);
     static ref THRESHOLD_WINDOW: Vec<f32> = window(39, WindowType::Hann);
 }
 

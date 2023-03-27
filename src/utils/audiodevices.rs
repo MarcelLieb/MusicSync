@@ -3,6 +3,9 @@ use log::{debug};
 use crate::utils::audioprocessing::{print_onset, DynamicThreshold};
 
 
+pub const SAMPLE_RATE: u32 = 48000;
+pub const BUFFER_SIZE: u32 = 480;
+
 fn capture_err_fn(err: cpal::StreamError) {
     eprintln!("an error occurred on stream: {}", err);
 }
@@ -21,13 +24,11 @@ pub fn create_default_output_stream() -> cpal::Stream {
     for _ in 0..channels {
         f32_samples.push(Vec::with_capacity(audio_cfg.sample_rate().0 as usize));
     }
-    let samplerate = cpal::SampleRate(48000);
     // buffer size is aprox. 10 ms long
-    let buffer_size = cpal::BufferSize::Fixed(480);
     let config = StreamConfig {
         channels: channels,
-        sample_rate: samplerate,
-        buffer_size: buffer_size
+        sample_rate: cpal::SampleRate(SAMPLE_RATE),
+        buffer_size: cpal::BufferSize::Fixed(BUFFER_SIZE)
     };
     let mut threshold = DynamicThreshold::init_buffer(20);
     let outstream = match audio_cfg.sample_format() {
