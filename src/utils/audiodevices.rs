@@ -21,13 +21,13 @@ pub fn create_default_output_stream() -> cpal::Stream {
     for _ in 0..channels {
         f32_samples.push(Vec::with_capacity(audio_cfg.sample_rate().0 as usize));
     }
-    let samplerate = audio_cfg.config().sample_rate;
-    // Make sure buffer size is multiple of 4 while being aprox. 10 ms long
-    let buffer_size = (samplerate.0 as f32 * 0.01) as u32 + 4 - (samplerate.0 as f32 * 0.01) as u32 % 4;
+    let samplerate = cpal::SampleRate(48000);
+    // buffer size is aprox. 10 ms long
+    let buffer_size = cpal::BufferSize::Fixed(480);
     let config = StreamConfig {
         channels: channels,
         sample_rate: samplerate,
-        buffer_size: cpal::BufferSize::Fixed(buffer_size)
+        buffer_size: buffer_size
     };
     let mut threshold = DynamicThreshold::init_buffer(20);
     let outstream = match audio_cfg.sample_format() {
