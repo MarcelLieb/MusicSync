@@ -16,7 +16,7 @@ where T: Sample + ToSample<f32> {
         .iter_mut()
         .for_each(|channel| 
             channel
-                .extend(vec![0.0; channel.capacity() - channel.len()]));
+                .extend(std::iter::repeat(0.0).take(channel.capacity() - channel.len())));
 
     // Check for silence
     let sound = f32_samples[0]
@@ -139,7 +139,7 @@ impl DynamicThreshold {
         normalized
             .iter_mut()
             .for_each(|s| *s = s.powi(2));
-        normalized.extend(vec![0.0; self.buffer_size - 1]);
+        normalized.extend(std::iter::repeat(0.0).take(self.buffer_size - 1));
         let mut pad = vec![normalized];
         window(&mut pad);
         let sum = pad[0].iter().sum::<f32>();
@@ -152,9 +152,8 @@ impl DynamicThreshold {
 fn window(samples: &mut Vec<Vec<f32>>) {
     let N = samples[0].len();
     //Hann window
-    let window_Hann: Vec<f32> = (0..N)
-        .map(|n| 0.5 * (1. - f32::cos(2. * PI * n as f32 / N as f32)))
-        .collect();
+    let mut window_Hann = (0..N)
+        .map(|n| 0.5 * (1. - f32::cos(2. * PI * n as f32 / N as f32)));
 
     /*
     // Matlab coefficents from wikipedia
@@ -176,7 +175,7 @@ fn window(samples: &mut Vec<Vec<f32>>) {
         .for_each(|channel|
             channel
                 .iter_mut()
-                .zip(window_Hann.iter())
+                .zip(&mut window_Hann)
                 .for_each(|(x, w)| *x = *x * w)
         );
 }
