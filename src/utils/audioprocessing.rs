@@ -53,19 +53,18 @@ where T: Sample + ToSample<f32> {
     apply_window(f32_samples, FFT_WINDOW.as_slice());
     
     mono_samples.clear();
-    let samples_flat: Vec<&f32> = f32_samples.iter().flatten().collect();
     // buffer_len != BUFFER_SIZE on linux
     let buffer_len = f32_samples[0].len();
-    (0..buffer_len)
-        .for_each(|i|
-            mono_samples
-                .push(
-                    samples_flat[(i * channels as usize)..(i * channels as usize + channels as usize) as usize]
-                        .iter()
-                        .map(|s| *s)
-                        .sum()
-                )
-        );
+    mono_samples.extend(
+        data
+            .chunks(channels as usize)
+            .take(buffer_len)
+            .map(|x| 
+                x.iter()
+                    .map(|s| (*s).to_sample::<f32>())
+                    .sum::<f32>()
+            )
+    );
     // Pad with trailing zeros
     mono_samples.extend(std::iter::repeat(0.0).take(mono_samples.capacity() - mono_samples.len()));
     match fft_planner.process(mono_samples, fft_output) {
