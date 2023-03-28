@@ -44,18 +44,18 @@ where T: Sample + ToSample<f32> {
         return;
     }
     let volume: f32 = f32_samples
-    .iter()
-    .map(|c| (c.iter()
-        .fold(0.0, |acc, e| acc +  e * e) / c.len() as f32)
-        .sqrt())
-    .sum::<f32>() / f32_samples.len() as f32;
+        .iter()
+        .map(|c| (c.iter()
+            .fold(0.0, |acc, e| acc +  e * e) / c.len() as f32)
+            .sqrt())
+        .sum::<f32>() / f32_samples.len() as f32;
 
     let peak = f32_samples
-    .iter()
-    .map(|c| c.iter()
-        .fold(0.0,|max, f| if f.abs() > max {f.abs()} else {max})
-    )
-    .reduce(f32::max).unwrap();
+        .iter()
+        .map(|c| c.iter()
+            .fold(0.0,|max, f| if f.abs() > max {f.abs()} else {max})
+        )
+        .reduce(f32::max).unwrap();
 
     info!("RMS: {:.3}, Peak: {:.3}", volume, peak);
 
