@@ -36,73 +36,73 @@ where T: Sample + ToSample<f32> {
                 .extend(std::iter::repeat(0.0).take(channel.capacity() - channel.len())));
 
     // Check for silence
-    let sound = f32_samples[0]
+    let sound = f32_samples
         .iter()
+        .flatten()
         .any(|i| *i != Sample::EQUILIBRIUM);
+    if !sound {
+        return;
+    }
+    let volume: f32 = f32_samples
+    .iter()
+    .map(|c| (c.iter()
+        .fold(0.0, |acc, e| acc +  e * e) / c.len() as f32)
+        .sqrt())
+    .sum::<f32>() / f32_samples.len() as f32;
 
-    if sound {
-        let volume: f32 = f32_samples
+    let peak = f32_samples
+    .iter()
+    .map(|c| c.iter()
+        .fold(0.0,|max, f| if f.abs() > max {f.abs()} else {max})
+    )
+    .reduce(f32::max).unwrap();
+
+    info!("RMS: {:.3}, Peak: {:.3}", volume, peak);
+
+    mono_samples.clear();
+    mono_samples.extend(f32_samples
+        .iter()
+        .fold(vec![0.0; f32_samples[0].len()],|sum: Vec<f32>, channel: &Vec<f32>|
+            sum
+                .iter()
+                .zip(channel)
+                .map(|(s, c)| *s + c)
+                .collect::<Vec<f32>>()
+        )
+    );
+    
+    match fft_planner.process(mono_samples, fft_output) {
+        Ok(()) => (),
+        Err(e) => println!("Error: {:?}", e)
+    }
+
+    freq_bins.clear();
+    freq_bins.extend(
+        fft_output
             .iter()
-            .map(|c| (c.iter()
-                .fold(0.0, |acc, e| acc +  e * e) / c.len() as f32)
-                .sqrt())
-            .sum::<f32>() / f32_samples.len() as f32;
-
-        let peak = f32_samples
-            .iter()
-            .map(|c| c.iter()
-                .fold(0.0,|max, f| if f.abs() > max {f.abs()} else {max})
-            )
-            .reduce(f32::max).unwrap();
-
-        info!("RMS: {:.3}, Peak: {:.3}", volume, peak);
-
-        mono_samples.clear();
-        mono_samples.extend(f32_samples
-            .iter()
-            .fold(vec![0.0; f32_samples[0].len()],|sum: Vec<f32>, channel: &Vec<f32>|
-                sum
-                    .iter()
-                    .zip(channel)
-                    .map(|(s, c)| *s + c)
-                    .collect::<Vec<f32>>()
-            )
+            .map(|e| (e.re * e.re + e.im * e.im).sqrt())
         );
 
-        match fft_planner.process(mono_samples, fft_output) {
-            Ok(()) => (),
-            Err(e) => println!("Error: {:?}", e)
-        }
+    let weight: f32 = freq_bins
+        .iter()
+        .enumerate()
+        .map(|(k, freq)| k as f32 * freq)
+        .sum();
 
-        freq_bins.clear();
-        freq_bins.extend(
-            fft_output
-                .iter()
-                .map(|e| (e.re * e.re + e.im * e.im).sqrt())
-            );
-        
-        let weight: f32 = freq_bins
-            .iter()
-            .enumerate()
-            .map(|(k, freq)| k as f32 * freq)
-            .sum();
-
-        if weight >= threshold.get_threshold(weight) {
-            println!("{}", "■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■".bright_red());
-        }
-        else {
-            println!("{}", "---------------".black());
-        }
-
-        let index_of_max = freq_bins
-            .iter()
-            .enumerate()
-            .max_by(|(_, a), (_, b)| a.total_cmp(b))
-            .unwrap()
-            .0;
-
-        info!("Loudest frequency: {}Hz", index_of_max);
+    if weight >= threshold.get_threshold(weight) {
+        println!("{}", "■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■".bright_red());
+    } else {
+        println!("{}", "---------------".black());
     }
+
+    let index_of_max = freq_bins
+        .iter()
+        .enumerate()
+        .max_by(|(_, a), (_, b)| a.total_cmp(b))
+        .unwrap()
+        .0;
+
+    info!("Loudest frequency: {}Hz", index_of_max);
 }
 
 
