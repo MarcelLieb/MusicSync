@@ -1,8 +1,8 @@
-use std::{collections::VecDeque, f32::consts::PI};
+use std::{collections::VecDeque, f32::consts::PI, sync::Arc};
 
 use cpal::Sample;
 use dasp_sample::ToSample;
-use realfft::RealFftPlanner;
+use realfft::{RealToComplex, num_complex::{Complex32}};
 use log::info;
 use colored::Colorize;
 use lazy_static::lazy_static;
@@ -14,7 +14,16 @@ lazy_static! {
     static ref THRESHOLD_WINDOW: Vec<f32> = window(39, WindowType::Hann);
 }
 
-pub fn print_onset<T>(data: &[T], channels: u16, f32_samples: &mut Vec<Vec<f32>>, threshold: &mut DynamicThreshold)
+pub fn print_onset<T>(
+    data: &[T], 
+    channels: u16,
+    f32_samples: &mut Vec<Vec<f32>>, 
+    mono_samples: &mut Vec<f32>,
+    fft_planner: &Arc<dyn RealToComplex<f32>>,
+    fft_output: &mut Vec<Complex32>,
+    freq_bins: &mut Vec<f32>,
+    threshold: &mut DynamicThreshold
+)
 where T: Sample + ToSample<f32> {
     split_channels(channels, data, f32_samples);
 
@@ -32,11 +41,12 @@ where T: Sample + ToSample<f32> {
         .any(|i| *i != Sample::EQUILIBRIUM);
 
     if sound {
-        let volume: Vec<f32> = f32_samples.iter()
+        let volume: f32 = f32_samples
+            .iter()
             .map(|c| (c.iter()
                 .fold(0.0, |acc, e| acc +  e * e) / c.len() as f32)
                 .sqrt())
-            .collect();
+            .sum::<f32>() / f32_samples.len() as f32;
 
         let peak = f32_samples
             .iter()
@@ -45,12 +55,10 @@ where T: Sample + ToSample<f32> {
             )
             .reduce(f32::max).unwrap();
 
-        info!("RMS: {:.3}, Peak: {:.3}", volume.iter().sum::<f32>() / volume.len() as f32, peak);
+        info!("RMS: {:.3}, Peak: {:.3}", volume, peak);
 
-        let mut planner = RealFftPlanner::<f32>::new();
-        let fft = planner.plan_fft_forward(f32_samples[0].capacity());
-
-        let mut input = f32_samples
+        mono_samples.clear();
+        mono_samples.extend(f32_samples
             .iter()
             .fold(vec![0.0; f32_samples[0].len()],|sum: Vec<f32>, channel: &Vec<f32>|
                 sum
@@ -58,26 +66,26 @@ where T: Sample + ToSample<f32> {
                     .zip(channel)
                     .map(|(s, c)| *s + c)
                     .collect::<Vec<f32>>()
-            );
+            )
+        );
 
-        let mut output = fft.make_output_vec();
-        match fft.process(&mut input, &mut output) {
+        match fft_planner.process(mono_samples, fft_output) {
             Ok(()) => (),
             Err(e) => println!("Error: {:?}", e)
         }
 
-        let output = output
-            .iter()
-            .map(|e| (e.re * e.re + e.im * e.im).sqrt())
-            .collect::<Vec<f32>>();
-
-        let weighted: Vec<f32> = output
+        freq_bins.clear();
+        freq_bins.extend(
+            fft_output
+                .iter()
+                .map(|e| (e.re * e.re + e.im * e.im).sqrt())
+            );
+        
+        let weight: f32 = freq_bins
             .iter()
             .enumerate()
             .map(|(k, freq)| k as f32 * freq)
-            .collect();
-
-        let weight: f32 = weighted.iter().sum();
+            .sum();
 
         if weight >= threshold.get_threshold(weight) {
             println!("{}", "■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■".bright_red());
@@ -86,12 +94,12 @@ where T: Sample + ToSample<f32> {
             println!("{}", "---------------".black());
         }
 
-        let index_of_max = output
+        let index_of_max = freq_bins
             .iter()
             .enumerate()
             .max_by(|(_, a), (_, b)| a.total_cmp(b))
-            .map(|(index, _)| index)
-            .unwrap(); 
+            .unwrap()
+            .0;
 
         info!("Loudest frequency: {}Hz", index_of_max);
     }
@@ -146,7 +154,10 @@ impl DynamicThreshold {
         let mut normalized: Vec<f32> = self.past_samples.iter()
             .map(|s| s / max)
             .map(|s| s.powi(2))
-            .chain(std::iter::repeat(0.0).take(self.buffer_size - 1))
+            .chain(
+                std::iter::repeat(0.0)
+                    .take(self.buffer_size - 1)
+            )
             .collect();
         let size = normalized.len();
         let wndw: Vec<f32>;
@@ -163,6 +174,7 @@ impl DynamicThreshold {
 }
 
 
+#[allow(dead_code)]
 pub enum WindowType {
     Hann,
     FlatTop
