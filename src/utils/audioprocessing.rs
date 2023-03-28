@@ -1,100 +1,105 @@
-use std::{collections::VecDeque, f32::consts::PI};
+use std::{collections::VecDeque, f32::consts::PI, sync::Arc};
 
 use cpal::Sample;
 use dasp_sample::ToSample;
-use realfft::RealFftPlanner;
+use realfft::{RealToComplex, num_complex::{Complex32}};
 use log::info;
 use colored::Colorize;
 use lazy_static::lazy_static;
 
-use crate::utils::audiodevices;
+use crate::utils::audiodevices::BUFFER_SIZE;
 
 lazy_static! {
-    static ref FFT_WINDOW: Vec<f32> = window(audiodevices::BUFFER_SIZE as usize, WindowType::Hann);
+    static ref FFT_WINDOW: Vec<f32> = window(BUFFER_SIZE as usize, WindowType::Hann);
     static ref THRESHOLD_WINDOW: Vec<f32> = window(39, WindowType::Hann);
 }
 
-pub fn print_onset<T>(data: &[T], channels: u16, f32_samples: &mut Vec<Vec<f32>>, threshold: &mut DynamicThreshold)
+pub fn print_onset<T>(
+    data: &[T], 
+    channels: u16,
+    f32_samples: &mut Vec<Vec<f32>>, 
+    mono_samples: &mut Vec<f32>,
+    fft_planner: &Arc<dyn RealToComplex<f32>>,
+    fft_output: &mut Vec<Complex32>,
+    freq_bins: &mut Vec<f32>,
+    threshold: &mut DynamicThreshold
+)
 where T: Sample + ToSample<f32> {
+    //Check for silence and abort if present
+    let sound = data.iter().any(|i| *i != Sample::EQUILIBRIUM);
+    if !sound {
+        return;
+    }
     split_channels(channels, data, f32_samples);
 
-    apply_window(f32_samples, FFT_WINDOW.as_slice());
-    // Pad with trailing zeros
-    f32_samples
-        .iter_mut()
-        .for_each(|channel| 
-            channel
-                .extend(std::iter::repeat(0.0).take(channel.capacity() - channel.len())));
-
-    // Check for silence
-    let sound = f32_samples[0]
+    let volume: f32 = f32_samples
         .iter()
-        .any(|i| *i != Sample::EQUILIBRIUM);
+        .map(|c| (c.iter()
+            .fold(0.0, |acc, e| acc +  e * e) / c.len() as f32)
+            .sqrt())
+        .sum::<f32>() / channels as f32;
 
-    if sound {
-        let volume: Vec<f32> = f32_samples.iter()
-            .map(|c| (c.iter()
-                .fold(0.0, |acc, e| acc +  e * e) / c.len() as f32)
-                .sqrt())
-            .collect();
+    let peak = f32_samples
+        .iter()
+        .map(|c| c.iter()
+            .fold(0.0,|max, f| if f.abs() > max {f.abs()} else {max})
+        )
+        .reduce(f32::max)
+        .unwrap();
 
-        let peak = f32_samples
-            .iter()
-            .map(|c| c.iter()
-                .fold(0.0,|max, f| if f.abs() > max {f.abs()} else {max})
-            )
-            .reduce(f32::max).unwrap();
+    info!("RMS: {:.3}, Peak: {:.3}", volume, peak);
 
-        info!("RMS: {:.3}, Peak: {:.3}", volume.iter().sum::<f32>() / volume.len() as f32, peak);
+    // Could only apply window to collapsed mono signal
+    apply_window(f32_samples, FFT_WINDOW.as_slice());
+    
+    mono_samples.clear();
+    let samples_flat: Vec<&f32> = f32_samples.iter().flatten().collect();
+    // buffer_len != BUFFER_SIZE on linux
+    let buffer_len = f32_samples[0].len();
+    (0..buffer_len)
+        .for_each(|i|
+            mono_samples
+                .push(
+                    samples_flat[(i * channels as usize)..(i * channels as usize + channels as usize) as usize]
+                        .iter()
+                        .map(|s| *s)
+                        .sum()
+                )
+        );
+    // Pad with trailing zeros
+    mono_samples.extend(std::iter::repeat(0.0).take(mono_samples.capacity() - mono_samples.len()));
+    match fft_planner.process(mono_samples, fft_output) {
+        Ok(()) => (),
+        Err(e) => println!("Error: {:?}", e)
+    }
 
-        let mut planner = RealFftPlanner::<f32>::new();
-        let fft = planner.plan_fft_forward(f32_samples[0].capacity());
-
-        let mut input = f32_samples
-            .iter()
-            .fold(vec![0.0; f32_samples[0].len()],|sum: Vec<f32>, channel: &Vec<f32>|
-                sum
-                    .iter()
-                    .zip(channel)
-                    .map(|(s, c)| *s + c)
-                    .collect::<Vec<f32>>()
-            );
-
-        let mut output = fft.make_output_vec();
-        match fft.process(&mut input, &mut output) {
-            Ok(()) => (),
-            Err(e) => println!("Error: {:?}", e)
-        }
-
-        let output = output
+    freq_bins.clear();
+    freq_bins.extend(
+        fft_output
             .iter()
             .map(|e| (e.re * e.re + e.im * e.im).sqrt())
-            .collect::<Vec<f32>>();
+        );
 
-        let weighted: Vec<f32> = output
-            .iter()
-            .enumerate()
-            .map(|(k, freq)| k as f32 * freq)
-            .collect();
+    let weight: f32 = freq_bins
+        .iter()
+        .enumerate()
+        .map(|(k, freq)| k as f32 * freq)
+        .sum();
 
-        let weight: f32 = weighted.iter().sum();
-
-        if weight >= threshold.get_threshold(weight) {
-            println!("{}", "■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■".bright_red());
-        }
-        else {
-            println!("{}", "---------------".black());
-        }
-
-        let index_of_max = output
-            .iter()
-            .enumerate()
-            .max_by(|(_, a), (_, b)| a.total_cmp(b))
-            .map(|(index, _)| index)
-            .unwrap(); 
-
-        info!("Loudest frequency: {}Hz", index_of_max);
+    if weight >= threshold.get_threshold(weight) {
+        println!("{}", "■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■".bright_red());
+    } else {
+        println!("{}", "---------------".black());
     }
+
+    let index_of_max = freq_bins
+        .iter()
+        .enumerate()
+        .max_by(|(_, a), (_, b)| a.total_cmp(b))
+        .unwrap()
+        .0;
+
+    info!("Loudest frequency: {}Hz", index_of_max);
 }
 
 
@@ -143,11 +148,14 @@ impl DynamicThreshold {
         }
 
         let max = self.past_samples.iter().fold(f32::MIN, |a, b| f32::max(a, *b));
-        let mut normalized: Vec<f32> = self.past_samples.iter().map(|s| s / max).collect();
-        normalized
-            .iter_mut()
-            .for_each(|s| *s = s.powi(2));
-        normalized.extend(std::iter::repeat(0.0).take(self.buffer_size - 1));
+        let mut normalized: Vec<f32> = self.past_samples.iter()
+            .map(|s| s / max)
+            .map(|s| s.powi(2))
+            .chain(
+                std::iter::repeat(0.0)
+                    .take(self.buffer_size - 1)
+            )
+            .collect();
         let size = normalized.len();
         let wndw: Vec<f32>;
         if self.buffer_size == 20 {
@@ -163,6 +171,7 @@ impl DynamicThreshold {
 }
 
 
+#[allow(dead_code)]
 pub enum WindowType {
     Hann,
     FlatTop

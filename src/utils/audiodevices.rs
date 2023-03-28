@@ -1,9 +1,11 @@
 use cpal::{self, traits::{HostTrait, DeviceTrait}, BuildStreamError, StreamConfig};
 use log::{debug};
+use realfft::RealFftPlanner;
 use crate::utils::audioprocessing::{print_onset, DynamicThreshold};
 
 
 pub const SAMPLE_RATE: u32 = 48000;
+// buffer size is 10 ms long
 pub const BUFFER_SIZE: u32 = 480;
 
 fn capture_err_fn(err: cpal::StreamError) {
@@ -20,28 +22,35 @@ pub fn create_default_output_stream() -> cpal::Stream {
         .expect("No default output config found");
 
     let channels = audio_cfg.channels();
-    let mut f32_samples: Vec<Vec<f32>> = Vec::with_capacity(channels.into());
-    for _ in 0..channels {
-        f32_samples.push(Vec::with_capacity(audio_cfg.sample_rate().0 as usize));
-    }
-    // buffer size is aprox. 10 ms long
     let config = StreamConfig {
         channels: channels,
         sample_rate: cpal::SampleRate(SAMPLE_RATE),
         buffer_size: cpal::BufferSize::Fixed(BUFFER_SIZE)
     };
+
+    let mut f32_samples: Vec<Vec<f32>> = Vec::with_capacity(channels.into());
+    for _ in 0..channels {
+        f32_samples.push(Vec::with_capacity(SAMPLE_RATE as usize));
+    }
+    let mut mono_samples: Vec<f32> = Vec::with_capacity(SAMPLE_RATE as usize);
+
+    let fft_planner = RealFftPlanner::<f32>::new().plan_fft_forward(mono_samples.capacity());
+    let mut fft_output = fft_planner.make_output_vec();
+    let mut freq_bins: Vec<f32> = Vec::with_capacity(fft_output.capacity());
+
     let mut threshold = DynamicThreshold::init_buffer(20);
+
     let outstream = match audio_cfg.sample_format() {
         cpal::SampleFormat::F32 => out.build_input_stream(
             &config,
-            move |data: &[f32], _| print_onset(data, channels, &mut f32_samples, &mut threshold),
+            move |data: &[f32], _| print_onset(data, channels, &mut f32_samples, &mut mono_samples, &fft_planner, &mut fft_output, &mut freq_bins, &mut threshold),
             capture_err_fn,
             None,
         ),
         cpal::SampleFormat::I16 => {
             out.build_input_stream(
                 &config,
-                move |data: &[i16], _| print_onset(data, channels, &mut f32_samples, &mut threshold),
+                move |data: &[i16], _| print_onset(data, channels, &mut f32_samples, &mut mono_samples, &fft_planner, &mut fft_output, &mut freq_bins, &mut threshold),
                 capture_err_fn,
                 None,
             )
@@ -49,13 +58,13 @@ pub fn create_default_output_stream() -> cpal::Stream {
         cpal::SampleFormat::U16 => {
             out.build_input_stream(
                 &config,
-                move |data: &[u16], _| print_onset(data, channels, &mut f32_samples, &mut threshold),
+                move |data: &[u16], _| print_onset(data, channels, &mut f32_samples, &mut mono_samples, &fft_planner, &mut fft_output, &mut freq_bins, &mut threshold),
                 capture_err_fn,
                 None,
             )
         }
         _ => Err(BuildStreamError::StreamConfigNotSupported)
-    }.ok().unwrap();
+    }.expect("Couldn't build input stream.\nMake sure you are running at 48kHz sample rate");
     debug!("Default output device: {:?}", out.name().unwrap());
     debug!("Default output sample format: {:?}", audio_cfg.sample_format());
     debug!("Default output buffer size: {:?}", audio_cfg.buffer_size());
