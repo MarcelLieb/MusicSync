@@ -25,24 +25,13 @@ pub fn print_onset<T>(
     threshold: &mut DynamicThreshold
 )
 where T: Sample + ToSample<f32> {
-    split_channels(channels, data, f32_samples);
-
-    apply_window(f32_samples, FFT_WINDOW.as_slice());
-    // Pad with trailing zeros
-    f32_samples
-        .iter_mut()
-        .for_each(|channel| 
-            channel
-                .extend(std::iter::repeat(0.0).take(channel.capacity() - channel.len())));
-
-    // Check for silence
-    let sound = f32_samples
-        .iter()
-        .flatten()
-        .any(|i| *i != Sample::EQUILIBRIUM);
+    //Check for silence and abort if present
+    let sound = data.iter().any(|i| *i != Sample::EQUILIBRIUM);
     if !sound {
         return;
     }
+    split_channels(channels, data, f32_samples);
+
     let volume: f32 = f32_samples
         .iter()
         .map(|c| (c.iter()
@@ -58,6 +47,15 @@ where T: Sample + ToSample<f32> {
         .reduce(f32::max).unwrap();
 
     info!("RMS: {:.3}, Peak: {:.3}", volume, peak);
+
+    apply_window(f32_samples, FFT_WINDOW.as_slice());
+
+    // Pad with trailing zeros
+    f32_samples
+        .iter_mut()
+        .for_each(|channel| 
+            channel
+                .extend(std::iter::repeat(0.0).take(channel.capacity() - channel.len())));
 
     mono_samples.clear();
     mono_samples.extend(f32_samples
