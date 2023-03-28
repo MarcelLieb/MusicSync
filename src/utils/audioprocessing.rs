@@ -54,11 +54,13 @@ where T: Sample + ToSample<f32> {
     
     mono_samples.clear();
     let samples_flat: Vec<&f32> = f32_samples.iter().flatten().collect();
-    (0..BUFFER_SIZE)
+    // buffer_len != BUFFER_SIZE on linux
+    let buffer_len = f32_samples[0].len();
+    (0..buffer_len)
         .for_each(|i|
             mono_samples
                 .push(
-                    samples_flat[(i * channels as u32) as usize..(i * channels as u32 + channels as u32) as usize]
+                    samples_flat[(i * channels as usize)..(i * channels as usize + channels as usize) as usize]
                         .iter()
                         .map(|s| *s)
                         .sum()
