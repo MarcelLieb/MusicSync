@@ -143,11 +143,11 @@ impl DynamicThreshold {
         }
 
         let max = self.past_samples.iter().fold(f32::MIN, |a, b| f32::max(a, *b));
-        let mut normalized: Vec<f32> = self.past_samples.iter().map(|s| s / max).collect();
-        normalized
-            .iter_mut()
-            .for_each(|s| *s = s.powi(2));
-        normalized.extend(std::iter::repeat(0.0).take(self.buffer_size - 1));
+        let mut normalized: Vec<f32> = self.past_samples.iter()
+            .map(|s| s / max)
+            .map(|s| s.powi(2))
+            .chain(std::iter::repeat(0.0).take(self.buffer_size - 1))
+            .collect();
         let size = normalized.len();
         let wndw: Vec<f32>;
         if self.buffer_size == 20 {
