@@ -20,6 +20,11 @@
 * [DMX Crate](https://docs.rs/dmx/latest/dmx/)
 * [WLED API](https://kno.wled.ge/interfaces/json-api/)
 
+## UI
+
+* [egui](https://github.com/emilk/egui)
+* [Node editor library for egui](https://github.com/setzer22/egui_node_graph)
+
 ## Embedded
 
 * [Embedded Rust book](https://docs.rust-embedded.org/discovery/microbit/)
