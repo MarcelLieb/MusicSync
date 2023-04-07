@@ -1,6 +1,6 @@
 use cpal::{self, traits::{HostTrait, DeviceTrait}, BuildStreamError, StreamConfig};
 use log::{debug};
-use realfft::RealFftPlanner;
+use realfft::{RealFftPlanner, num_complex::Complex};
 use crate::utils::audioprocessing::{print_onset, DynamicThreshold};
 
 
@@ -34,9 +34,9 @@ pub fn create_default_output_stream() -> cpal::Stream {
     }
     let mut mono_samples: Vec<f32> = Vec::with_capacity(SAMPLE_RATE as usize);
 
-    let fft_planner = RealFftPlanner::<f32>::new().plan_fft_forward(mono_samples.capacity());
-    let mut fft_output = fft_planner.make_output_vec();
-    let mut freq_bins: Vec<f32> = Vec::with_capacity(fft_output.capacity());
+    let fft_planner = RealFftPlanner::<f32>::new().plan_fft_forward(SAMPLE_RATE as usize);
+    let mut fft_output: Vec<Vec<Complex<f32>>> = (0..channels).map(|_| fft_planner.make_output_vec()).collect();
+    let mut freq_bins: Vec<f32> = vec![0.0; fft_output[0].capacity()];
 
     let mut threshold = DynamicThreshold::init_buffer(20);
 
