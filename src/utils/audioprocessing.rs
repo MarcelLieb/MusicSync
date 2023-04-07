@@ -20,7 +20,7 @@ pub fn print_onset<T>(
     f32_samples: &mut Vec<Vec<f32>>, 
     mono_samples: &mut Vec<f32>,
     fft_planner: &Arc<dyn RealToComplex<f32>>,
-    fft_output: &mut Vec<Complex32>,
+    fft_output: &mut Vec<Vec<Complex32>>,
     freq_bins: &mut Vec<f32>,
     threshold: &mut DynamicThreshold
 )
@@ -51,10 +51,17 @@ where T: Sample + ToSample<f32> {
 
     // Could only apply window to collapsed mono signal
     apply_window(f32_samples, FFT_WINDOW.as_slice());
+    f32_samples
+        .iter_mut()
+        .for_each(|chan| 
+            chan
+                .extend(std::iter::repeat(0.0).take(chan.capacity() - chan.len()))
+        );
     
     mono_samples.clear();
     // buffer_len != BUFFER_SIZE on linux
     let buffer_len = f32_samples[0].len();
+    // Convert to mono
     mono_samples.extend(
         data
             .chunks(channels as usize)
@@ -67,18 +74,36 @@ where T: Sample + ToSample<f32> {
     );
     // Pad with trailing zeros
     mono_samples.extend(std::iter::repeat(0.0).take(mono_samples.capacity() - mono_samples.len()));
-    match fft_planner.process(mono_samples, fft_output) {
-        Ok(()) => (),
-        Err(e) => println!("Error: {:?}", e)
-    }
+
+    // Calculate FFT
+    f32_samples.iter_mut().zip(fft_output.iter_mut()).for_each(|(samples, output)|{
+        match fft_planner.process(samples, output) {
+            Ok(()) => (),
+            Err(e) => println!("Error: {:?}", e)
+        }
+    });
+    // Save per channel freq in f32_samples as it has been scrambled already by fft
+    fft_output
+            .iter()
+            .enumerate()
+            .for_each(|(i, out)| {
+                f32_samples[i].clear();
+                f32_samples[i].extend(
+                    out.iter().map(|s| (s.re * s.re + s.im * s.im).sqrt())
+                )
+            });
 
     freq_bins.clear();
     freq_bins.extend(
-        fft_output
-            .iter()
-            .map(|e| (e.re * e.re + e.im * e.im).sqrt())
-        );
-
+        (0..fft_output[0].len())
+                .map(|i| f32_samples
+                    .iter()
+                    .flatten()
+                    .skip(i)
+                    .step_by(f32_samples[0].len())
+                    .sum::<f32>()
+                )
+    );
     let weight: f32 = freq_bins
         .iter()
         .enumerate()
