@@ -719,6 +719,7 @@ dependencies = [
  "futures",
  "lazy_static",
  "log",
+ "openssl",
  "realfft",
  "reqwest",
  "rustfft",
