@@ -40,16 +40,10 @@ impl Bridge {
         println!("Building DTLS Connection");
         let mut builder = SslConnector::builder(SslMethod::dtls()).unwrap();
         builder.set_psk_client_callback(move |_, _, id, key| {
-            app_id
-                .as_bytes()
-                .iter()
-                .enumerate()
-                .for_each(|(i, b)| id[i] = *b);
-            psk_bytes
-                .iter()
-                .enumerate()
-                .for_each(|(i, b)| key[i] = *b);
-            Ok(psk_bytes.len() + app_id.len())
+            id[..app_id.len()].copy_from_slice(app_id.as_bytes());
+            id[app_id.len()] = 0;
+            key[..psk_bytes.len()].copy_from_slice(&psk_bytes);
+            Ok(32usize)
         });
 
         builder.set_ciphersuites("TLS_PSK_WITH_AES_128_GCM_SHA256").unwrap();
@@ -60,7 +54,7 @@ impl Bridge {
 
         println!("Bound: {}", socket.local_addr().unwrap());
 
-        let stream = UStream{s: socket, ra: SocketAddr::new(IpAddr::V4(bridge_ip), 2100)};
+        let stream = UStream{socket, destination: SocketAddr::new(IpAddr::V4(bridge_ip), 2100)};
 
         println!("Performing handshake");
         let stream = match connector.connect(bridge_ip.to_string().as_str(), stream){
@@ -76,7 +70,8 @@ impl Bridge {
 }
 
 async fn start_entertainment_mode(client: &reqwest::Client, bridge_ip: &Ipv4Addr, area_id: &str, app_key: &str) -> Result<reqwest::Response, reqwest::Error>{
-    client.put("https://".to_owned() + bridge_ip.to_string().as_str() + "/clip/v2/entertainment_configuration/" + area_id)
+    let url = "https://".to_owned() + bridge_ip.to_string().as_str() + "/clip/v2/resource/entertainment_configuration/" + area_id;
+    client.put(url)
         .header("hue-application-key", app_key)
         .body("{\"action\":\"start\"}")
         .send().await
@@ -84,19 +79,19 @@ async fn start_entertainment_mode(client: &reqwest::Client, bridge_ip: &Ipv4Addr
 
 #[derive(Debug)]
 pub struct UStream {
-    pub s: UdpSocket,
-    pub ra: SocketAddr,
+    pub socket: UdpSocket,
+    pub destination: SocketAddr,
 }
 
 impl Read for UStream {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.s.recv(buf)
+        self.socket.recv(buf)
     }
 }
 
 impl Write for UStream {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.s.send_to(buf, self.ra)
+        self.socket.send_to(buf, self.destination)
     }
 
     fn flush(&mut self) -> io::Result<()> {
