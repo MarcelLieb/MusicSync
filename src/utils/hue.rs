@@ -36,6 +36,7 @@ impl Bridge {
                 return Err(ConnectionError::Mode(e));
             }
         }
+
         println!("Building DTLS Connection");
         let mut builder = SslConnector::builder(SslMethod::dtls()).unwrap();
         builder.set_psk_client_callback(move |_, _, id, key| {
@@ -48,20 +49,28 @@ impl Bridge {
                 .iter()
                 .enumerate()
                 .for_each(|(i, b)| key[i] = *b);
-            Ok(0)
+            Ok(psk_bytes.len() + app_id.len())
         });
+
         builder.set_ciphersuites("TLS_PSK_WITH_AES_128_GCM_SHA256").unwrap();
         let connector = builder.build();
+
         println!("Binding Socket");
-        let socket = UdpSocket::bind("0.0.0.0:9549").unwrap();
+        let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
+
+        println!("Bound: {}", socket.local_addr().unwrap());
+
         let stream = UStream{s: socket, ra: SocketAddr::new(IpAddr::V4(bridge_ip), 2100)};
+
         println!("Performing handshake");
         let stream = match connector.connect(bridge_ip.to_string().as_str(), stream){
             Ok(stream) => stream,
             Err(e) => return Err(ConnectionError::Handshake(e))
         };
         println!("Done");
+
         let bridge = Bridge {client, ip: bridge_ip, stream};
+        
         return Ok(bridge);
     }
 }
