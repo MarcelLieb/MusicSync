@@ -2,12 +2,15 @@ use std::{collections::VecDeque, f32::consts::PI, sync::Arc};
 
 use cpal::Sample;
 use dasp_sample::ToSample;
+use futures::executor;
 use realfft::{RealToComplex, num_complex::{Complex32}};
 use log::info;
 use colored::Colorize;
 use lazy_static::lazy_static;
 
 use crate::utils::audiodevices::BUFFER_SIZE;
+
+use super::hue::Bridge;
 
 lazy_static! {
     static ref FFT_WINDOW: Vec<f32> = window(BUFFER_SIZE as usize, WindowType::Hann);
@@ -22,7 +25,8 @@ pub fn print_onset<T>(
     fft_planner: &Arc<dyn RealToComplex<f32>>,
     fft_output: &mut Vec<Vec<Complex32>>,
     freq_bins: &mut Vec<f32>,
-    threshold: &mut DynamicThreshold
+    threshold: &mut DynamicThreshold,
+    hue_bridge: &Bridge
 )
 where T: Sample + ToSample<f32> {
     //Check for silence and abort if present
@@ -112,8 +116,10 @@ where T: Sample + ToSample<f32> {
 
     if weight >= threshold.get_threshold(weight) {
         println!("{}", "■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■".bright_red());
+        executor::block_on(hue_bridge.send_color(&[255, 255, 255]));
     } else {
         println!("{}", "---------------".black());
+        executor::block_on(hue_bridge.send_color(&[0, 0, 0]));
     }
 
     let index_of_max = freq_bins

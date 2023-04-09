@@ -1,71 +1,68 @@
 use futures::executor;
-use openssl::{ssl::{SslMethod, SslConnector, SslStream}};
-use std::{net::{UdpSocket, SocketAddr, Ipv4Addr, IpAddr}, io::{Write, Read, self}, num::ParseIntError};
-
-#[derive(Debug)]
+use log::info;
+use std::{net::{SocketAddr, Ipv4Addr, IpAddr}, num::ParseIntError, sync::Arc};
+use tokio::net::UdpSocket;
+use webrtc_dtls::{conn::DTLSConn, config::Config, cipher_suite::CipherSuiteId, Error};
 #[allow(dead_code)]
 pub struct Bridge {
-    client: reqwest::Client,
     ip: Ipv4Addr,
-    stream: SslStream<UStream>
+    stream: DTLSConn,
+    area: String
 }
 
 #[derive(Debug)]
 pub enum ConnectionError {
     Mode(reqwest::Error),
-    Handshake(openssl::ssl::HandshakeError<UStream>)
+    Handshake(Error)
 }
 
 impl Bridge {
     pub fn init() -> Result<Bridge, ConnectionError>{
         let client = reqwest::Client::builder().danger_accept_invalid_certs(true).build().unwrap();
         
-        let app_key = "r7VTnaBOBJd6sB2FzTd3IU1hPs3ZocltQYDXQxXq";
-        let app_id = "29385356-e7a3-4244-a8f6-33be42e95659";
+        let app_key = "q22b7aOctHn5xMecCBFpuIyYSdpS5rRMmTqXrQ9h";
+        let app_id = "30e32a72-c564-4b8f-9897-26170d9aeb49";
         let area_id = "5fb0617b-4883-4a1b-86c4-c67b63a9d784";
-        let psk = "50A65F0A61249C6ACFE7E95F3444BE71";
+        let psk = "3AD5F8F3F15A4BC195F774724F188334";
         let bridge_ip = "192.168.2.20".parse().unwrap();
-        let psk_bytes = decode_hex(psk).unwrap();
 
-        println!("Start Entertainment mode");
+        info!("Start Entertainment mode");
         match executor::block_on(start_entertainment_mode(&client, &bridge_ip, area_id, app_key)) {
-            Ok(r) => {println!("{}", r.status())},
+            Ok(_) => {},
             Err(e) => {
-                println!("Failed to start hue sync");
-                println!("Error: {}", e);
                 return Err(ConnectionError::Mode(e));
             }
         }
-
-        println!("Building DTLS Connection");
-        let mut builder = SslConnector::builder(SslMethod::dtls()).unwrap();
-        builder.set_psk_client_callback(move |_, _, id, key| {
-            id[..app_id.len()].copy_from_slice(app_id.as_bytes());
-            id[app_id.len()] = 0;
-            key[..psk_bytes.len()].copy_from_slice(&psk_bytes);
-            Ok(32usize)
-        });
-
-        builder.set_ciphersuites("TLS_PSK_WITH_AES_128_GCM_SHA256").unwrap();
-        let connector = builder.build();
-
-        println!("Binding Socket");
-        let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
-
-        println!("Bound: {}", socket.local_addr().unwrap());
-
-        let stream = UStream{socket, destination: SocketAddr::new(IpAddr::V4(bridge_ip), 2100)};
-
-        println!("Performing handshake");
-        let stream = match connector.connect(bridge_ip.to_string().as_str(), stream){
-            Ok(stream) => stream,
+        info!("Building DTLS Connection");
+        let connection = match executor::block_on(dtls_connection(app_id.as_bytes().to_vec(), psk.to_owned(), IpAddr::V4(bridge_ip), 2100)) {
+            Ok(conn) => conn,
             Err(e) => return Err(ConnectionError::Handshake(e))
         };
-        println!("Done");
+        info!("Connection established");
 
-        let bridge = Bridge {client, ip: bridge_ip, stream};
+        let bridge = Bridge {ip: bridge_ip, stream: connection, area: area_id.to_owned()};
         
         return Ok(bridge);
+    }
+
+    pub async fn send_color(&self, rgb: &[u8; 3]) {
+        let mut bytes = "HueStream".as_bytes().to_vec(); // Prefix
+        bytes.push(2);  // Major Version
+        bytes.push(0);  // Minor Version
+        bytes.push(0);  // Seq Id
+        bytes.push(0);  // reserved
+        bytes.push(0);  // reserved
+        bytes.push(0);  // Color Space RGB
+        bytes.push(0);  // reserved
+        bytes.extend(self.area.as_bytes());  // area uuid
+        bytes.push(0);  // channel number  
+        bytes.push(rgb[0]);
+        bytes.push(255);
+        bytes.push(rgb[1]);
+        bytes.push(255);
+        bytes.push(rgb[2]);
+        bytes.push(255);
+        self.stream.write(&bytes, None).await.unwrap();
     }
 }
 
@@ -77,26 +74,22 @@ async fn start_entertainment_mode(client: &reqwest::Client, bridge_ip: &Ipv4Addr
         .send().await
 }
 
-#[derive(Debug)]
-pub struct UStream {
-    pub socket: UdpSocket,
-    pub destination: SocketAddr,
-}
+async fn dtls_connection(identity: Vec<u8>, psk: String, dest_ip: IpAddr, dest_port: u16) -> Result<DTLSConn, Error>{
+    let config = Config {
+        cipher_suites: vec![CipherSuiteId::Tls_Psk_With_Aes_128_Gcm_Sha256],
+        psk: Some(Arc::new(move | _ | {
+            Ok(decode_hex(psk.as_str()).unwrap())
+        })),
+        psk_identity_hint: Some(identity),
+        ..Default::default()
+    };
 
-impl Read for UStream {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.socket.recv(buf)
-    }
-}
-
-impl Write for UStream {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.socket.send_to(buf, self.destination)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
+    info!("Binding Socket");
+    let socket = Arc::new(UdpSocket::bind("0.0.0.0:0").await.unwrap());
+    socket.connect(SocketAddr::new(dest_ip, dest_port)).await.unwrap();
+    info!("Bound: {}", socket.local_addr().unwrap());
+    std::thread::sleep(std::time::Duration::from_secs(3));
+    DTLSConn::new(socket, config, true, None).await
 }
 
 fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
