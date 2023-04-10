@@ -66,6 +66,12 @@ impl Bridge {
     }
 }
 
+impl Drop for Bridge {
+    fn drop(&mut self) {
+        executor::block_on(self.stream.close()).unwrap();
+    }
+}
+
 async fn start_entertainment_mode(client: &reqwest::Client, bridge_ip: &Ipv4Addr, area_id: &str, app_key: &str) -> Result<reqwest::Response, reqwest::Error>{
     let url = "https://".to_owned() + bridge_ip.to_string().as_str() + "/clip/v2/resource/entertainment_configuration/" + area_id;
     client.put(url)
@@ -88,7 +94,6 @@ async fn dtls_connection(identity: Vec<u8>, psk: String, dest_ip: IpAddr, dest_p
     let socket = Arc::new(UdpSocket::bind("0.0.0.0:0").await.unwrap());
     socket.connect(SocketAddr::new(dest_ip, dest_port)).await.unwrap();
     info!("Bound: {}", socket.local_addr().unwrap());
-    std::thread::sleep(std::time::Duration::from_secs(3));
     DTLSConn::new(socket, config, true, None).await
 }
 
