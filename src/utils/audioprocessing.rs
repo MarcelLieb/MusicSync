@@ -2,13 +2,12 @@ use std::{collections::VecDeque, f32::consts::PI, sync::Arc};
 
 use cpal::Sample;
 use dasp_sample::ToSample;
-use futures::executor;
 use realfft::{RealToComplex, num_complex::{Complex32}};
 use log::info;
 use colored::Colorize;
 use lazy_static::lazy_static;
 
-use crate::utils::audiodevices::BUFFER_SIZE;
+use crate::utils::{audiodevices::BUFFER_SIZE, lights::{LightService, Event}};
 
 use super::hue::Bridge;
 
@@ -26,7 +25,7 @@ pub fn print_onset<T>(
     fft_output: &mut Vec<Vec<Complex32>>,
     freq_bins: &mut Vec<f32>,
     threshold: &mut DynamicThreshold,
-    hue_bridge: &Bridge
+    hue_bridge: &mut Bridge
 )
 where T: Sample + ToSample<f32> {
     //Check for silence and abort if present
@@ -116,10 +115,10 @@ where T: Sample + ToSample<f32> {
 
     if weight >= threshold.get_threshold(weight) {
         println!("{}", "■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■".bright_red());
-        executor::block_on(hue_bridge.send_color(&[255, 255, 255]));
+        hue_bridge.event_detected(Event::Onset(peak))
     } else {
         println!("{}", "---------------".black());
-        executor::block_on(hue_bridge.send_color(&[0, 0, 0]));
+        hue_bridge.event_detected(Event::Nothing);
     }
 
     let index_of_max = freq_bins
