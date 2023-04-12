@@ -1,16 +1,17 @@
 use futures::executor::block_on;
 use log::info;
-use std::{net::{SocketAddr, Ipv4Addr, IpAddr}, num::ParseIntError, sync::Arc};
+use std::{net::{SocketAddr, Ipv4Addr, IpAddr}, num::ParseIntError, sync::Arc, time::Duration};
 use tokio::net::UdpSocket;
 use webrtc_dtls::{conn::DTLSConn, config::Config, cipher_suite::CipherSuiteId, Error};
 
-use super::lights::{PollingHelper, LightService};
+use super::lights::{PollingHelper, LightService, Envelope};
 use crate::utils::lights::Event;
 #[allow(dead_code)]
 pub struct Bridge {
     ip: Ipv4Addr,
     area: String,
-    polling_helper: PollingHelper<Arc<DTLSConn>>
+    polling_helper: PollingHelper<Arc<DTLSConn>>,
+    envelope: Envelope,
 }
 
 #[derive(Debug)]
@@ -62,7 +63,9 @@ impl Bridge {
             , 55
         );
 
-        let bridge = Bridge {ip: bridge_ip, area: area_id.to_owned(), polling_helper};
+        let envelope = Envelope::init(Duration::from_millis(100));
+
+        let bridge = Bridge {ip: bridge_ip, area: area_id.to_owned(), polling_helper, envelope};
         
         return Ok(bridge);
     }
@@ -72,11 +75,14 @@ impl LightService for Bridge {
     fn event_detected(&mut self, event: super::lights::Event) {
         match event {
             Event::Onset(intensity) => {
-                let brightness = (intensity * u16::MAX as f32) as u16;
-                self.polling_helper.update_color(&[[brightness, brightness, brightness]], false)
+                if self.envelope.get_value() < intensity {
+                    self.envelope.trigger(intensity);
+                }
             },
-            Event::Nothing => self.polling_helper.update_color(&[[1, 1, 1]], false)
+            Event::Nothing => {}
         }
+        let brightness = (self.envelope.get_value() * u16::MAX as f32) as u16;
+        self.polling_helper.update_color(&[[brightness, brightness, brightness]], false)
     }
 }
 

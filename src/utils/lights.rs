@@ -170,10 +170,10 @@ pub struct Envelope {
 }
 
 impl Envelope {
-    pub fn init(decay: &std::time::Duration) -> Envelope {
+    pub fn init(decay: std::time::Duration) -> Envelope {
         return Envelope {
             trigger_time: Instant::now(),
-            length: decay.clone(),
+            length: decay,
             strength: 0.0
         };
     }
