@@ -9,6 +9,7 @@ use crate::utils::lights::Event;
 #[allow(dead_code)]
 pub struct Bridge {
     ip: Ipv4Addr,
+    app_key: String,
     area: String,
     polling_helper: PollingHelper<Arc<DTLSConn>>,
     envelope: Envelope,
@@ -21,9 +22,7 @@ pub enum ConnectionError {
 }
 
 impl Bridge {
-    pub fn init() -> Result<Bridge, ConnectionError>{
-        let client = reqwest::Client::builder().danger_accept_invalid_certs(true).build().unwrap();
-        
+    pub fn init() -> Result<Bridge, ConnectionError>{        
         let app_key = "q22b7aOctHn5xMecCBFpuIyYSdpS5rRMmTqXrQ9h";
         let app_id = "30e32a72-c564-4b8f-9897-26170d9aeb49";
         let area_id = "5fb0617b-4883-4a1b-86c4-c67b63a9d784";
@@ -31,7 +30,7 @@ impl Bridge {
         let bridge_ip = "192.168.2.20".parse().unwrap();
 
         info!("Start Entertainment mode");
-        match block_on(start_entertainment_mode(&client, &bridge_ip, area_id, app_key)) {
+        match block_on(start_entertainment_mode(&bridge_ip, area_id, app_key)) {
             Ok(_) => {},
             Err(e) => {
                 return Err(ConnectionError::Mode(e));
@@ -65,7 +64,7 @@ impl Bridge {
 
         let envelope = Envelope::init(Duration::from_millis(100));
 
-        let bridge = Bridge {ip: bridge_ip, area: area_id.to_owned(), polling_helper, envelope};
+        let bridge = Bridge {ip: bridge_ip, app_key: app_key.to_string(), area: area_id.to_string(), polling_helper, envelope};
         
         return Ok(bridge);
     }
@@ -86,8 +85,9 @@ impl LightService for Bridge {
     }
 }
 
-async fn start_entertainment_mode(client: &reqwest::Client, bridge_ip: &Ipv4Addr, area_id: &str, app_key: &str) -> Result<reqwest::Response, reqwest::Error>{
-    let url = "https://".to_owned() + bridge_ip.to_string().as_str() + "/clip/v2/resource/entertainment_configuration/" + area_id;
+async fn start_entertainment_mode(bridge_ip: &Ipv4Addr, area_id: &str, app_key: &str) -> Result<reqwest::Response, reqwest::Error>{
+    let client = reqwest::Client::builder().danger_accept_invalid_certs(true).build()?;
+    let url = format!("https://{bridge_ip}/clip/v2/resource/entertainment_configuration/{area_id}");
     client.put(url)
         .header("hue-application-key", app_key)
         .body("{\"action\":\"start\"}")
