@@ -115,7 +115,7 @@ where T: Sample + ToSample<f32> {
 
     if weight >= threshold.get_threshold(weight) {
         println!("{}", "■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■".bright_red());
-        hue_bridge.event_detected(Event::Onset(peak))
+        hue_bridge.event_detected(Event::Onset(volume))
     } else {
         println!("{}", "---------------".black());
         hue_bridge.event_detected(Event::Nothing);

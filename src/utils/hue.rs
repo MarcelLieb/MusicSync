@@ -81,7 +81,7 @@ impl LightService for Bridge {
             },
             Event::Nothing => {}
         }
-        let brightness = (self.envelope.get_value() * u16::MAX as f32) as u16;
+        let brightness = (self.envelope.get_value() * u16::MAX as f32 * 1.2) as u16;
         self.polling_helper.update_color(&[[brightness, brightness, brightness]], false)
     }
 }
