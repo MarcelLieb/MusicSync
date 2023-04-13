@@ -15,3 +15,4 @@ Cargo.lock
 
 # Ignore exported data 
 *.txt
+.vscode

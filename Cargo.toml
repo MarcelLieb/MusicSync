@@ -9,7 +9,9 @@ edition = "2021"
 biquad = "0.4.2"
 colored = "2.0.0"
 cpal = "0.15.0"
+ctrlc = "3.2.5"
 dasp_sample = "0.11.0"
+futures = "0.3.28"
 lazy_static = "1.4.0"
 log = { version = "0.4.17", features = [
     "max_level_trace",
@@ -17,4 +19,7 @@ log = { version = "0.4.17", features = [
     "serde",
 ] }
 realfft = "3.2.0"
+reqwest = "0.11.16"
 rustfft = "6.1.0"
+tokio = {version = "1.27.0", features = ["full"]}
+webrtc-dtls = "0.7.2"

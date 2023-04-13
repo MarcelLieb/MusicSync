@@ -7,12 +7,17 @@ use log::info;
 use colored::Colorize;
 use lazy_static::lazy_static;
 
-use crate::utils::audiodevices::BUFFER_SIZE;
+use crate::utils::{audiodevices::BUFFER_SIZE, lights::{LightService, Event}};
+
+use super::hue::Bridge;
 
 lazy_static! {
     static ref FFT_WINDOW: Vec<f32> = window(BUFFER_SIZE as usize, WindowType::Hann);
     static ref THRESHOLD_WINDOW: Vec<f32> = window(39, WindowType::Hann);
 }
+
+const DRUM_CLICK_WEIGHT: f32 = 0.005;
+const NOTE_CLICK_WEIGHT: f32 = 0.1;
 
 pub fn print_onset<T>(
     data: &[T], 
@@ -22,7 +27,8 @@ pub fn print_onset<T>(
     fft_planner: &Arc<dyn RealToComplex<f32>>,
     fft_output: &mut Vec<Vec<Complex32>>,
     freq_bins: &mut Vec<f32>,
-    threshold: &mut DynamicThreshold
+    threshold: &mut MultiBandThreshold,
+    hue_bridge: &mut Bridge
 )
 where T: Sample + ToSample<f32> {
     //Check for silence and abort if present
@@ -110,11 +116,30 @@ where T: Sample + ToSample<f32> {
         .map(|(k, freq)| k as f32 * freq)
         .sum();
 
-    if weight >= threshold.get_threshold(weight) {
-        println!("{}", "■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■".bright_red());
-    } else {
-        println!("{}", "---------------".black());
-    }
+    let low_end_weight: &f32 = &freq_bins[50..300]
+        .iter()
+        .enumerate()
+        .map(|(k, freq)| (k as f32 * *freq))
+        .sum::<f32>();
+
+    let high_end_weight: &f32 = &freq_bins[2000..]
+        .iter()
+        .enumerate()
+        .map(|(k, freq)| (k as f32 * *freq))
+        .sum::<f32>();
+
+    let mids_weight: &f32 = &freq_bins[200..2000]
+        .iter()
+        .enumerate()
+        .map(|(k, freq)| (k as f32 * *freq))
+        .sum::<f32>();
+
+    let index_of_max_mid = &freq_bins[200..2000]
+        .iter()
+        .enumerate()
+        .max_by(|(_, a), (_, b)| a.total_cmp(b))
+        .unwrap()
+        .0;
 
     let index_of_max = freq_bins
         .iter()
@@ -124,6 +149,30 @@ where T: Sample + ToSample<f32> {
         .0;
 
     info!("Loudest frequency: {}Hz", index_of_max);
+
+    if weight >= threshold.fullband.get_threshold(weight) {
+        println!("{}", "■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■".bright_red());
+        hue_bridge.event_detected(Event::Full(volume))
+    } else {
+        println!("{}", "---------------".black());
+        hue_bridge.event_detected(Event::Atmosphere(index_of_max as u16, volume));
+    }
+
+    let drums_weight = low_end_weight * DRUM_CLICK_WEIGHT * high_end_weight;
+    if drums_weight >= threshold.drums.get_threshold(drums_weight) {
+        hue_bridge.event_detected(Event::Drum(volume));
+    }
+
+    let notes_weight = mids_weight + NOTE_CLICK_WEIGHT * high_end_weight;
+    if notes_weight >= threshold.notes.get_threshold(notes_weight) {
+        hue_bridge.event_detected(Event::Note(*index_of_max_mid as u16,volume));
+    }
+
+    if *high_end_weight >= threshold.hihat.get_threshold(*high_end_weight) {
+        hue_bridge.event_detected(Event::Hihat(peak));
+    }
+
+    hue_bridge.update();
 }
 
 
@@ -143,26 +192,26 @@ where T: Sample + ToSample<f32> {
 #[derive(Debug, Clone)]
 pub struct DynamicThreshold {
     past_samples: VecDeque<f32>,
-    buffer_size: usize
+    buffer_size: usize,
+    min_intensity: f32,
+    delta_intensity: f32,
 }
 
 #[allow(dead_code)]
 impl DynamicThreshold {
     pub fn init() -> Self {
         DynamicThreshold { 
-            past_samples: VecDeque::with_capacity(20), buffer_size: 20
+            past_samples: VecDeque::with_capacity(20), buffer_size: 20, min_intensity: 0.2, delta_intensity: 0.15
         }
     }
 
-    pub fn init_buffer(buffer_size: usize) -> Self {
+    pub fn init_config(buffer_size: usize, min_intensity: Option<f32>, delta_intensity: Option<f32>) -> Self {
         DynamicThreshold { 
-            past_samples: VecDeque::with_capacity(buffer_size), buffer_size: buffer_size
+            past_samples: VecDeque::with_capacity(buffer_size), buffer_size: buffer_size, min_intensity: min_intensity.unwrap_or(0.2), delta_intensity: delta_intensity.unwrap_or(0.15)
         }
     }
 
     fn get_threshold(&mut self, value: f32) -> f32 {
-        const DELTA: f32 = 0.2;
-        const LAMBDA: f32 = 0.15;
         if self.past_samples.len() >= self.buffer_size {
             self.past_samples.pop_front();
             self.past_samples.push_back(value);
@@ -189,9 +238,16 @@ impl DynamicThreshold {
         }
         apply_window_mono(&mut normalized, wndw.as_slice());
         let sum = normalized.iter().sum::<f32>();
-        let threshold = (DELTA + LAMBDA * sum) * max;
+        let threshold = (self.min_intensity + self.delta_intensity * sum) * max;
         threshold
     }
+}
+
+pub struct MultiBandThreshold {
+    pub drums: DynamicThreshold,
+    pub hihat: DynamicThreshold,
+    pub notes: DynamicThreshold,
+    pub fullband: DynamicThreshold,
 }
 
 

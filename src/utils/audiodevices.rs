@@ -1,7 +1,7 @@
 use cpal::{self, traits::{HostTrait, DeviceTrait}, BuildStreamError, StreamConfig};
 use log::{debug};
 use realfft::{RealFftPlanner, num_complex::Complex};
-use crate::utils::audioprocessing::{print_onset, DynamicThreshold};
+use crate::utils::{audioprocessing::{print_onset, DynamicThreshold, MultiBandThreshold}, hue::Bridge};
 
 
 pub const SAMPLE_RATE: u32 = 48000;
@@ -38,19 +38,26 @@ pub fn create_default_output_stream() -> cpal::Stream {
     let mut fft_output: Vec<Vec<Complex<f32>>> = (0..channels).map(|_| fft_planner.make_output_vec()).collect();
     let mut freq_bins: Vec<f32> = vec![0.0; fft_output[0].capacity()];
 
-    let mut threshold = DynamicThreshold::init_buffer(20);
+    let mut multi_threshold = MultiBandThreshold {
+        drums: DynamicThreshold::init_config(30, Some(0.30), Some(0.18)),
+        hihat: DynamicThreshold::init_config(20, Some(0.30), Some(0.15)),
+        notes: DynamicThreshold::init_config(20, None, None),
+        fullband: DynamicThreshold::init_config(20, None, None),
+    };
+
+    let mut bridge = Bridge::init().unwrap();
 
     let outstream = match audio_cfg.sample_format() {
         cpal::SampleFormat::F32 => out.build_input_stream(
             &config,
-            move |data: &[f32], _| print_onset(data, channels, &mut f32_samples, &mut mono_samples, &fft_planner, &mut fft_output, &mut freq_bins, &mut threshold),
+            move |data: &[f32], _| print_onset(data, channels, &mut f32_samples, &mut mono_samples, &fft_planner, &mut fft_output, &mut freq_bins, &mut multi_threshold, &mut bridge),
             capture_err_fn,
             None,
         ),
         cpal::SampleFormat::I16 => {
             out.build_input_stream(
                 &config,
-                move |data: &[i16], _| print_onset(data, channels, &mut f32_samples, &mut mono_samples, &fft_planner, &mut fft_output, &mut freq_bins, &mut threshold),
+                move |data: &[i16], _| print_onset(data, channels, &mut f32_samples, &mut mono_samples, &fft_planner, &mut fft_output, &mut freq_bins, &mut multi_threshold, &mut bridge),
                 capture_err_fn,
                 None,
             )
@@ -58,7 +65,7 @@ pub fn create_default_output_stream() -> cpal::Stream {
         cpal::SampleFormat::U16 => {
             out.build_input_stream(
                 &config,
-                move |data: &[u16], _| print_onset(data, channels, &mut f32_samples, &mut mono_samples, &fft_planner, &mut fft_output, &mut freq_bins, &mut threshold),
+                move |data: &[u16], _| print_onset(data, channels, &mut f32_samples, &mut mono_samples, &fft_planner, &mut fft_output, &mut freq_bins, &mut multi_threshold, &mut bridge),
                 capture_err_fn,
                 None,
             )
