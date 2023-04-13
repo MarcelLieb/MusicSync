@@ -5,14 +5,14 @@ use tokio::net::UdpSocket;
 use webrtc_dtls::{conn::DTLSConn, config::Config, cipher_suite::CipherSuiteId, Error};
 
 use super::lights::{PollingHelper, LightService, Envelope};
-use crate::utils::lights::Event;
+use crate::utils::lights::{Event, MultibandEnvelope};
 #[allow(dead_code)]
 pub struct Bridge {
     ip: Ipv4Addr,
     app_key: String,
     area: String,
     polling_helper: PollingHelper<Arc<DTLSConn>>,
-    envelope: Envelope,
+    envelopes: MultibandEnvelope,
 }
 
 #[derive(Debug)]
@@ -62,9 +62,14 @@ impl Bridge {
             , 55
         );
 
-        let envelope = Envelope::init(Duration::from_millis(100));
+        let envelopes = MultibandEnvelope {
+            drum: Envelope::init(Duration::from_millis(110)),
+            hihat: Envelope::init(Duration::from_millis(80)),
+            note: Envelope::init(Duration::from_millis(100)),
+            fullband: Envelope::init(Duration::from_millis(100)),
+        };
 
-        let bridge = Bridge {ip: bridge_ip, app_key: app_key.to_string(), area: area_id.to_string(), polling_helper, envelope};
+        let bridge = Bridge {ip: bridge_ip, app_key: app_key.to_string(), area: area_id.to_string(), polling_helper, envelopes};
         
         return Ok(bridge);
     }
@@ -73,15 +78,40 @@ impl Bridge {
 impl LightService for Bridge {
     fn event_detected(&mut self, event: super::lights::Event) {
         match event {
-            Event::Onset(intensity) => {
-                if self.envelope.get_value() < intensity {
-                    self.envelope.trigger(intensity);
+            Event::Full(_) => {},
+            Event::Atmosphere(_, _volume) => {
+                // let brightness = (volume * u16::MAX as f32) as u16 >> 4;
+                // self.polling_helper.update_color(&[[0, brightness, 0]], true);
+            },
+            Event::Drum(volume) => {
+                if volume > self.envelopes.drum.get_value() {
+                    self.envelopes.drum.trigger(volume);
                 }
             },
-            Event::Nothing => {}
+            Event::Hihat(volume) => {
+                if volume > self.envelopes.hihat.get_value() {
+                    self.envelopes.hihat.trigger(volume);
+                }
+            },
+            Event::Note(_, volume) => {
+                if volume > self.envelopes.note.get_value() {
+                    self.envelopes.note.trigger(volume);
+                }
+            },
         }
-        let brightness = (self.envelope.get_value() * u16::MAX as f32 * 1.2) as u16;
-        self.polling_helper.update_color(&[[brightness, brightness, brightness]], false)
+    }
+
+    fn update(&mut self) {
+        self.polling_helper.update_color(&vec![[0,0,0]; 1], false);
+
+        let brightness = (self.envelopes.drum.get_value() * u16::MAX as f32) as u16;
+        self.polling_helper.update_color(&[[brightness, 0, 0]], true);
+
+        let brightness = (self.envelopes.hihat.get_value() * u16::MAX as f32) as u16 >> 3;
+        self.polling_helper.update_color(&[[brightness, brightness, brightness]], true);
+
+        let brightness = (self.envelopes.note.get_value() * u16::MAX as f32) as u16 >> 2;
+        self.polling_helper.update_color(&[[0, 0, brightness]], true);
     }
 }
 

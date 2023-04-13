@@ -14,6 +14,7 @@ use webrtc_dtls::conn::DTLSConn;
 
 pub trait LightService {
     fn event_detected(&mut self, event: Event);
+    fn update(&mut self);
 }
 
 pub trait Closable {
@@ -27,8 +28,11 @@ pub trait Writeable {
 pub trait Stream: Writeable + Closable + Send {}
 
 pub enum Event {
-    Onset(f32),
-    Nothing,
+    Full(f32),
+    Atmosphere(u16, f32),
+    Note(u16, f32),
+    Drum(f32),
+    Hihat(f32),
 }
 
 struct Poller<T: Stream + Send + Sync> {
@@ -187,4 +191,12 @@ impl Envelope {
         let value = self.strength - (self.strength * ((Instant::now() - self.trigger_time).as_millis() / self.length.as_millis()) as f32);
         return if value > 0.0 { value } else { 0.0 };
     }
+}
+
+
+pub struct MultibandEnvelope {
+    pub drum: Envelope,
+    pub hihat: Envelope,
+    pub note: Envelope,
+    pub fullband: Envelope,
 }
