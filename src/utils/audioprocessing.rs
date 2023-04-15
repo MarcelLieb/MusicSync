@@ -116,37 +116,44 @@ where T: Sample + ToSample<f32> {
         .map(|(k, freq)| k as f32 * freq)
         .sum();
 
-    let low_end_weight: &f32 = &freq_bins[50..300]
+    let low_end_weight: f32 = freq_bins
         .iter()
         .enumerate()
-        .map(|(k, freq)| (k as f32 * *freq))
-        .sum::<f32>();
+        .skip(20)
+        .take(160)
+        .map(|(freq, vol)| freq as f32 * vol)
+        .sum();
 
-    let high_end_weight: &f32 = &freq_bins[2000..]
+    let high_end_weight: f32 = freq_bins
         .iter()
         .enumerate()
-        .map(|(k, freq)| (k as f32 * *freq))
-        .sum::<f32>();
+        .skip(2000)
+        .map(|(freq, vol)| freq as f32 * vol)
+        .sum();
 
-    let mids_weight: &f32 = &freq_bins[200..2000]
+    let mids_weight: f32 = freq_bins
         .iter()
         .enumerate()
-        .map(|(k, freq)| (k as f32 * *freq))
-        .sum::<f32>();
+        .skip(200)
+        .take(1800)
+        .map(|(freq, vol)| freq as f32 * vol)
+        .sum();
 
-    let index_of_max_mid = &freq_bins[200..2000]
+    let index_of_max_mid = freq_bins
         .iter()
         .enumerate()
+        .skip(200)
+        .take(1800)
         .max_by(|(_, a), (_, b)| a.total_cmp(b))
         .unwrap()
         .0;
 
-    let index_of_max = freq_bins
+    let index_of_max = freq_bins[20..]
         .iter()
         .enumerate()
         .max_by(|(_, a), (_, b)| a.total_cmp(b))
         .unwrap()
-        .0;
+        .0 + 20;
 
     info!("Loudest frequency: {}Hz", index_of_max);
 
