@@ -39,9 +39,9 @@ pub fn create_default_output_stream() -> cpal::Stream {
     let mut freq_bins: Vec<f32> = vec![0.0; fft_output[0].capacity()];
 
     let mut multi_threshold = MultiBandThreshold {
-        drums: DynamicThreshold::init_config(30, Some(0.30), Some(0.18)),
-        hihat: DynamicThreshold::init_config(20, Some(0.30), Some(0.15)),
-        notes: DynamicThreshold::init_config(20, None, None),
+        drums: DynamicThreshold::init_config(18, Some(0.22), Some(0.20)),
+        hihat: DynamicThreshold::init_config(20, Some(0.32), Some(0.23)),
+        notes: DynamicThreshold::init_config(20, None, Some(0.20)),
         fullband: DynamicThreshold::init_config(20, None, None),
     };
 

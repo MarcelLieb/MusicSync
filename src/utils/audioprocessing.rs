@@ -16,7 +16,7 @@ lazy_static! {
     static ref THRESHOLD_WINDOW: Vec<f32> = window(39, WindowType::Hann);
 }
 
-const DRUM_CLICK_WEIGHT: f32 = 0.005;
+const DRUM_CLICK_WEIGHT: f32 = 0.002;
 const NOTE_CLICK_WEIGHT: f32 = 0.1;
 
 pub fn print_onset<T>(
@@ -124,10 +124,17 @@ where T: Sample + ToSample<f32> {
         .map(|(freq, vol)| freq as f32 * vol)
         .sum();
 
-    let high_end_weight: f32 = freq_bins
+    let drum_high_end_weight: f32 = freq_bins
         .iter()
         .enumerate()
-        .skip(2000)
+        .skip(1500)
+        .map(|(freq, vol)| freq as f32 * vol)
+        .sum();
+
+    let highhat_high_end_weight: f32 = freq_bins
+        .iter()
+        .enumerate()
+        .skip(3000)
         .map(|(freq, vol)| freq as f32 * vol)
         .sum();
 
@@ -135,7 +142,7 @@ where T: Sample + ToSample<f32> {
         .iter()
         .enumerate()
         .skip(200)
-        .take(1800)
+        .take(1700)
         .map(|(freq, vol)| freq as f32 * vol)
         .sum();
 
@@ -165,17 +172,30 @@ where T: Sample + ToSample<f32> {
         hue_bridge.event_detected(Event::Atmosphere(index_of_max as u16, volume));
     }
 
-    let drums_weight = low_end_weight * DRUM_CLICK_WEIGHT * high_end_weight;
+    let kick_transient_weight: f32 = freq_bins
+        .iter()
+        .enumerate()
+        .skip(800)
+        .take(800)
+        .map(|(freq, vol)| freq as f32 * vol)
+        .sum();
+
+    let drums_weight = low_end_weight + DRUM_CLICK_WEIGHT * drum_high_end_weight;
     if drums_weight >= threshold.drums.get_threshold(drums_weight) {
-        hue_bridge.event_detected(Event::Drum(volume));
+        let lowend_peak: f32 = freq_bins[10..120].iter().map(|x| *x).reduce(f32::max).unwrap();
+        let highpass_peak: f32 = freq_bins[120..].iter().map(|x| *x).reduce(f32::max).unwrap();
+
+        if lowend_peak >= 0.89 * highpass_peak {
+            hue_bridge.event_detected(Event::Drum(volume));
+        }
     }
 
-    let notes_weight = mids_weight + NOTE_CLICK_WEIGHT * high_end_weight;
+    let notes_weight = mids_weight;
     if notes_weight >= threshold.notes.get_threshold(notes_weight) {
-        hue_bridge.event_detected(Event::Note(*index_of_max_mid as u16,volume));
+        hue_bridge.event_detected(Event::Note(index_of_max_mid as u16,peak));
     }
 
-    if *high_end_weight >= threshold.hihat.get_threshold(*high_end_weight) {
+    if highhat_high_end_weight >= threshold.hihat.get_threshold(highhat_high_end_weight) {
         hue_bridge.event_detected(Event::Hihat(peak));
     }
 
