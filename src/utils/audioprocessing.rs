@@ -9,7 +9,6 @@ use lazy_static::lazy_static;
 
 use crate::utils::{audiodevices::BUFFER_SIZE, lights::{LightService, Event}};
 
-use super::hue::Bridge;
 
 lazy_static! {
     static ref FFT_WINDOW: Vec<f32> = window(BUFFER_SIZE as usize, WindowType::Hann);
@@ -28,7 +27,7 @@ pub fn print_onset<T>(
     fft_output: &mut Vec<Vec<Complex32>>,
     freq_bins: &mut Vec<f32>,
     threshold: &mut MultiBandThreshold,
-    hue_bridge: &mut Bridge
+    lightservices: &mut [Box<dyn LightService + Send>]
 )
 where T: Sample + ToSample<f32> {
     //Check for silence and abort if present
@@ -152,27 +151,26 @@ where T: Sample + ToSample<f32> {
 
     if weight >= threshold.fullband.get_threshold(weight) {
         println!("{}", "■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■".bright_red());
-        hue_bridge.event_detected(Event::Full(volume))
+        lightservices.iter_mut().for_each(|service| service.event_detected(Event::Full(volume)));
     } else {
         println!("{}", "---------------".black());
-        hue_bridge.event_detected(Event::Atmosphere(index_of_max as u16, volume));
+        lightservices.iter_mut().for_each(|service| service.event_detected(Event::Atmosphere(index_of_max as u16, volume)));
     }
 
     let drums_weight = low_end_weight * DRUM_CLICK_WEIGHT * high_end_weight;
     if drums_weight >= threshold.drums.get_threshold(drums_weight) {
-        hue_bridge.event_detected(Event::Drum(volume));
+        lightservices.iter_mut().for_each(|service| service.event_detected(Event::Drum(volume)));
     }
 
     let notes_weight = mids_weight + NOTE_CLICK_WEIGHT * high_end_weight;
     if notes_weight >= threshold.notes.get_threshold(notes_weight) {
-        hue_bridge.event_detected(Event::Note(*index_of_max_mid as u16,volume));
+        lightservices.iter_mut().for_each(|service| service.event_detected(Event::Note(*index_of_max_mid as u16,volume)));
     }
 
     if *high_end_weight >= threshold.hihat.get_threshold(*high_end_weight) {
-        hue_bridge.event_detected(Event::Hihat(peak));
+        lightservices.iter_mut().for_each(|service| service.event_detected(Event::Hihat(peak)));
     }
-
-    hue_bridge.update();
+    lightservices.iter_mut().for_each(|service| service.update());
 }
 
 

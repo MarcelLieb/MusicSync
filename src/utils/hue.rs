@@ -116,7 +116,7 @@ impl LightService for Bridge {
 }
 
 async fn start_entertainment_mode(bridge_ip: &Ipv4Addr, area_id: &str, app_key: &str) -> Result<reqwest::Response, reqwest::Error>{
-    let client = reqwest::Client::builder().danger_accept_invalid_certs(true).build()?;
+    let client = reqwest::Client::builder().danger_accept_invalid_certs(true).timeout(Duration::from_secs(5)).build()?;
     let url = format!("https://{bridge_ip}/clip/v2/resource/entertainment_configuration/{area_id}");
     client.put(url)
         .header("hue-application-key", app_key)
