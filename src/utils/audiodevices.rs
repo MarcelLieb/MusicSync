@@ -46,8 +46,9 @@ pub fn create_default_output_stream() -> cpal::Stream {
     };
 
     let mut lightservices: Vec<Box<dyn LightService + Send>> = Vec::new();
-    let bridge = Box::new(Bridge::init().unwrap());
-    lightservices.push(bridge);
+    if let Ok(bridge) = Bridge::init() {
+        lightservices.push(Box::new(bridge));
+    }
 
     let outstream = match audio_cfg.sample_format() {
         cpal::SampleFormat::F32 => out.build_input_stream(
