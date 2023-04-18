@@ -62,8 +62,9 @@ pub fn create_default_output_stream() -> cpal::Stream {
                 &config,
                 move |data: &[f32], _| {
                     buffer.extend(data);
+                    let n = buffer.len() / buffer_size;
 
-                    while buffer.len() > buffer_size {
+                    (0..n).for_each(|_| {
                         print_onset(
                             &buffer[0..buffer_size], 
                             channels, 
@@ -77,7 +78,7 @@ pub fn create_default_output_stream() -> cpal::Stream {
                         );
 
                         buffer.drain(0..hop_size);
-                    }
+                    })
                 },
                 capture_err_fn,
                 None,
@@ -90,8 +91,9 @@ pub fn create_default_output_stream() -> cpal::Stream {
                 &config,
                 move |data: &[i16], _| {
                     buffer.extend(data);
+                    let n = buffer.len() / buffer_size;
 
-                    while buffer.len() > buffer_size {
+                    (0..n).for_each(|_| {
                         print_onset(
                             &buffer[0..buffer_size], 
                             channels, 
@@ -105,7 +107,7 @@ pub fn create_default_output_stream() -> cpal::Stream {
                         );
 
                         buffer.drain(0..hop_size);
-                    }
+                    })
                 },
                 capture_err_fn,
                 None,
@@ -118,8 +120,9 @@ pub fn create_default_output_stream() -> cpal::Stream {
                 &config,
                 move |data: &[u16], _| {
                     buffer.extend(data);
+                    let n = buffer.len() / buffer_size;
 
-                    while buffer.len() > buffer_size {
+                    (0..n).for_each(|_| {
                         print_onset(
                             &buffer[0..buffer_size], 
                             channels, 
@@ -133,7 +136,7 @@ pub fn create_default_output_stream() -> cpal::Stream {
                         );
 
                         buffer.drain(0..hop_size);
-                    }
+                    })
                 },
                 capture_err_fn,
                 None,
