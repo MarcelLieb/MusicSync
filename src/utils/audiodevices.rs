@@ -51,16 +51,41 @@ pub fn create_default_output_stream() -> cpal::Stream {
     }
 
     let outstream = match audio_cfg.sample_format() {
-        cpal::SampleFormat::F32 => out.build_input_stream(
-            &config,
-            move |data: &[f32], _| print_onset(data, channels, &mut f32_samples, &mut mono_samples, &fft_planner, &mut fft_output, &mut freq_bins, &mut multi_threshold, &mut lightservices),
-            capture_err_fn,
-            None,
-        ),
+        cpal::SampleFormat::F32 => {
+            out.build_input_stream(
+                &config,
+                move |data: &[f32], _| print_onset(
+                    data, 
+                    channels, 
+                    &mut f32_samples, 
+                    &mut mono_samples, 
+                    &fft_planner, 
+                    &mut fft_output, 
+                    &mut freq_bins, 
+                    &mut multi_threshold, 
+                    &mut lightservices
+                )
+                ,
+                capture_err_fn,
+                None,
+            )
+        },
         cpal::SampleFormat::I16 => {
             out.build_input_stream(
                 &config,
-                move |data: &[i16], _| print_onset(data, channels, &mut f32_samples, &mut mono_samples, &fft_planner, &mut fft_output, &mut freq_bins, &mut multi_threshold, &mut lightservices),
+                move |data: &[i16], _| {
+                    print_onset(
+                        data, 
+                        channels, 
+                        &mut f32_samples, 
+                        &mut mono_samples, 
+                        &fft_planner, 
+                        &mut fft_output, 
+                        &mut freq_bins, 
+                        &mut multi_threshold, 
+                        &mut lightservices
+                    )
+                },
                 capture_err_fn,
                 None,
             )
@@ -68,7 +93,19 @@ pub fn create_default_output_stream() -> cpal::Stream {
         cpal::SampleFormat::U16 => {
             out.build_input_stream(
                 &config,
-                move |data: &[u16], _| print_onset(data, channels, &mut f32_samples, &mut mono_samples, &fft_planner, &mut fft_output, &mut freq_bins, &mut multi_threshold, &mut lightservices),
+                move |data: &[u16], _| {
+                    print_onset(
+                        data, 
+                        channels, 
+                        &mut f32_samples, 
+                        &mut mono_samples, 
+                        &fft_planner, 
+                        &mut fft_output, 
+                        &mut freq_bins, 
+                        &mut multi_threshold, 
+                        &mut lightservices
+                    )
+                },
                 capture_err_fn,
                 None,
             )
