@@ -7,6 +7,7 @@ use crate::utils::{audioprocessing::{print_onset, DynamicThreshold, MultiBandThr
 pub const SAMPLE_RATE: u32 = 48000;
 // buffer size is 10 ms long
 pub const BUFFER_SIZE: u32 = 480;
+pub const HOP_SIZE: u32 = BUFFER_SIZE / 3 * 2;
 
 fn capture_err_fn(err: cpal::StreamError) {
     eprintln!("an error occurred on stream: {}", err);
@@ -50,25 +51,93 @@ pub fn create_default_output_stream() -> cpal::Stream {
         lightservices.push(Box::new(bridge));
     }
 
+    let buffer_size = (BUFFER_SIZE * channels as u32) as usize;
+    let hop_size = (HOP_SIZE * channels as u32) as usize;
+
     let outstream = match audio_cfg.sample_format() {
-        cpal::SampleFormat::F32 => out.build_input_stream(
-            &config,
-            move |data: &[f32], _| print_onset(data, channels, &mut f32_samples, &mut mono_samples, &fft_planner, &mut fft_output, &mut freq_bins, &mut multi_threshold, &mut lightservices),
-            capture_err_fn,
-            None,
-        ),
-        cpal::SampleFormat::I16 => {
+        cpal::SampleFormat::F32 => {
+            let mut buffer: Vec<f32> = Vec::new();
+
             out.build_input_stream(
                 &config,
-                move |data: &[i16], _| print_onset(data, channels, &mut f32_samples, &mut mono_samples, &fft_planner, &mut fft_output, &mut freq_bins, &mut multi_threshold, &mut lightservices),
+                move |data: &[f32], _| {
+                    buffer.extend(data);
+                    let n = buffer.len() / buffer_size;
+
+                    (0..n).for_each(|_| {
+                        print_onset(
+                            &buffer[0..buffer_size], 
+                            channels, 
+                            &mut f32_samples, 
+                            &mut mono_samples, 
+                            &fft_planner, 
+                            &mut fft_output, 
+                            &mut freq_bins, 
+                            &mut multi_threshold, 
+                            &mut lightservices
+                        );
+
+                        buffer.drain(0..hop_size);
+                    })
+                },
+                capture_err_fn,
+                None,
+            )
+        },
+        cpal::SampleFormat::I16 => {
+            let mut buffer: Vec<i16> = Vec::new();
+
+            out.build_input_stream(
+                &config,
+                move |data: &[i16], _| {
+                    buffer.extend(data);
+                    let n = buffer.len() / buffer_size;
+
+                    (0..n).for_each(|_| {
+                        print_onset(
+                            &buffer[0..buffer_size], 
+                            channels, 
+                            &mut f32_samples, 
+                            &mut mono_samples, 
+                            &fft_planner, 
+                            &mut fft_output, 
+                            &mut freq_bins, 
+                            &mut multi_threshold, 
+                            &mut lightservices
+                        );
+
+                        buffer.drain(0..hop_size);
+                    })
+                },
                 capture_err_fn,
                 None,
             )
         }
         cpal::SampleFormat::U16 => {
+            let mut buffer: Vec<u16> = Vec::new();
+
             out.build_input_stream(
                 &config,
-                move |data: &[u16], _| print_onset(data, channels, &mut f32_samples, &mut mono_samples, &fft_planner, &mut fft_output, &mut freq_bins, &mut multi_threshold, &mut lightservices),
+                move |data: &[u16], _| {
+                    buffer.extend(data);
+                    let n = buffer.len() / buffer_size;
+
+                    (0..n).for_each(|_| {
+                        print_onset(
+                            &buffer[0..buffer_size], 
+                            channels, 
+                            &mut f32_samples, 
+                            &mut mono_samples, 
+                            &fft_planner, 
+                            &mut fft_output, 
+                            &mut freq_bins, 
+                            &mut multi_threshold, 
+                            &mut lightservices
+                        );
+
+                        buffer.drain(0..hop_size);
+                    })
+                },
                 capture_err_fn,
                 None,
             )
