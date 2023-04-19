@@ -52,7 +52,7 @@ pub fn create_default_output_stream() -> cpal::Stream {
     }
 
     let buffer_size = (BUFFER_SIZE * channels as u32) as usize;
-    let hop_size = (HOP_SIZE) as usize;
+    let hop_size = (HOP_SIZE * channels as u32) as usize;
 
     let outstream = match audio_cfg.sample_format() {
         cpal::SampleFormat::F32 => {
