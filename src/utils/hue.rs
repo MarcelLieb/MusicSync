@@ -4,8 +4,8 @@ use std::{net::{SocketAddr, Ipv4Addr, IpAddr}, num::ParseIntError, sync::Arc, ti
 use tokio::net::UdpSocket;
 use webrtc_dtls::{conn::DTLSConn, config::Config, cipher_suite::CipherSuiteId, Error};
 
-use super::lights::{PollingHelper, LightService, Envelope};
-use crate::utils::lights::{Event, MultibandEnvelope};
+use super::lights::{PollingHelper, LightService, FixedDecayEnvelope};
+use crate::utils::lights::{Event, MultibandEnvelope, Envelope};
 #[allow(dead_code)]
 pub struct Bridge {
     ip: Ipv4Addr,
@@ -63,10 +63,10 @@ impl Bridge {
         );
 
         let envelopes = MultibandEnvelope {
-            drum: Envelope::init(Duration::from_millis(110)),
-            hihat: Envelope::init(Duration::from_millis(80)),
-            note: Envelope::init(Duration::from_millis(100)),
-            fullband: Envelope::init(Duration::from_millis(100)),
+            drum: FixedDecayEnvelope::init(Duration::from_millis(110)),
+            hihat: FixedDecayEnvelope::init(Duration::from_millis(80)),
+            note: FixedDecayEnvelope::init(Duration::from_millis(100)),
+            fullband: FixedDecayEnvelope::init(Duration::from_millis(100)),
         };
 
         let bridge = Bridge {ip: bridge_ip, app_key: app_key.to_string(), area: area_id.to_string(), polling_helper, envelopes};

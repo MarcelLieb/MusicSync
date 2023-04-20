@@ -166,28 +166,34 @@ impl Closable for Arc<DTLSConn> {
 
 impl Stream for Arc<DTLSConn> {}
 
+pub trait Envelope {
+    fn trigger(&mut self, strength: f32);
+    fn get_value(&self) -> f32;
+}
 // Linear Envelope
-pub struct Envelope {
+pub struct FixedDecayEnvelope {
     trigger_time: Instant,
     length: std::time::Duration,
     strength: f32,
 }
 
-impl Envelope {
-    pub fn init(decay: std::time::Duration) -> Envelope {
-        return Envelope {
+impl FixedDecayEnvelope {
+    pub fn init(decay: std::time::Duration) -> FixedDecayEnvelope {
+        return FixedDecayEnvelope {
             trigger_time: Instant::now(),
             length: decay,
             strength: 0.0
         };
     }
+}
 
-    pub fn trigger(&mut self, strength: f32) {
+impl Envelope for FixedDecayEnvelope {
+    fn trigger(&mut self, strength: f32) {
         self.trigger_time = Instant::now();
         self.strength = strength;
     }
 
-    pub fn get_value(&self) -> f32 {
+    fn get_value(&self) -> f32 {
         let value = self.strength - (self.strength * ((Instant::now() - self.trigger_time).as_millis() / self.length.as_millis()) as f32);
         return if value > 0.0 { value } else { 0.0 };
     }
@@ -195,8 +201,8 @@ impl Envelope {
 
 
 pub struct MultibandEnvelope {
-    pub drum: Envelope,
-    pub hihat: Envelope,
-    pub note: Envelope,
-    pub fullband: Envelope,
+    pub drum: FixedDecayEnvelope,
+    pub hihat: FixedDecayEnvelope,
+    pub note: FixedDecayEnvelope,
+    pub fullband: FixedDecayEnvelope,
 }
