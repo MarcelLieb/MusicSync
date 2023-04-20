@@ -228,7 +228,6 @@ impl Envelope for DynamicDecayEnvelope {
 }
 
 pub struct ColorEnvelope {
-    trigger_time: Instant,
     start_color: [f32; 3],
     end_color: [f32; 3],
     length: Duration,
@@ -238,7 +237,6 @@ pub struct ColorEnvelope {
 impl ColorEnvelope {
     pub fn init(from_color: &[u16; 3], to_color: &[u16; 3], length: Duration) -> ColorEnvelope {
         return ColorEnvelope {
-            trigger_time: Instant::now(),
             start_color: rgb_to_xyb(from_color),
             end_color: rgb_to_xyb(to_color),
             length,
@@ -247,7 +245,6 @@ impl ColorEnvelope {
     }
 
     pub fn trigger(&mut self, strength: f32) {
-        self.trigger_time = Instant::now();
         self.envelope.trigger(strength);
     }
 
