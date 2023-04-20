@@ -234,3 +234,41 @@ pub struct MultibandEnvelope {
     pub note: FixedDecayEnvelope,
     pub fullband: FixedDecayEnvelope,
 }
+
+#[allow(non_snake_case)]
+pub fn rgb_to_xyb(rgb: &[u16; 3]) -> [f32; 3] {
+    let mut rgb: [f32; 3] = rgb
+        .iter()
+        .map(|v| *v as f32 / u16::MAX as f32)
+        .collect::<Vec<f32>>()
+        .try_into()
+        .unwrap();
+    rgb
+        .iter_mut()
+        .for_each(|v| *v = if *v > 0.04045 {((*v + 0.055) / (1.0 + 0.055)).powf(2.4)} else {*v / 12.92});
+
+    let X = rgb[0] * 0.649926 + rgb[1] * 0.103455 + rgb[2] * 0.197109;
+    let Y = rgb[0] * 0.234327 + rgb[1] * 0.743075 + rgb[2] * 0.022598;
+    let Z = rgb[1] * 0.053077 + rgb[2] * 1.035763;
+
+    let x = X / (X + Y + Z);
+    let y = Y / (X + Y + Z);
+
+    return [x, y, Y]
+}
+
+pub fn xyb_to_rgb(xyb: &[f32; 3]) -> [u16; 3] {
+    let x = xyb[0];
+    let y = xyb[1];
+    let z = 1.0 - x - y;
+    let Y = xyb[2];
+    let X = (Y / y) * x;
+    let Z = (Y / y) * z;
+    let mut r = X * 1.4628067 - Y * 0.1840623 - Z * 0.2743606;
+    let mut g = -X * 0.5217933 + Y * 1.4472381 + Z * 0.0677227;
+    let mut b = X * 0.0349342 - Y * 0.0968930 + Z * 1.2884099;
+    r = if r <= 0.0031308 {12.92 * r} else {(1.0 + 0.055) * r.powf(1.0 / 2.4) - 0.055};
+    g = if g <= 0.0031308 {12.92 * g} else {(1.0 + 0.055) * g.powf(1.0 / 2.4) - 0.055};
+    b = if b <= 0.0031308 {12.92 * b} else {(1.0 + 0.055) * b.powf(1.0 / 2.4) - 0.055};
+    return [(r * u16::MAX as f32) as u16, (g * u16::MAX as f32) as u16, (b * u16::MAX as f32) as u16];
+}
