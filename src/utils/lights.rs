@@ -199,6 +199,34 @@ impl Envelope for FixedDecayEnvelope {
     }
 }
 
+pub struct DynamicDecayEnvelope {
+    trigger_time: Instant,
+    decay_per_second: f32,
+    strength: f32,
+}
+
+impl DynamicDecayEnvelope {
+    pub fn init(decay_per_second: f32) -> DynamicDecayEnvelope {
+        return DynamicDecayEnvelope {
+            trigger_time: Instant::now(),
+            decay_per_second: decay_per_second,
+            strength: 0.0
+        };
+    }
+}
+
+impl Envelope for DynamicDecayEnvelope {
+    fn trigger(&mut self, strength: f32) {
+        self.trigger_time = Instant::now();
+        self.strength = strength;
+    }
+
+    fn get_value(&self) -> f32 {
+        let value = self.strength - (self.strength * ((Instant::now() - self.trigger_time).as_secs_f32() as f32 * self.decay_per_second) as f32);
+        return if value > 0.0 { value } else { 0.0 };
+    }
+}
+
 
 pub struct MultibandEnvelope {
     pub drum: FixedDecayEnvelope,
