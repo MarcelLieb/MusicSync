@@ -1,6 +1,6 @@
 use std::marker::Send;
 use std::sync::mpsc;
-use std::time::Instant;
+use std::time::{Instant, Duration};
 use std::{
     sync::{
         mpsc::{Sender, TryRecvError},
@@ -173,7 +173,7 @@ pub trait Envelope {
 // Linear Envelope
 pub struct FixedDecayEnvelope {
     trigger_time: Instant,
-    length: std::time::Duration,
+    length: Duration,
     strength: f32,
 }
 
@@ -194,7 +194,7 @@ impl Envelope for FixedDecayEnvelope {
     }
 
     fn get_value(&self) -> f32 {
-        let value = self.strength - (self.strength * ((Instant::now() - self.trigger_time).as_millis() / self.length.as_millis()) as f32);
+        let value = self.strength - (self.strength * (self.trigger_time.elapsed().as_millis() / self.length.as_millis()) as f32);
         return if value > 0.0 { value } else { 0.0 };
     }
 }
@@ -222,11 +222,42 @@ impl Envelope for DynamicDecayEnvelope {
     }
 
     fn get_value(&self) -> f32 {
-        let value = self.strength - (self.strength * ((Instant::now() - self.trigger_time).as_secs_f32() as f32 * self.decay_per_second) as f32);
+        let value = self.strength - (self.strength * self.trigger_time.elapsed().as_secs_f32() * self.decay_per_second);
         return if value > 0.0 { value } else { 0.0 };
     }
 }
 
+pub struct ColorEnvelope {
+    trigger_time: Instant,
+    start_color: [f32; 3],
+    end_color: [f32; 3],
+    length: Duration,
+    envelope: FixedDecayEnvelope,
+}
+
+impl ColorEnvelope {
+    pub fn init(from_color: &[u16; 3], to_color: &[u16; 3], length: Duration) -> ColorEnvelope {
+        return ColorEnvelope {
+            trigger_time: Instant::now(),
+            start_color: rgb_to_xyb(from_color),
+            end_color: rgb_to_xyb(to_color),
+            length,
+            envelope: FixedDecayEnvelope::init(length)
+        };
+    }
+
+    pub fn trigger(&mut self, strength: f32) {
+        self.trigger_time = Instant::now();
+        self.envelope.trigger(strength);
+    }
+
+    pub fn get_color(&self) -> [u16; 3] {
+        let t = self.envelope.get_value();
+        let x = self.start_color[0] + (self.end_color[0] - self.start_color[0]) * t;
+        let y = self.start_color[1] + (self.end_color[1] - self.start_color[1]) * t;
+        return  xyb_to_rgb(&[x, y, t]);
+    }
+}
 
 pub struct MultibandEnvelope {
     pub drum: FixedDecayEnvelope,
@@ -257,6 +288,7 @@ pub fn rgb_to_xyb(rgb: &[u16; 3]) -> [f32; 3] {
     return [x, y, Y]
 }
 
+#[allow(non_snake_case)]
 pub fn xyb_to_rgb(xyb: &[f32; 3]) -> [u16; 3] {
     let x = xyb[0];
     let y = xyb[1];
