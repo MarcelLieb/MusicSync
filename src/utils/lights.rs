@@ -227,12 +227,14 @@ impl Envelope for DynamicDecayEnvelope {
     }
 }
 
+#[allow(dead_code)]
 pub struct ColorEnvelope {
     start_color: [f32; 3],
     end_color: [f32; 3],
     envelope: FixedDecayEnvelope,
 }
 
+#[allow(dead_code)]
 impl ColorEnvelope {
     pub fn init(from_color: &[u16; 3], to_color: &[u16; 3], length: Duration) -> ColorEnvelope {
         return ColorEnvelope {
@@ -250,14 +252,14 @@ impl ColorEnvelope {
         let t = self.envelope.get_value();
         let x = self.start_color[0] + (self.end_color[0] - self.start_color[0]) * t;
         let y = self.start_color[1] + (self.end_color[1] - self.start_color[1]) * t;
-        return  xyb_to_rgb(&[x, y, t]);
+        return  xyb_to_rgb(&[x, y, (self.start_color[2] + self.end_color[2]) / 2.0 * t]);
     }
 }
 
 pub struct MultibandEnvelope {
     pub drum: DynamicDecayEnvelope,
     pub hihat: FixedDecayEnvelope,
-    pub note: ColorEnvelope,
+    pub note: FixedDecayEnvelope,
     pub fullband: FixedDecayEnvelope,
 }
 
