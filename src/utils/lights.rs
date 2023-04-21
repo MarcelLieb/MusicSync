@@ -230,7 +230,6 @@ impl Envelope for DynamicDecayEnvelope {
 pub struct ColorEnvelope {
     start_color: [f32; 3],
     end_color: [f32; 3],
-    length: Duration,
     envelope: FixedDecayEnvelope,
 }
 
@@ -239,7 +238,6 @@ impl ColorEnvelope {
         return ColorEnvelope {
             start_color: rgb_to_xyb(from_color),
             end_color: rgb_to_xyb(to_color),
-            length,
             envelope: FixedDecayEnvelope::init(length)
         };
     }
@@ -257,9 +255,9 @@ impl ColorEnvelope {
 }
 
 pub struct MultibandEnvelope {
-    pub drum: FixedDecayEnvelope,
+    pub drum: DynamicDecayEnvelope,
     pub hihat: FixedDecayEnvelope,
-    pub note: FixedDecayEnvelope,
+    pub note: ColorEnvelope,
     pub fullband: FixedDecayEnvelope,
 }
 
@@ -281,6 +279,7 @@ pub fn rgb_to_xyb(rgb: &[u16; 3]) -> [f32; 3] {
 
     let x = X / (X + Y + Z);
     let y = Y / (X + Y + Z);
+    println!("{x}, {y}, {Y}");
 
     return [x, y, Y]
 }

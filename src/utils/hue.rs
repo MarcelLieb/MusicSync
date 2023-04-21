@@ -5,7 +5,7 @@ use tokio::net::UdpSocket;
 use webrtc_dtls::{conn::DTLSConn, config::Config, cipher_suite::CipherSuiteId, Error};
 
 use super::lights::{PollingHelper, LightService, FixedDecayEnvelope};
-use crate::utils::lights::{Event, MultibandEnvelope, Envelope};
+use crate::utils::lights::{Event, MultibandEnvelope, Envelope, DynamicDecayEnvelope, ColorEnvelope};
 #[allow(dead_code)]
 pub struct Bridge {
     ip: Ipv4Addr,
@@ -63,9 +63,9 @@ impl Bridge {
         );
 
         let envelopes = MultibandEnvelope {
-            drum: FixedDecayEnvelope::init(Duration::from_millis(110)),
+            drum: DynamicDecayEnvelope::init(3.0),
             hihat: FixedDecayEnvelope::init(Duration::from_millis(80)),
-            note: FixedDecayEnvelope::init(Duration::from_millis(100)),
+            note: ColorEnvelope::init(&[0, 0, u16::MAX], &[u16::MAX, 0, 0], Duration::from_millis(200)),
             fullband: FixedDecayEnvelope::init(Duration::from_millis(100)),
         };
 
@@ -94,9 +94,9 @@ impl LightService for Bridge {
                 }
             },
             Event::Note(_, volume) => {
-                if volume > self.envelopes.note.get_value() {
+                
                     self.envelopes.note.trigger(volume);
-                }
+                
             },
         }
     }
@@ -109,9 +109,8 @@ impl LightService for Bridge {
 
         let brightness = (self.envelopes.hihat.get_value() * u16::MAX as f32) as u16 >> 3;
         self.polling_helper.update_color(&[[brightness, brightness, brightness]], true);
-
-        let brightness = (self.envelopes.note.get_value() * u16::MAX as f32) as u16 >> 2;
-        self.polling_helper.update_color(&[[0, 0, brightness]], true);
+        let color = self.envelopes.note.get_color();
+        self.polling_helper.update_color(&[color], true);
     }
 }
 
