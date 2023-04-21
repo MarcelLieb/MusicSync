@@ -194,7 +194,7 @@ impl Envelope for FixedDecayEnvelope {
     }
 
     fn get_value(&self) -> f32 {
-        let value = self.strength - (self.strength * (self.trigger_time.elapsed().as_millis() / self.length.as_millis()) as f32);
+        let value = self.strength - (self.strength * (self.trigger_time.elapsed().as_millis() as f32 / self.length.as_millis() as f32));
         return if value > 0.0 { value } else { 0.0 };
     }
 }
@@ -279,7 +279,6 @@ pub fn rgb_to_xyb(rgb: &[u16; 3]) -> [f32; 3] {
 
     let x = X / (X + Y + Z);
     let y = Y / (X + Y + Z);
-    println!("{x}, {y}, {Y}");
 
     return [x, y, Y]
 }

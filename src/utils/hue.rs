@@ -4,7 +4,7 @@ use std::{net::{SocketAddr, Ipv4Addr, IpAddr}, num::ParseIntError, sync::Arc, ti
 use tokio::net::UdpSocket;
 use webrtc_dtls::{conn::DTLSConn, config::Config, cipher_suite::CipherSuiteId, Error};
 
-use super::lights::{PollingHelper, LightService, FixedDecayEnvelope};
+use super::lights::{PollingHelper, LightService, FixedDecayEnvelope, rgb_to_xyb};
 use crate::utils::lights::{Event, MultibandEnvelope, Envelope, DynamicDecayEnvelope, ColorEnvelope};
 #[allow(dead_code)]
 pub struct Bridge {
@@ -65,7 +65,7 @@ impl Bridge {
         let envelopes = MultibandEnvelope {
             drum: DynamicDecayEnvelope::init(3.0),
             hihat: FixedDecayEnvelope::init(Duration::from_millis(80)),
-            note: ColorEnvelope::init(&[0, 0, u16::MAX], &[u16::MAX, 0, 0], Duration::from_millis(200)),
+            note: ColorEnvelope::init(&[0, 0, u16::MAX], &[u16::MAX, 0, 0], Duration::from_millis(100)),
             fullband: FixedDecayEnvelope::init(Duration::from_millis(100)),
         };
 
@@ -94,9 +94,9 @@ impl LightService for Bridge {
                 }
             },
             Event::Note(_, volume) => {
-                
+                if volume > rgb_to_xyb(&self.envelopes.note.get_color())[2] {
                     self.envelopes.note.trigger(volume);
-                
+                }
             },
         }
     }
