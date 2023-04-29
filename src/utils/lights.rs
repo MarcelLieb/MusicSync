@@ -1,4 +1,3 @@
-use std::borrow::Borrow;
 use std::marker::Send;
 use std::sync::mpsc;
 use std::time::{Instant, Duration};
@@ -232,15 +231,15 @@ impl Envelope for DynamicDecayEnvelope {
 pub struct ColorEnvelope {
     start_color: [f32; 3],
     end_color: [f32; 3],
-    envelope: FixedDecayEnvelope,
+    pub envelope: FixedDecayEnvelope,
 }
 
 #[allow(dead_code)]
 impl ColorEnvelope {
     pub fn init(from_color: &[u16; 3], to_color: &[u16; 3], length: Duration) -> ColorEnvelope {
         return ColorEnvelope {
-            start_color: rgb_to_xyb(from_color),
-            end_color: rgb_to_xyb(to_color),
+            start_color: rgb_to_hsv(from_color),
+            end_color: rgb_to_hsv(to_color),
             envelope: FixedDecayEnvelope::init(length)
         };
     }
@@ -250,10 +249,8 @@ impl ColorEnvelope {
     }
 
     pub fn get_color(&self) -> [u16; 3] {
-        let t = self.envelope.get_value();
-        let x = self.start_color[0] + (self.end_color[0] - self.start_color[0]) * t;
-        let y = self.start_color[1] + (self.end_color[1] - self.start_color[1]) * t;
-        return  xyb_to_rgb(&[x, y, (self.start_color[2] + self.end_color[2]) / 2.0 * t]);
+        let t = self.envelope.strength - self.envelope.get_value();
+        return hsv_to_rgb(&interpolate_hsv(&self.start_color, &self.end_color, t));
     }
 }
 
@@ -261,10 +258,10 @@ pub struct MultibandEnvelope {
     pub drum: DynamicDecayEnvelope,
     pub hihat: FixedDecayEnvelope,
     pub note: FixedDecayEnvelope,
-    pub fullband: FixedDecayEnvelope,
+    pub fullband: ColorEnvelope,
 }
 
-#[allow(non_snake_case)]
+#[allow(non_snake_case, dead_code)]
 pub fn rgb_to_xyb(rgb: &[u16; 3]) -> [f32; 3] {
     let mut rgb: [f32; 3] = rgb
         .iter()
@@ -286,7 +283,7 @@ pub fn rgb_to_xyb(rgb: &[u16; 3]) -> [f32; 3] {
     return [x, y, Y]
 }
 
-#[allow(non_snake_case)]
+#[allow(non_snake_case, dead_code)]
 pub fn xyb_to_rgb(xyb: &[f32; 3]) -> [u16; 3] {
     let x = xyb[0];
     let y = xyb[1];
@@ -314,9 +311,10 @@ pub fn rgb_to_hsv(rgb: &[u16; 3]) -> [f32; 3]{
         h = 0.0
     } else  {
         match c_max {
-            i if out[0] == *i =>
-                h = 60.0 * (((out[1] - out[2]) / delta) % 6.0),
-        
+            i if out[0] == *i => {
+                let check = 60.0 * (((out[1] - out[2]) / delta) % 6.0);
+                h = if check >= 0.0 {check} else {360.0 + check};
+            },
             i if out[1] == *i => 
                 h = 60.0 * (((out[2] - out[0]) / delta) + 2.0),
         
@@ -331,7 +329,7 @@ pub fn rgb_to_hsv(rgb: &[u16; 3]) -> [f32; 3]{
     [h, s, *c_max]
 }
 
-fn hsv_to_rgb(hsv: &[f32;3]) -> [u16; 3] {
+pub fn hsv_to_rgb(hsv: &[f32;3]) -> [u16; 3] {
     let c = hsv[2] * hsv[1];
     let x = c * (1.0 - ((hsv[0] / 60.0) % 2.0 - 1.0).abs());
     let m = hsv[2] - c;
@@ -351,4 +349,12 @@ fn hsv_to_rgb(hsv: &[f32;3]) -> [u16; 3] {
     let b = (b + m) * u16::MAX as f32;
 
     [r as u16, g as u16, b as u16]
+}
+
+pub fn interpolate_hsv(a: &[f32; 3], b: &[f32; 3], t: f32) -> [f32; 3] {
+    let h = a[0] + t * (b[0] - a[0]);
+    let s = a[1] + t * (b[1] - a[1]);
+    let v = a[2] + t * (b[2] - a[2]);
+
+    [h, s, v]
 }

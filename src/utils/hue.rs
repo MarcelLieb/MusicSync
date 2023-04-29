@@ -5,7 +5,7 @@ use tokio::net::UdpSocket;
 use webrtc_dtls::{conn::DTLSConn, config::Config, cipher_suite::CipherSuiteId, Error};
 
 use super::lights::{PollingHelper, LightService, FixedDecayEnvelope};
-use crate::utils::lights::{Event, MultibandEnvelope, Envelope, DynamicDecayEnvelope};
+use crate::utils::lights::{Event, MultibandEnvelope, Envelope, DynamicDecayEnvelope, ColorEnvelope};
 #[allow(dead_code)]
 pub struct Bridge {
     ip: Ipv4Addr,
@@ -66,7 +66,7 @@ impl Bridge {
             drum: DynamicDecayEnvelope::init(8.0),
             hihat: FixedDecayEnvelope::init(Duration::from_millis(80)),
             note: FixedDecayEnvelope::init(Duration::from_millis(100)),
-            fullband: FixedDecayEnvelope::init(Duration::from_millis(100)),
+            fullband: ColorEnvelope::init(&[u16::MAX, 0, 0], &[2, 0, 1], Duration::from_millis(250)),
         };
 
         let bridge = Bridge {ip: bridge_ip, app_key: app_key.to_string(), area: area_id.to_string(), polling_helper, envelopes};
@@ -78,7 +78,11 @@ impl Bridge {
 impl LightService for Bridge {
     fn event_detected(&mut self, event: super::lights::Event) {
         match event {
-            Event::Full(_) => {},
+            Event::Full(volume) => {
+                if volume > self.envelopes.fullband.envelope.get_value() {
+                    self.envelopes.fullband.trigger(volume)
+                }
+            },
             Event::Atmosphere(_, _volume) => {
                 // let brightness = (volume * u16::MAX as f32) as u16 >> 4;
                 // self.polling_helper.update_color(&[[0, brightness, 0]], true);
@@ -104,6 +108,11 @@ impl LightService for Bridge {
     fn update(&mut self) {
         self.polling_helper.update_color(&vec![[0,0,0]; 1], false);
 
+        /*
+        if self.envelopes.fullband.envelope.get_value() > 0.0 {
+            self.polling_helper.update_color(&[self.envelopes.fullband.get_color()], false)
+        }
+         */
         let brightness = (self.envelopes.drum.get_value() * u16::MAX as f32) as u16;
         self.polling_helper.update_color(&[[brightness, 0, 0]], true);
 
