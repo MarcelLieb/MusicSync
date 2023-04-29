@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::marker::Send;
 use std::sync::mpsc;
 use std::time::{Instant, Duration};
@@ -300,4 +301,54 @@ pub fn xyb_to_rgb(xyb: &[f32; 3]) -> [u16; 3] {
     g = if g <= 0.0031308 {12.92 * g} else {(1.0 + 0.055) * g.powf(1.0 / 2.4) - 0.055};
     b = if b <= 0.0031308 {12.92 * b} else {(1.0 + 0.055) * b.powf(1.0 / 2.4) - 0.055};
     return [(r * u16::MAX as f32) as u16, (g * u16::MAX as f32) as u16, (b * u16::MAX as f32) as u16];
+}
+
+pub fn rgb_to_hsv(rgb: &[u16; 3]) -> [f32; 3]{
+    let out: [f32; 3] = [rgb[0] as f32 / u16::MAX as f32, rgb[1] as f32 / u16::MAX as f32, rgb[2] as f32 / u16::MAX as f32];
+    let c_max = out.iter().reduce(|a, b| if a > b {a} else {b}).unwrap();
+    let c_min = out.iter().reduce(|a, b| if a < b {a} else {b}).unwrap();
+    let delta = c_max - c_min;
+
+    let h: f32;
+    if delta == 0.0 {
+        h = 0.0
+    } else  {
+        match c_max {
+            i if out[0] == *i =>
+                h = 60.0 * (((out[1] - out[2]) / delta) % 6.0),
+        
+            i if out[1] == *i => 
+                h = 60.0 * (((out[2] - out[0]) / delta) + 2.0),
+        
+            i if out[2] == *i => 
+                h = 60.0 * (((out[0] - out[1]) / delta) + 4.0),
+            _ => h = 0.0
+        }
+    }
+
+    let s = if *c_max == 0.0 {0.0} else {delta / c_max};
+    
+    [h, s, *c_max]
+}
+
+fn hsv_to_rgb(hsv: &[f32;3]) -> [u16; 3] {
+    let c = hsv[2] * hsv[1];
+    let x = c * (1.0 - ((hsv[0] / 60.0) % 2.0 - 1.0).abs());
+    let m = hsv[2] - c;
+
+    let (r, g, b) = match hsv[0] {
+        h if h < 60.0 => (c, x, 0.0),
+        h if h < 120.0 => (x, c, 0.0),
+        h if h < 180.0 => (0.0, c, x),
+        h if h < 240.0 => (0.0, x, c),
+        h if h < 300.0 => (x, 0.0, c),
+        h if h < 360.0 => (c, 0.0, x),
+        _ => (0.0, 0.0, 0.0)
+    };
+
+    let r = (r + m) * u16::MAX as f32;
+    let g = (g + m) * u16::MAX as f32;
+    let b = (b + m) * u16::MAX as f32;
+
+    [r as u16, g as u16, b as u16]
 }
