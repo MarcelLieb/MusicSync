@@ -254,6 +254,50 @@ impl ColorEnvelope {
     }
 }
 
+#[allow(dead_code)]
+pub struct AnimationHelper<T> {
+    animator: fn(u64) -> T,
+    time_ref: Instant,
+    position: u64,
+    length: u64,
+    looping: bool,
+    stopped: bool
+}
+
+#[allow(dead_code)]
+impl<T> AnimationHelper<T> {
+    pub fn init(animator: fn(u64) -> T, length: u64, looping: bool) -> AnimationHelper<T> {
+        AnimationHelper { animator, time_ref: Instant::now(), position: 0, length, looping, stopped: true }
+    }
+
+    pub fn get_value(&self) -> T{
+        let pos: u64;
+        if self.stopped {
+            pos = self.position;
+        } else if self.looping {
+            pos = (self.time_ref.elapsed().as_millis() % self.length as u128) as u64;
+        } else if self.time_ref.elapsed().as_millis() > self.length as u128 {
+            pos = self.length;
+        } else {
+            pos = self.time_ref.elapsed().as_millis() as u64;
+        }
+        (self.animator)(pos)
+    }
+
+    pub fn stop(&mut self) {
+        self.position = (self.time_ref.elapsed().as_millis() % self.length as u128) as u64;
+        self.stopped = true;
+    }
+
+    pub fn start(&mut self) {
+        self.stopped = false;
+    }
+
+    pub fn set_looping(&mut self, looping: bool) {
+        self.looping = looping
+    }
+}
+
 pub struct MultibandEnvelope {
     pub drum: DynamicDecayEnvelope,
     pub hihat: FixedDecayEnvelope,
