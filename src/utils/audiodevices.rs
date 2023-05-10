@@ -1,7 +1,7 @@
 use cpal::{self, traits::{HostTrait, DeviceTrait}, BuildStreamError, StreamConfig};
 use log::{debug};
 use realfft::{RealFftPlanner, num_complex::Complex};
-use crate::utils::{audioprocessing::{print_onset, DynamicThreshold, MultiBandThreshold}, hue::Bridge, lights::LightService};
+use crate::utils::{audioprocessing::{print_onset, DynamicThreshold, MultiBandThreshold}, hue::Bridge, lights::LightService, serialize};
 
 
 pub const SAMPLE_RATE: u32 = 48000;
@@ -50,6 +50,9 @@ pub fn create_default_output_stream() -> cpal::Stream {
     if let Ok(bridge) = Bridge::init() {
         lightservices.push(Box::new(bridge));
     }
+
+    let serializer = serialize::OnsetContainer::init("onsets.cbor".to_string());
+    lightservices.push(Box::new(serializer));
 
     let buffer_size = (BUFFER_SIZE * channels as u32) as usize;
     let hop_size = (HOP_SIZE * channels as u32) as usize;
