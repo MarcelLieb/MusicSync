@@ -154,7 +154,7 @@ where T: Sample + ToSample<f32> {
         lightservices.iter_mut().for_each(|service| service.event_detected(Event::Full(volume)));
     } else {
         println!("{}", "---------------".black());
-        lightservices.iter_mut().for_each(|service| service.event_detected(Event::Atmosphere(index_of_max as u16, volume)));
+        lightservices.iter_mut().for_each(|service| service.event_detected(Event::Atmosphere(volume, index_of_max as u16)));
     }
 
     let drums_weight = low_end_weight * DRUM_CLICK_WEIGHT * high_end_weight;
@@ -164,7 +164,7 @@ where T: Sample + ToSample<f32> {
 
     let notes_weight = mids_weight + NOTE_CLICK_WEIGHT * high_end_weight;
     if notes_weight >= threshold.notes.get_threshold(notes_weight) {
-        lightservices.iter_mut().for_each(|service| service.event_detected(Event::Note(*index_of_max_mid as u16,volume)));
+        lightservices.iter_mut().for_each(|service| service.event_detected(Event::Note(volume, *index_of_max_mid as u16)));
     }
 
     if *high_end_weight >= threshold.hihat.get_threshold(*high_end_weight) {

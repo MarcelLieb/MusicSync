@@ -29,8 +29,8 @@ pub trait Stream: Writeable + Closable + Send {}
 
 pub enum Event {
     Full(f32),
-    Atmosphere(u16, f32),
-    Note(u16, f32),
+    Atmosphere(f32, u16),
+    Note(f32, u16),
     Drum(f32),
     Hihat(f32),
 }
