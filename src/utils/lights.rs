@@ -29,6 +29,7 @@ pub trait Writeable {
 pub trait Stream: Writeable + Closable + Send {}
 
 #[derive(Debug, Serialize)]
+#[serde(untagged)]
 pub enum Event {
     Full(f32),
     Atmosphere(f32, u16),
