@@ -97,7 +97,7 @@ impl LightService for Bridge {
                     self.envelopes.hihat.trigger(volume);
                 }
             },
-            Event::Note(_, volume) => {
+            Event::Note(volume, _) => {
                 if volume > self.envelopes.note.get_value() {
                     self.envelopes.note.trigger(volume);
                 }

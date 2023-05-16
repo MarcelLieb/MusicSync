@@ -9,6 +9,7 @@ use std::{
     thread,
 };
 
+use serde::Serialize;
 use futures::executor::block_on;
 use webrtc_dtls::conn::DTLSConn;
 
@@ -27,10 +28,12 @@ pub trait Writeable {
 
 pub trait Stream: Writeable + Closable + Send {}
 
+#[derive(Debug, Serialize)]
+#[serde(untagged)]
 pub enum Event {
     Full(f32),
-    Atmosphere(u16, f32),
-    Note(u16, f32),
+    Atmosphere(f32, u16),
+    Note(f32, u16),
     Drum(f32),
     Hihat(f32),
 }

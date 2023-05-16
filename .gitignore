@@ -15,4 +15,5 @@ Cargo.lock
 
 # Ignore exported data 
 *.txt
+*.cbor
 .vscode
