@@ -1,36 +1,63 @@
 use std::collections::HashMap;
 
 use plotters::{
-    prelude::{BitMapBackend, ChartBuilder, IntoDrawingArea, LabelAreaPosition, Rectangle, Circle},
-    style::{AsRelative, Color, Palette, Palette99, BLACK, WHITE},
+    prelude::{BitMapBackend, ChartBuilder, IntoDrawingArea, LabelAreaPosition, Rectangle, Circle, SeriesLabelPosition},
+    style::{AsRelative, Color, Palette, BLACK, WHITE, Palette99},
 };
 
 use super::lights::Event;
+
+const TIME_WINDOW: u128 = 10000;
 
 pub fn plot(
     data: &HashMap<String, Vec<(u128, Event)>>,
     file: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let root = BitMapBackend::new(&file, (1280, 960)).into_drawing_area();
+    let root = BitMapBackend::new(&file, (1920, 1080)).into_drawing_area();
 
     root.fill(&WHITE)?;
 
     let max = data.iter().fold(0_u128, |acc, (_, vec)| {
-        vec.iter().filter(|(t, _)| *t < 10000).last().unwrap_or(&(0, Event::Full(0.0))).0.max(acc)
+        vec.iter().filter(|(t, _)| *t < TIME_WINDOW).last().unwrap_or(&(0, Event::Full(0.0))).0.max(acc)
     });
 
     let mut chart = ChartBuilder::on(&root)
-        .set_label_area_size(LabelAreaPosition::Left, (8).percent())
         .set_label_area_size(LabelAreaPosition::Bottom, (4).percent())
         .margin(5)
         .build_cartesian_2d(0..max, 0_u32..6_u32)?;
-    chart.configure_mesh().disable_y_mesh().draw()?;
+    chart.configure_mesh().disable_y_mesh().x_desc("time in ms").draw()?;
 
-    for (index, key) in data.keys().enumerate() {
+    let mut keys = data.keys().map(|s| s.to_string()).collect::<Vec<String>>();
+    keys.sort();
+
+    let data_max:HashMap<String, f32> = data
+        .iter()
+        .map(|(key, vec)| 
+            (
+                key.to_string(), 
+                vec.iter()
+                    .map(|(_, event)| event)
+                    .map(|event|
+                        match event {
+                            Event::Full(y) => *y,
+                            Event::Atmosphere(y, _) => *y,
+                            Event::Note(y, _) => *y,
+                            Event::Drum(y) => *y,
+                            Event::Hihat(y) => *y,
+                        }
+                    )
+                    .fold(0.0_f32, |acc, x| acc.max(x)),
+            )
+        )
+        .collect();
+
+    for (index, key) in keys.iter().enumerate() {
         let color = Palette99::pick(index);
         chart
             .draw_series({
-                data[key].iter().map(|(time, event)| {
+                data[key]
+                .iter()
+                .map(|(time, event)| {
                     match event {
                         Event::Full(y) => (*time, *y),
                         Event::Atmosphere(y, _) => (*time, *y),
@@ -38,7 +65,10 @@ pub fn plot(
                         Event::Drum(y) => (*time, *y),
                         Event::Hihat(y) => (*time, *y),
                     }
-                }).filter(|(t, _)| *t < 10000).map(|(t, _v)| Circle::new((t, (index + 1) as u32), 3, &color))
+                })
+                .map(|(time, y)| (time, y / data_max[key]))
+                .filter(|(t, _)| *t < TIME_WINDOW)
+                .map(|(t, v)| Circle::new((t, (- (index as i32) + 5) as u32), 20.0 * v, &color.mix(0.8)))
             }
             )?
             .label(key)
@@ -47,6 +77,8 @@ pub fn plot(
 
     chart
         .configure_series_labels()
+        .position(SeriesLabelPosition::UpperRight)
+        .background_style(&WHITE)
         .border_style(&BLACK)
         .draw()?;
 
