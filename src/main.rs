@@ -21,6 +21,7 @@ async fn main() {
     println!("Stop sync with CTRL-C");
     rx.recv().expect("Could not receive from channel.");
     println!("Shutting down");
+    drop(stream);
 
     let file = File::open("onsets.cbor").expect("Couldn't open file");
     let data: HashMap<String, Vec<(u128, Event)>> = from_reader(file).unwrap();
