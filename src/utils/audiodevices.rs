@@ -58,7 +58,7 @@ pub fn create_default_output_stream() -> cpal::Stream {
 
     let buffer_size = (BUFFER_SIZE * channels as u32) as usize;
     let hop_size = (HOP_SIZE * channels as u32) as usize;
-    macro_rules! match_sampleformat {
+    macro_rules! build_buffered_onset_stream {
         ($t:ty) => {
             {
                 let mut buffer: Vec<$t> = Vec::new();
@@ -92,9 +92,9 @@ pub fn create_default_output_stream() -> cpal::Stream {
         };
     }
     let outstream = match audio_cfg.sample_format() {
-        cpal::SampleFormat::F32 => match_sampleformat!(f32),
-        cpal::SampleFormat::I16 => match_sampleformat!(i16),
-        cpal::SampleFormat::U16 => match_sampleformat!(u16),
+        cpal::SampleFormat::F32 => build_buffered_onset_stream!(f32),
+        cpal::SampleFormat::I16 => build_buffered_onset_stream!(i16),
+        cpal::SampleFormat::U16 => build_buffered_onset_stream!(u16),
         _ => Err(BuildStreamError::StreamConfigNotSupported)
     }.expect("Couldn't build input stream.\nMake sure you are running at 48kHz sample rate");
     debug!("Default output device: {:?}", out.name().unwrap());
