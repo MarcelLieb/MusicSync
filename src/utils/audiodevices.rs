@@ -13,8 +13,6 @@ fn capture_err_fn(err: cpal::StreamError) {
     eprintln!("an error occurred on stream: {}", err);
 }
 
-
-
 pub fn create_default_output_stream() -> cpal::Stream {
     let _hosts = cpal::available_hosts();
     let default_host = cpal::default_host();
