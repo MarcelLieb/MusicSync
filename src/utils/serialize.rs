@@ -1,9 +1,12 @@
-use std::{fs::File, collections::HashMap};
+use std::{collections::HashMap, fs::File};
 
-use serde::{Serialize, Deserialize};
 use ciborium::into_writer;
+use serde::{Deserialize, Serialize};
 
-use super::{lights::{LightService, Event}, audiodevices::{SAMPLE_RATE, HOP_SIZE}};
+use super::{
+    audiodevices::{HOP_SIZE, SAMPLE_RATE},
+    lights::{Event, LightService},
+};
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct OnsetContainer {
@@ -13,14 +16,18 @@ pub struct OnsetContainer {
     time: u128,
     #[serde(skip_serializing, skip_deserializing)]
     time_interval: u32,
-    pub data: HashMap<String, Vec<(u128, Event)>>
+    pub data: HashMap<String, Vec<(u128, Event)>>,
 }
 
 impl LightService for OnsetContainer {
     fn event_detected(&mut self, event: Event) {
         match event {
             Event::Full(_) => self.data.get_mut("Full").unwrap().push((self.time, event)),
-            Event::Atmosphere(_, _) => self.data.get_mut("Atmosphere").unwrap().push((self.time, event)),
+            Event::Atmosphere(_, _) => self
+                .data
+                .get_mut("Atmosphere")
+                .unwrap()
+                .push((self.time, event)),
             Event::Note(_, _) => self.data.get_mut("Note").unwrap().push((self.time, event)),
             Event::Drum(_) => self.data.get_mut("Drum").unwrap().push((self.time, event)),
             Event::Hihat(_) => self.data.get_mut("Hihat").unwrap().push((self.time, event)),
@@ -51,7 +58,7 @@ impl OnsetContainer {
             filename,
             time: 0,
             time_interval: ((HOP_SIZE as f64 / SAMPLE_RATE as f64) * 1000.0) as u32,
-            data
+            data,
         }
     }
 }
