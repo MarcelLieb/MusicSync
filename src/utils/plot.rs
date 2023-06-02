@@ -23,7 +23,7 @@ pub fn plot(
 
     let mut chart = ChartBuilder::on(&root)
         .set_label_area_size(LabelAreaPosition::Bottom, (4).percent())
-        .margin(5)
+        .margin(20)
         .build_cartesian_2d(0..max, 0_u32..6_u32)?;
     chart.configure_mesh().disable_y_mesh().x_desc("time in ms").draw()?;
 
@@ -68,13 +68,13 @@ pub fn plot(
                 })
                 .map(|(time, y)| (time, y / data_max[key]))
                 .filter(|(t, _)| *t < TIME_WINDOW)
-                .map(|(t, v)| Circle::new((t, (- (index as i32) + 5) as u32), 20.0 * v, &color.mix(0.8)))
+                .map(|(t, v)| [Circle::new((t, (- (index as i32) + 5) as u32), 25.0 * v, &color.mix(0.8)), Circle::new((t, (- (index as i32) + 5) as u32), 2.0, *&color.mix(0.1).filled())])
+                .flatten()
             }
             )?
             .label(key)
             .legend(move |(x, y)| Rectangle::new([(x, y - 5), (x + 10, y + 5)], color.filled()));
     }
-
     chart
         .configure_series_labels()
         .position(SeriesLabelPosition::UpperRight)
