@@ -14,6 +14,7 @@
 
 * [A tutorial on onset detection in music signals](https://ieeexplore.ieee.org/abstract/document/1495485)
 * [State of the art real time onset detection](https://www.dafx12.york.ac.uk/papers/dafx12_submission_4.pdf)
+* [Python libary with onset detectors and commandline utility](https://aubio.org/)
 
 ## Light control
 
