@@ -26,22 +26,28 @@ pub fn process_file(filename: String, settings: DetectionSettings) {
     let mut multi_threshold = MultiBandThreshold::init_settings(threshold_settings);
     let mut lightservices: Vec<Box<dyn LightService + Send>> = vec![Box::new(serializer)];
 
-    let mut buffer = prepare_buffers(channels, sample_rate);
+    let mut buffer_detection = prepare_buffers(channels, sample_rate);
     let fft_planner = RealFftPlanner::<f32>::new().plan_fft_forward(sample_rate as usize);
     let mut samples: Vec<f32> = source.convert_samples().collect();
 
-    let n = samples.len() / hop_size;
+    let mut buffer: Vec<f32> = Vec::new();
 
-    (0..n).for_each(|_| {
-        print_onset(
-            &samples[0..buffer_size],
-            channels,
-            &fft_planner,
-            &mut buffer,
-            &mut multi_threshold,
-            &mut lightservices,
-            Some(&detection_weights)
-        );
-        samples.drain(0..hop_size);
-    });
+    for data in samples.chunks(buffer_size) {
+        buffer.extend(data);
+        let n = buffer.len() / buffer_size;
+
+        (0..n).for_each(|_| {
+            print_onset(
+                &buffer[0..buffer_size],
+                channels,
+                &fft_planner,
+                &mut buffer_detection,
+                &mut multi_threshold,
+                &mut lightservices,
+                Some(&detection_weights)
+            );
+
+            buffer.drain(0..hop_size);
+        })
+    }
 }
