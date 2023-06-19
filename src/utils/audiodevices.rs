@@ -1,7 +1,7 @@
 use crate::utils::{
     audioprocessing::{prepare_buffers, print_onset, MultiBandThreshold},
     hue::Bridge,
-    lights::LightService,
+    lights::{LightService, Console},
     serialize,
 };
 use cpal::{
@@ -48,6 +48,9 @@ pub fn create_default_output_stream() -> cpal::Stream {
     if let Ok(bridge) = Bridge::init() {
         lightservices.push(Box::new(bridge));
     }
+
+    let console = Console::default();
+    lightservices.push(Box::new(console));
 
     let serializer = serialize::OnsetContainer::init("onsets.cbor".to_string());
     lightservices.push(Box::new(serializer));

@@ -1,6 +1,5 @@
 use std::{collections::VecDeque, f32::consts::PI, sync::Arc};
 
-use colored::Colorize;
 use cpal::Sample;
 use dasp_sample::ToSample;
 use lazy_static::lazy_static;
@@ -218,15 +217,10 @@ pub fn print_onset<T>(
     info!("Loudest frequency: {}Hz", index_of_max);
 
     if weight >= threshold.fullband.get_threshold(weight) {
-        println!(
-            "{}",
-            "■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■".bright_red()
-        );
         lightservices
             .iter_mut()
             .for_each(|service| service.event_detected(Event::Full(volume)));
     } else {
-        println!("{}", "---------------".black());
         lightservices.iter_mut().for_each(|service| {
             service.event_detected(Event::Atmosphere(volume, index_of_max as u16))
         });

@@ -9,6 +9,7 @@ use std::{
     thread,
 };
 
+use colored::{ColoredString, Colorize};
 use futures::executor::block_on;
 use serde::{Deserialize, Serialize};
 use webrtc_dtls::conn::DTLSConn;
@@ -16,6 +17,32 @@ use webrtc_dtls::conn::DTLSConn;
 pub trait LightService {
     fn event_detected(&mut self, event: Event);
     fn update(&mut self);
+}
+
+#[derive(Debug, Default)]
+pub struct Console {
+    output: Vec<ColoredString>
+}
+
+impl LightService for Console {
+    fn event_detected(&mut self, event: Event) {
+        match event {
+            Event::Full(_) => self.output.push("■■■■■■■■".cyan()),
+            Event::Atmosphere(_, _) => self.output.push("----".black()),
+            Event::Note(_, _) => self.output.push("■■■■".blue()),
+            Event::Drum(_) => self.output.push("■■■■■■■■■■■■■■■■".bright_red()),
+            Event::Hihat(_) => self.output.push("■■■■■■■■".white()),
+        }
+    }
+
+    fn update(&mut self) {
+        for s in self.output.iter() {
+            print!("{}", s);
+        }
+        println!();
+
+        self.output.clear();
+    }
 }
 
 pub trait Closable {
