@@ -1,5 +1,5 @@
 use crate::utils::{
-    audioprocessing::{print_onset, DynamicThreshold, MultiBandThreshold},
+    audioprocessing::{prepare_buffers, print_onset, MultiBandThreshold},
     hue::Bridge,
     lights::LightService,
     serialize,
@@ -10,7 +10,7 @@ use cpal::{
     BuildStreamError, StreamConfig,
 };
 use log::debug;
-use realfft::{num_complex::Complex, RealFftPlanner};
+use realfft::{RealFftPlanner};
 
 pub const SAMPLE_RATE: u32 = 48000;
 // buffer size is 10 ms long
@@ -36,27 +36,13 @@ pub fn create_default_output_stream() -> cpal::Stream {
     let config = StreamConfig {
         channels: channels,
         sample_rate: cpal::SampleRate(SAMPLE_RATE),
-        buffer_size: cpal::BufferSize::Fixed(BUFFER_SIZE),
+        buffer_size: cpal::BufferSize::Default,
     };
-
-    let mut f32_samples: Vec<Vec<f32>> = Vec::with_capacity(channels.into());
-    for _ in 0..channels {
-        f32_samples.push(Vec::with_capacity(SAMPLE_RATE as usize));
-    }
-    let mut mono_samples: Vec<f32> = Vec::with_capacity(SAMPLE_RATE as usize);
 
     let fft_planner = RealFftPlanner::<f32>::new().plan_fft_forward(SAMPLE_RATE as usize);
-    let mut fft_output: Vec<Vec<Complex<f32>>> = (0..channels)
-        .map(|_| fft_planner.make_output_vec())
-        .collect();
-    let mut freq_bins: Vec<f32> = vec![0.0; fft_output[0].capacity()];
+    let mut detection_buffer = prepare_buffers(channels, SAMPLE_RATE);
 
-    let mut multi_threshold = MultiBandThreshold {
-        drums: DynamicThreshold::init_config(30, Some(0.30), Some(0.18)),
-        hihat: DynamicThreshold::init_config(20, Some(0.30), Some(0.15)),
-        notes: DynamicThreshold::init_config(20, None, None),
-        fullband: DynamicThreshold::init_config(20, None, None),
-    };
+    let mut multi_threshold = MultiBandThreshold::default();
 
     let mut lightservices: Vec<Box<dyn LightService + Send>> = Vec::new();
     if let Ok(bridge) = Bridge::init() {
@@ -82,13 +68,11 @@ pub fn create_default_output_stream() -> cpal::Stream {
                         print_onset(
                             &buffer[0..buffer_size],
                             channels,
-                            &mut f32_samples,
-                            &mut mono_samples,
                             &fft_planner,
-                            &mut fft_output,
-                            &mut freq_bins,
+                            &mut detection_buffer,
                             &mut multi_threshold,
                             &mut lightservices,
+                            None
                         );
 
                         buffer.drain(0..hop_size);
