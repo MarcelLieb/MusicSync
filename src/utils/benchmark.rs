@@ -31,25 +31,17 @@ pub fn process_file(filename: String, settings: DetectionSettings) {
     let fft_planner = RealFftPlanner::<f32>::new().plan_fft_forward(sample_rate as usize);
     let samples: Vec<f32> = source.convert_samples().collect();
 
-    let mut buffer: Vec<f32> = Vec::new();
+    let n = samples.len() / hop_size;
 
-    for data in samples.chunks(buffer_size) {
-        buffer.extend(data);
-
-        let n = (buffer.len() + hop_size - buffer_size) / hop_size;
-        
-        (0..n).for_each(|_| {
-            print_onset(
-                &buffer[0..buffer_size],
-                channels,
-                &fft_planner,
-                &mut buffer_detection,
-                &mut multi_threshold,
-                &mut lightservices,
-                Some(&detection_weights)
-            );
-
-            buffer.drain(0..hop_size);
-        })
-    }
+    (0..n).for_each(|i| {
+        print_onset(
+            &samples[i*hop_size..buffer_size + i * hop_size],
+            channels,
+            &fft_planner,
+            &mut buffer_detection,
+            &mut multi_threshold,
+            &mut lightservices,
+            Some(&detection_weights)
+        );
+    });
 }
