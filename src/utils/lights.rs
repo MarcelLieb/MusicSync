@@ -27,11 +27,11 @@ pub struct Console {
 impl LightService for Console {
     fn event_detected(&mut self, event: Event) {
         match event {
-            Event::Full(_) => self.output.push("■■■■■■■■".cyan()),
-            Event::Atmosphere(_, _) => self.output.push("----".black()),
-            Event::Note(_, _) => self.output.push("■■■■".blue()),
-            Event::Drum(_) => self.output.push("■■■■■■■■■■■■■■■■".bright_red()),
-            Event::Hihat(_) => self.output.push("■■■■■■■■".white()),
+            Event::Full(s) => self.output.push("■".repeat((s * 10.0) as usize).cyan()),
+            Event::Atmosphere(s, _) => self.output.push("-".repeat((s * 10.0) as usize).black()),
+            Event::Note(s, _) => self.output.push("■".repeat((s * 10.0) as usize).blue()),
+            Event::Drum(s) => self.output.push("■".repeat((s * 10.0) as usize).bright_red()),
+            Event::Hihat(s) => self.output.push("■".repeat((s * 10.0) as usize).white()),
         }
     }
 
