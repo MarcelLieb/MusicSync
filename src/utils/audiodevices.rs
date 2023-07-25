@@ -76,7 +76,7 @@ pub fn create_default_output_stream() -> cpal::Stream {
                 &config,
                 move |data: &[$t], _| {
                     buffer.extend(data);
-                    let n = buffer.len() / buffer_size;
+                    let n = (buffer.len() + hop_size).saturating_sub(buffer_size) / hop_size;
 
                     (0..n).for_each(|_| {
                         print_onset(
