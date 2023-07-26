@@ -21,27 +21,29 @@ pub trait LightService {
 
 #[derive(Debug, Default)]
 pub struct Console {
-    output: Vec<ColoredString>
+    output: [ColoredString; 5]
 }
 
 impl LightService for Console {
     fn event_detected(&mut self, event: Event) {
         match event {
-            Event::Full(s) => self.output.push("■".repeat((s * 10.0) as usize).cyan()),
-            Event::Atmosphere(s, _) => self.output.push("-".repeat((s * 10.0) as usize).black()),
-            Event::Note(s, _) => self.output.push("■".repeat((s * 10.0) as usize).blue()),
-            Event::Drum(s) => self.output.push("■".repeat((s * 10.0) as usize).bright_red()),
-            Event::Hihat(s) => self.output.push("■".repeat((s * 10.0) as usize).white()),
+            Event::Drum(s) => self.output[0] = "■".repeat((s * 9.0).ceil() as usize).bright_red(),
+            Event::Hihat(s) => self.output[1] ="■".repeat((s * 9.0).ceil() as usize).white(),
+            Event::Full(s) => self.output[2] = "■".repeat((s * 9.0).ceil() as usize).cyan(),
+            Event::Note(s, _) => self.output[3] = "■".repeat((s * 9.0).ceil() as usize).blue(),
+            Event::Atmosphere(s, _) => self.output[4] = "-".repeat((s * 9.0).ceil() as usize).black(),
         }
     }
 
     fn update(&mut self) {
-        for s in self.output.iter() {
-            print!("{}", s);
+        print!("|  ");
+        for s in self.output.iter().take(4) {
+            print!("{:^9}  |  ", s);
         }
         println!();
-
-        self.output.clear();
+        for s in &mut self.output {
+            *s = "".black();
+        }
     }
 }
 
