@@ -36,10 +36,7 @@ impl Default for DetectionSettings {
     }
 }
 
-pub fn prepare_buffers(
-    channels: u16,
-    sample_rate: u32,
-) -> Buffer {
+pub fn prepare_buffers(channels: u16, sample_rate: u32) -> Buffer {
     let mut f32_samples: Vec<Vec<f32>> = Vec::with_capacity(channels.into());
     for _ in 0..channels {
         f32_samples.push(Vec::with_capacity(sample_rate as usize));
@@ -97,11 +94,16 @@ pub fn print_onset<T>(
     buffer: &mut Buffer,
     threshold: &mut MultiBandThreshold,
     lightservices: &mut [Box<dyn LightService + Send>],
-    detection_weights: Option<&DetectionWeights>
+    detection_weights: Option<&DetectionWeights>,
 ) where
     T: Sample + ToSample<f32>,
 {
-    let Buffer {f32_samples, mono_samples, fft_output, freq_bins} = buffer;
+    let Buffer {
+        f32_samples,
+        mono_samples,
+        fft_output,
+        freq_bins,
+    } = buffer;
     let DetectionWeights {
         low_end_weight_cutoff,
         high_end_weight_cutoff,
@@ -110,7 +112,6 @@ pub fn print_onset<T>(
         drum_click_weight,
         note_click_weight,
     } = *detection_weights.unwrap_or(&DetectionWeights::default());
-
 
     //Check for silence and abort if present
     let sound = data.iter().any(|i| *i != Sample::EQUILIBRIUM);

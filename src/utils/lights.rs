@@ -21,17 +21,19 @@ pub trait LightService {
 
 #[derive(Debug, Default)]
 pub struct Console {
-    output: [ColoredString; 5]
+    output: [ColoredString; 5],
 }
 
 impl LightService for Console {
     fn event_detected(&mut self, event: Event) {
         match event {
             Event::Drum(s) => self.output[0] = "■".repeat((s * 9.0).ceil() as usize).bright_red(),
-            Event::Hihat(s) => self.output[1] ="■".repeat((s * 9.0).ceil() as usize).white(),
+            Event::Hihat(s) => self.output[1] = "■".repeat((s * 9.0).ceil() as usize).white(),
             Event::Full(s) => self.output[2] = "■".repeat((s * 9.0).ceil() as usize).cyan(),
             Event::Note(s, _) => self.output[3] = "■".repeat((s * 9.0).ceil() as usize).blue(),
-            Event::Atmosphere(s, _) => self.output[4] = "-".repeat((s * 9.0).ceil() as usize).black(),
+            Event::Atmosphere(s, _) => {
+                self.output[4] = "-".repeat((s * 9.0).ceil() as usize).black()
+            }
         }
     }
 
