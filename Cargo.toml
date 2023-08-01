@@ -22,6 +22,7 @@ log = { version = "0.4.17", features = [
 plotters = "0.3.4"
 realfft = "3.2.0"
 reqwest = "0.11.16"
+rodio = "0.17.1"
 rustfft = "6.1.0"
 serde = "1.0.162"
 tokio = {version = "1.27.0", features = ["full"]}
