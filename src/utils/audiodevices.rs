@@ -1,7 +1,7 @@
 use crate::utils::{
     audioprocessing::{prepare_buffers, print_onset, MultiBandThreshold},
     hue::Bridge,
-    lights::{LightService, Console},
+    lights::{Console, LightService},
     serialize,
 };
 use cpal::{
@@ -10,12 +10,12 @@ use cpal::{
     BuildStreamError, StreamConfig,
 };
 use log::debug;
-use realfft::{RealFftPlanner};
+use realfft::RealFftPlanner;
 
 pub const SAMPLE_RATE: u32 = 48000;
 // buffer size is 10 ms long
-pub const BUFFER_SIZE: u32 = 480;
-pub const HOP_SIZE: u32 = BUFFER_SIZE / 3 * 2;
+pub const BUFFER_SIZE: u32 = 1024;
+pub const HOP_SIZE: u32 = 480;
 
 fn capture_err_fn(err: cpal::StreamError) {
     eprintln!("an error occurred on stream: {}", err);
@@ -75,7 +75,7 @@ pub fn create_default_output_stream() -> cpal::Stream {
                             &mut detection_buffer,
                             &mut multi_threshold,
                             &mut lightservices,
-                            None
+                            None,
                         );
 
                         buffer.drain(0..hop_size);
