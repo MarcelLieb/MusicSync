@@ -12,7 +12,7 @@ use cpal::traits::StreamTrait;
 #[tokio::main]
 async fn main() {
     {
-        let stream = create_default_output_stream();
+        let stream = create_default_output_stream().await;
         stream.play().unwrap();
         let (tx, rx) = channel();
 

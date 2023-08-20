@@ -1,6 +1,6 @@
 use crate::utils::{
     audioprocessing::{prepare_buffers, print_onset, MultiBandThreshold},
-    hue::Bridge,
+    hue,
     lights::{Console, LightService},
     serialize,
 };
@@ -21,7 +21,7 @@ fn capture_err_fn(err: cpal::StreamError) {
     eprintln!("an error occurred on stream: {}", err);
 }
 
-pub fn create_default_output_stream() -> cpal::Stream {
+pub async fn create_default_output_stream() -> cpal::Stream {
     let _hosts = cpal::available_hosts();
     let default_host = cpal::default_host();
 
@@ -45,7 +45,7 @@ pub fn create_default_output_stream() -> cpal::Stream {
     let mut multi_threshold = MultiBandThreshold::default();
 
     let mut lightservices: Vec<Box<dyn LightService + Send>> = Vec::new();
-    if let Ok(bridge) = Bridge::init() {
+    if let Ok(bridge) = hue::connect().await {
         lightservices.push(Box::new(bridge));
     }
 
