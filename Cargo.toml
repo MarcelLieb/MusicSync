@@ -9,10 +9,11 @@ edition = "2021"
 biquad = "0.4.2"
 ciborium = "0.2.1"
 colored = "2.0.0"
-cpal = "0.15.0"
+cpal = "0.15.2"
 ctrlc = "3.2.5"
 dasp_sample = "0.11.0"
 futures = "0.3.28"
+gethostname = "0.4.3"
 lazy_static = "1.4.0"
 log = { version = "0.4.17", features = [
     "max_level_trace",
@@ -20,10 +21,10 @@ log = { version = "0.4.17", features = [
     "serde",
 ] }
 plotters = "0.3.4"
-realfft = "3.2.0"
-reqwest = "0.11.16"
+realfft = "3.3.0"
+reqwest = {version = "0.11.18", features = ["json"]}
 rodio = "0.17.1"
 rustfft = "6.1.0"
 serde = "1.0.162"
-tokio = {version = "1.27.0", features = ["full"]}
+tokio = {version = "1.32.0", features = ["full"]}
 webrtc-dtls = "0.7.2"
