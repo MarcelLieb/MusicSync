@@ -2,13 +2,15 @@ use ciborium::{from_reader, into_writer};
 use futures::executor::block_on;
 use log::{info, warn};
 use reqwest::ClientBuilder;
+use serde::{Deserialize, Serialize};
 use std::{
+    fmt::{self, Display, Formatter},
+    fs::File,
     net::{IpAddr, Ipv4Addr, SocketAddr},
     num::ParseIntError,
     sync::Arc,
-    time::Duration, fmt::{Display, Formatter, self}, fs::File,
+    time::Duration,
 };
-use serde::{Deserialize, Serialize};
 use tokio::net::UdpSocket;
 use webrtc_dtls::{cipher_suite::CipherSuiteId, config::Config, conn::DTLSConn};
 
@@ -32,7 +34,7 @@ pub enum ConnectionError {
     Http(reqwest::Error),
     Handshake(webrtc_dtls::Error),
     VersionError(u32),
-    TimeOut
+    TimeOut,
 }
 
 impl std::error::Error for ConnectionError {}
@@ -42,7 +44,10 @@ impl Display for ConnectionError {
         match self {
             Self::Http(e) => write!(f, "Http request failed: {e}"),
             Self::Handshake(e) => write!(f, "Dtls Handshake failed: {e}"),
-            Self::VersionError(version) => write!(f, "Software version too low: {version}\nMust be at least 1948086000"),
+            Self::VersionError(version) => write!(
+                f,
+                "Software version too low: {version}\nMust be at least 1948086000"
+            ),
             Self::TimeOut => write!(f, "Timed out"),
         }
     }
@@ -62,7 +67,13 @@ impl From<webrtc_dtls::Error> for ConnectionError {
 
 impl BridgeConnection {
     pub fn init(bridge: SavedBridge, area: String) -> Result<BridgeConnection, ConnectionError> {
-        let SavedBridge { id, ip, app_key, app_id, psk } = bridge;
+        let SavedBridge {
+            id,
+            ip,
+            app_key,
+            app_id,
+            psk,
+        } = bridge;
 
         info!("Start Entertainment mode");
         block_on(start_entertainment_mode(&ip, &area, &app_key))?;
@@ -75,7 +86,7 @@ impl BridgeConnection {
         ))?;
         info!("Connection established");
 
-        let area_id = area.clone(); 
+        let area_id = area.clone();
 
         let polling_helper = PollingHelper::init::<Arc<fn(&[[u16; 3]]) -> Vec<u8>>>(
             Arc::new(connection),
@@ -137,14 +148,14 @@ pub struct Bridge {
 #[derive(Debug, Deserialize)]
 enum ApiResponse {
     #[serde(rename = "success")]
-    Success {username: String, clientkey: String},
+    Success { username: String, clientkey: String },
     #[serde(rename = "error")]
-    Error {description: String}
+    Error { description: String },
 }
 
 pub async fn connect() -> Result<BridgeConnection, ConnectionError> {
-    let mut saved_bridges:Vec<SavedBridge> = Vec::new();
-    let mut candidates:Vec<SavedBridge> = Vec::new();
+    let mut saved_bridges: Vec<SavedBridge> = Vec::new();
+    let mut candidates: Vec<SavedBridge> = Vec::new();
     if let Ok(file) = File::open("hue.cbor") {
         let data: Vec<SavedBridge> = from_reader(file).unwrap();
         for bridge in data {
@@ -156,7 +167,13 @@ pub async fn connect() -> Result<BridgeConnection, ConnectionError> {
     }
     if candidates.len() == 0 {
         let mut local_bridges = find_bridges().await?;
-        local_bridges.retain(|b| saved_bridges.iter().map(|save| save.ip.to_string()).find(|ip| b.ip.to_string() == ip.to_owned()).is_none());
+        local_bridges.retain(|b| {
+            saved_bridges
+                .iter()
+                .map(|save| save.ip.to_string())
+                .find(|ip| b.ip.to_string() == ip.to_owned())
+                .is_none()
+        });
         for bridge in local_bridges {
             if let Ok(authenticated) = bridge.authenticate().await {
                 saved_bridges.push(authenticated.clone());
@@ -176,7 +193,7 @@ pub async fn connect() -> Result<BridgeConnection, ConnectionError> {
     #[derive(Deserialize, Debug)]
     struct _Metadata {
         #[serde(rename = "name")]
-        _name: String
+        _name: String,
     }
 
     #[derive(Deserialize, Debug)]
@@ -188,16 +205,22 @@ pub async fn connect() -> Result<BridgeConnection, ConnectionError> {
 
     #[derive(Deserialize, Debug)]
     struct _EntResponse {
-        data: Vec<_EntertainmentArea>
+        data: Vec<_EntertainmentArea>,
     }
 
     // TODO: Add ability to select bridge
     let bridge = candidates[0].clone();
 
-    let client = ClientBuilder::new().danger_accept_invalid_certs(true).build().unwrap();
+    let client = ClientBuilder::new()
+        .danger_accept_invalid_certs(true)
+        .build()
+        .unwrap();
 
     let response = client
-        .get(format!("https://{}/clip/v2/resource/entertainment_configuration", &bridge.ip))
+        .get(format!(
+            "https://{}/clip/v2/resource/entertainment_configuration",
+            &bridge.ip
+        ))
         .header("hue-application-key", &bridge.app_key)
         .send()
         .await?;
@@ -239,12 +262,13 @@ async fn check_bridge(ip: &Ipv4Addr) -> bool {
         return false;
     }
     true
-
 }
 
 pub async fn find_bridges() -> Result<Vec<Bridge>, ConnectionError> {
-    let response = reqwest::get("https://discovery.meethue.com/").await?.error_for_status()?;
-    
+    let response = reqwest::get("https://discovery.meethue.com/")
+        .await?
+        .error_for_status()?;
+
     #[derive(Deserialize, Debug)]
     struct BridgeJson {
         id: String,
@@ -261,9 +285,10 @@ pub async fn find_bridges() -> Result<Vec<Bridge>, ConnectionError> {
             break;
         }
 
-        bridges.push(
-            Bridge { id: bridge.id.to_owned(), ip: bridge.ip_address.parse().unwrap() }
-        );
+        bridges.push(Bridge {
+            id: bridge.id.to_owned(),
+            ip: bridge.ip_address.parse().unwrap(),
+        });
     }
     Ok(bridges)
 }
@@ -281,12 +306,20 @@ impl Bridge {
         let config = response.json::<BridgeConfig>().await?;
 
         if config.swversion.parse::<u32>().unwrap() < 1948086000 {
-            return Err(ConnectionError::VersionError(config.swversion.parse::<u32>().unwrap()))
+            return Err(ConnectionError::VersionError(
+                config.swversion.parse::<u32>().unwrap(),
+            ));
         }
 
-        let client = reqwest::ClientBuilder::new().danger_accept_invalid_certs(true).build().unwrap();
+        let client = reqwest::ClientBuilder::new()
+            .danger_accept_invalid_certs(true)
+            .build()
+            .unwrap();
 
-        let hostname = gethostname::gethostname().into_string().unwrap().retain(|a| a != '\"');
+        let hostname = gethostname::gethostname()
+            .into_string()
+            .unwrap()
+            .retain(|a| a != '\"');
 
         #[derive(Serialize, Debug)]
         struct Body {
@@ -309,18 +342,21 @@ impl Bridge {
             app_key: "".to_string(),
             app_id: "".to_string(),
             psk: "".to_string(),
-            
         };
         loop {
-            let response = client.post(format!("https://{}/api", self.ip))
-            .json(&params)
-            .send()
-            .await?;
+            let response = client
+                .post(format!("https://{}/api", self.ip))
+                .json(&params)
+                .send()
+                .await?;
 
             match response.json::<Vec<ApiResponse>>().await {
                 Ok(s) => {
                     match &s[0] {
-                        ApiResponse::Success { username, clientkey } => {
+                        ApiResponse::Success {
+                            username,
+                            clientkey,
+                        } => {
                             saved_bridge.app_key = username.to_string();
                             saved_bridge.psk = clientkey.to_string();
                             break;
@@ -329,26 +365,28 @@ impl Bridge {
                             warn!("Error: {description}");
                             tokio::time::sleep(Duration::from_secs(1)).await;
                             timeout += 1;
-                            if timeout >=30 {
+                            if timeout >= 30 {
                                 return Err(ConnectionError::TimeOut);
                             }
                         }
                     };
-                },
+                }
                 Err(_) => {
                     tokio::time::sleep(Duration::from_secs(1)).await;
                     timeout += 1;
                     if timeout >= 30 {
                         return Err(ConnectionError::TimeOut);
                     }
-                },
+                }
             };
         }
-        let response = client.get(format!("https://{}/auth/v1", self.ip)).header("hue-application-key", &saved_bridge.app_key).send().await?;
+        let response = client
+            .get(format!("https://{}/auth/v1", self.ip))
+            .header("hue-application-key", &saved_bridge.app_key)
+            .send()
+            .await?;
         match response.headers().get("hue-application-id") {
-            Some(h) => {
-                saved_bridge.app_id = h.to_str().unwrap().to_string()
-            },
+            Some(h) => saved_bridge.app_id = h.to_str().unwrap().to_string(),
             None => return Err(ConnectionError::TimeOut),
         }
 
