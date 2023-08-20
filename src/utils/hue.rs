@@ -175,13 +175,15 @@ pub async fn connect() -> Result<BridgeConnection, ConnectionError> {
 
     #[derive(Deserialize, Debug)]
     struct _Metadata {
-        name: String
+        #[serde(rename = "name")]
+        _name: String
     }
 
     #[derive(Deserialize, Debug)]
     struct _EntertainmentArea {
         id: String,
-        metadata: _Metadata,
+        #[serde(rename = "metadata")]
+        _metadata: _Metadata,
     }
 
     #[derive(Deserialize, Debug)]
