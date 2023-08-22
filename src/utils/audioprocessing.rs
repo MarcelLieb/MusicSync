@@ -64,7 +64,7 @@ pub struct Buffer {
     freq_bins: Vec<f32>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct DetectionWeights {
     pub low_end_weight_cutoff: usize,
     pub high_end_weight_cutoff: usize,
@@ -104,23 +104,21 @@ pub fn print_onset<T>(
         fft_output,
         freq_bins,
     } = buffer;
-    let DetectionWeights {
-        low_end_weight_cutoff,
-        high_end_weight_cutoff,
-        mids_weight_low_cutoff,
-        mids_weight_high_cutoff,
-        drum_click_weight,
-        note_click_weight,
-    } = *detection_weights.unwrap_or(&DetectionWeights::default());
+
+    let detection_weights = *(detection_weights.unwrap_or(&DetectionWeights::default()));
 
     //Check for silence and abort if present
     let sound = data.iter().any(|i| *i != Sample::EQUILIBRIUM);
     if !sound {
+        lightservices
+            .iter_mut()
+            .for_each(|service| service.update());
         return;
     }
+
     split_channels(channels, data, f32_samples);
 
-    let volume: f32 = f32_samples
+    let rms: f32 = f32_samples
         .iter()
         .map(|c| (c.iter().fold(0.0, |acc, e| acc + e * e) / c.len() as f32).sqrt())
         .sum::<f32>()
@@ -135,48 +133,29 @@ pub fn print_onset<T>(
         .reduce(f32::max)
         .unwrap();
 
-    info!("RMS: {:.3}, Peak: {:.3}", volume, peak);
+    info!("RMS: {:.3}, Peak: {:.3}", rms, peak);
 
-    // Could only apply window to collapsed mono signal
-    apply_window(f32_samples, FFT_WINDOW.as_slice());
-    f32_samples
+    fft(f32_samples, fft_output, fft_planner, freq_bins);
+
+    collapse_mono(mono_samples, data, channels);
+
+    hfc(freq_bins, threshold, detection_weights, lightservices, rms, peak);
+    
+    lightservices
         .iter_mut()
-        .for_each(|chan| chan.extend(std::iter::repeat(0.0).take(chan.capacity() - chan.len())));
+        .for_each(|service| service.update());
+}
 
-    mono_samples.clear();
-    // buffer_len != BUFFER_SIZE on linux
-    let buffer_len = f32_samples[0].len();
-    // Convert to mono
-    mono_samples.extend(
-        data.chunks(channels as usize)
-            .take(buffer_len)
-            .map(|x| x.iter().map(|s| (*s).to_sample::<f32>()).sum::<f32>()),
-    );
-    // Pad with trailing zeros
-    mono_samples.extend(std::iter::repeat(0.0).take(mono_samples.capacity() - mono_samples.len()));
-
-    // Calculate FFT
-    f32_samples.iter_mut().zip(fft_output.iter_mut()).for_each(
-        |(samples, output)| match fft_planner.process(samples, output) {
-            Ok(()) => (),
-            Err(e) => println!("Error: {:?}", e),
-        },
-    );
-    // Save per channel freq in f32_samples as it has been scrambled already by fft
-    fft_output.iter().enumerate().for_each(|(i, out)| {
-        f32_samples[i].clear();
-        f32_samples[i].extend(out.iter().map(|s| (s.re * s.re + s.im * s.im).sqrt()))
-    });
-
-    freq_bins.clear();
-    freq_bins.extend((0..fft_output[0].len()).map(|i| {
-        f32_samples
-            .iter()
-            .flatten()
-            .skip(i)
-            .step_by(f32_samples[0].len())
-            .sum::<f32>()
-    }));
+fn hfc(freq_bins: &mut Vec<f32>, threshold: &mut MultiBandThreshold, detection_weights: DetectionWeights, lightservices: &mut [Box<dyn LightService + Send>], rms: f32, peak: f32) {
+    let DetectionWeights {
+        low_end_weight_cutoff,
+        high_end_weight_cutoff,
+        mids_weight_low_cutoff,
+        mids_weight_high_cutoff,
+        drum_click_weight,
+        note_click_weight,
+    } = detection_weights;
+    
     let weight: f32 = freq_bins
         .iter()
         .enumerate()
@@ -220,10 +199,10 @@ pub fn print_onset<T>(
     if weight >= threshold.fullband.get_threshold(weight) {
         lightservices
             .iter_mut()
-            .for_each(|service| service.event_detected(Event::Full(volume)));
+            .for_each(|service| service.event_detected(Event::Full(rms)));
     } else {
         lightservices.iter_mut().for_each(|service| {
-            service.event_detected(Event::Atmosphere(volume, index_of_max as u16))
+            service.event_detected(Event::Atmosphere(rms, index_of_max as u16))
         });
     }
 
@@ -231,13 +210,13 @@ pub fn print_onset<T>(
     if drums_weight >= threshold.drums.get_threshold(drums_weight) {
         lightservices
             .iter_mut()
-            .for_each(|service| service.event_detected(Event::Drum(volume)));
+            .for_each(|service| service.event_detected(Event::Drum(rms)));
     }
 
     let notes_weight = mids_weight + note_click_weight * high_end_weight;
     if notes_weight >= threshold.notes.get_threshold(notes_weight) {
         lightservices.iter_mut().for_each(|service| {
-            service.event_detected(Event::Note(volume, *index_of_max_mid as u16))
+            service.event_detected(Event::Note(rms, *index_of_max_mid as u16))
         });
     }
 
@@ -246,9 +225,57 @@ pub fn print_onset<T>(
             .iter_mut()
             .for_each(|service| service.event_detected(Event::Hihat(peak)));
     }
-    lightservices
+}
+
+fn fft(
+    f32_samples: &mut Vec<Vec<f32>>, 
+    fft_output: &mut Vec<Vec<Complex<f32>>>, 
+    fft_planner: &Arc<dyn RealToComplex<f32>>, 
+    freq_bins: &mut Vec<f32>
+)
+{
+    // Could only apply window to collapsed mono signal
+    apply_window(f32_samples, FFT_WINDOW.as_slice());
+    f32_samples
         .iter_mut()
-        .for_each(|service| service.update());
+        .for_each(|chan| chan.extend(std::iter::repeat(0.0).take(chan.capacity() - chan.len())));
+
+    // Calculate FFT
+    f32_samples.iter_mut().zip(fft_output.iter_mut()).for_each(
+        |(samples, output)| match fft_planner.process(samples, output) {
+            Ok(()) => (),
+            Err(e) => println!("Error: {:?}", e),
+        },
+    );
+    // Save per channel freq in f32_samples as it has been scrambled already by fft
+    fft_output.iter().enumerate().for_each(|(i, out)| {
+        f32_samples[i].clear();
+        f32_samples[i].extend(out.iter().map(|s| (s.re * s.re + s.im * s.im).sqrt()))
+    });
+
+    freq_bins.clear();
+    freq_bins.extend((0..fft_output[0].len()).map(|i| {
+        f32_samples
+            .iter()
+            .flatten()
+            .skip(i)
+            .step_by(f32_samples[0].len())
+            .sum::<f32>()
+    }));
+}
+
+fn collapse_mono<T: Sample + ToSample<f32>>(mono_samples: &mut Vec<f32>, data: &[T], channels: u16) {
+    mono_samples.clear();
+    // buffer_len != BUFFER_SIZE on linux
+    let buffer_len = data.len() / channels as usize;
+    // Convert to mono
+    mono_samples.extend(
+        data.chunks(channels as usize)
+            .take(buffer_len)
+            .map(|x| x.iter().map(|s| (*s).to_sample::<f32>()).sum::<f32>()),
+    );
+    // Pad with trailing zeros
+    mono_samples.extend(std::iter::repeat(0.0).take(mono_samples.capacity() - mono_samples.len()));
 }
 
 fn split_channels<T>(channels: u16, data: &[T], f32_samples: &mut Vec<Vec<f32>>)
