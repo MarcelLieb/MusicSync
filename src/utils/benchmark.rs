@@ -4,7 +4,7 @@ use realfft::RealFftPlanner;
 use rodio::{Decoder, Source};
 
 use super::{
-    audioprocessing::{prepare_buffers, print_onset, DetectionSettings, MultiBandThreshold},
+    audioprocessing::{prepare_buffers, process_raw, DetectionSettings, threshold::MultiBandThreshold, hfc::hfc},
     lights::LightService,
     serialize,
 };
@@ -39,14 +39,19 @@ pub fn process_file(filename: String, settings: DetectionSettings) {
     let n = samples.len() / hop_size;
 
     (0..n).for_each(|i| {
-        print_onset(
+        let (peak, rms) = process_raw(
             &samples[i * hop_size..buffer_size + i * hop_size],
             channels,
             &fft_planner,
             &mut buffer_detection,
-            &mut multi_threshold,
+        );
+        hfc(
+            &buffer_detection.freq_bins, 
+            peak,
+            rms,
+            &mut multi_threshold, 
+            Some(&detection_weights), 
             &mut lightservices,
-            Some(&detection_weights),
         );
     });
 }

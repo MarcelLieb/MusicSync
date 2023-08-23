@@ -1,5 +1,5 @@
 use crate::utils::{
-    audioprocessing::{prepare_buffers, print_onset, MultiBandThreshold},
+    audioprocessing::{prepare_buffers, process_raw, threshold::MultiBandThreshold},
     hue,
     lights::{Console, LightService},
     serialize,
@@ -9,6 +9,7 @@ use cpal::{
     traits::{DeviceTrait, HostTrait},
     BuildStreamError, StreamConfig,
 };
+use crate::utils::audioprocessing::hfc::hfc;
 use log::debug;
 use realfft::RealFftPlanner;
 
@@ -68,14 +69,20 @@ pub async fn create_default_output_stream() -> cpal::Stream {
                     let n = (buffer.len() + hop_size).saturating_sub(buffer_size) / hop_size;
 
                     (0..n).for_each(|_| {
-                        print_onset(
+                        let (peak, rms) = process_raw(
                             &buffer[0..buffer_size],
                             channels,
                             &fft_planner,
                             &mut detection_buffer,
-                            &mut multi_threshold,
+                        );
+
+                        hfc(
+                            &detection_buffer.freq_bins, 
+                            peak, 
+                            rms,
+                            &mut multi_threshold, 
+                            None, 
                             &mut lightservices,
-                            None,
                         );
 
                         buffer.drain(0..hop_size);
