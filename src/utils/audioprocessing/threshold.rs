@@ -174,3 +174,33 @@ impl MultiBandThreshold {
         }
     }
 }
+
+pub struct AdvancedThreshold {
+    past_samples: VecDeque<f32>,
+    last_onset: u32,
+}
+
+impl AdvancedThreshold {
+    pub fn init() -> AdvancedThreshold {
+        let mut past_samples = VecDeque::with_capacity(8);
+        past_samples.extend(vec![0.0; 8]);
+        AdvancedThreshold { past_samples, last_onset: 0 }
+    }
+
+    pub fn is_above(&mut self, value: f32) -> bool {
+        self.last_onset += 1;
+        let max = self.past_samples.iter().take(3).fold(0.0_f32, |a, &b| a.max(b));
+        let mean = self.past_samples.iter().sum::<f32>() / self.past_samples.len() as f32;
+
+        if self.past_samples.len() >= self.past_samples.capacity() {
+            self.past_samples.pop_back();
+            self.past_samples.push_front(value);
+        } else {
+            self.past_samples.push_front(value);
+        }
+        if value >= max && value >= mean + 30.0 {
+            self.last_onset = 0;
+        }
+        return self.last_onset == 2;
+    }
+}

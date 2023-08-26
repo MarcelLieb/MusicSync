@@ -1,5 +1,6 @@
 pub mod threshold;
 pub mod hfc;
+pub mod spectral_flux;
 
 use std::{f32::consts::PI, sync::Arc};
 
@@ -198,6 +199,7 @@ where
 pub enum WindowType {
     Hann,
     FlatTop,
+    Triangular
 }
 
 #[allow(unused_variables, non_snake_case)]
@@ -224,6 +226,11 @@ fn window(length: usize, window_type: WindowType) -> Vec<f32> {
                 })
                 .collect::<Vec<f32>>();
             window
+        },
+        WindowType::Triangular => {
+            (0..length)
+            .map(|n| 1.0 - (2.0 * n as f32 / length as f32 - 1.0).abs())
+            .collect::<Vec<f32>>()
         }
     }
 }

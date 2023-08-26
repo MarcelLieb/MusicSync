@@ -10,6 +10,7 @@ use cpal::{
     BuildStreamError, StreamConfig,
 };
 use crate::utils::audioprocessing::hfc::hfc;
+use crate::utils::audioprocessing::spectral_flux::SpecFlux;
 use log::debug;
 use realfft::RealFftPlanner;
 
@@ -56,6 +57,8 @@ pub async fn create_default_output_stream() -> cpal::Stream {
     let serializer = serialize::OnsetContainer::init("onsets.cbor".to_string());
     lightservices.push(Box::new(serializer));
 
+    let mut spec_flux = SpecFlux::init();
+
     let buffer_size = (BUFFER_SIZE * channels as u32) as usize;
     let hop_size = (HOP_SIZE * channels as u32) as usize;
     macro_rules! build_buffered_onset_stream {
@@ -76,6 +79,13 @@ pub async fn create_default_output_stream() -> cpal::Stream {
                             &mut detection_buffer,
                         );
 
+                        spec_flux.detect(
+                            &detection_buffer.freq_bins,
+                            peak,
+                            rms,
+                            &mut lightservices,
+                        );
+                        /*
                         hfc(
                             &detection_buffer.freq_bins, 
                             peak, 
@@ -84,6 +94,7 @@ pub async fn create_default_output_stream() -> cpal::Stream {
                             None, 
                             &mut lightservices,
                         );
+                         */
 
                         buffer.drain(0..hop_size);
                     })
