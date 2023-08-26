@@ -107,6 +107,10 @@ pub fn hfc(
         });
     }
 
+    lightservices
+        .iter_mut()
+        .for_each(|service| service.event_detected(Event::Raw(weight)));
+    
     let drums_weight = low_end_weight * drum_click_weight * high_end_weight;
     if drums_weight >= threshold.drums.get_threshold(drums_weight) {
         lightservices

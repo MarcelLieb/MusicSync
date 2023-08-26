@@ -49,6 +49,10 @@ impl SpecFlux {
 
         let onset = self.threshold.is_above(weight);
 
+        lightservices
+            .iter_mut()
+            .for_each(|service| service.event_detected(Event::Raw(weight)));
+
         if onset {
             lightservices
                 .iter_mut()

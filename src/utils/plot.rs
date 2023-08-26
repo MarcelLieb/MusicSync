@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use plotters::{
     prelude::{
         BitMapBackend, ChartBuilder, Circle, IntoDrawingArea, LabelAreaPosition, Rectangle,
-        SeriesLabelPosition,
+        SeriesLabelPosition, PathElement,
     },
-    style::{AsRelative, Color, Palette, Palette99, BLACK, WHITE},
+    style::{AsRelative, Color, Palette, Palette99, BLACK, WHITE, RED}, series::LineSeries,
 };
 
 use super::lights::Event;
@@ -29,14 +29,25 @@ pub fn plot(
             .max(acc)
     });
 
-    let mut chart = ChartBuilder::on(&root)
+    let mut circle_chart = ChartBuilder::on(&root)
         .set_label_area_size(LabelAreaPosition::Bottom, (4).percent())
         .margin(20)
         .build_cartesian_2d(0..max, 0_u32..6_u32)?;
-    chart
+    circle_chart
         .configure_mesh()
         .disable_y_mesh()
         .x_desc("time in ms")
+        .draw()?;
+
+    let mut graph_chart = ChartBuilder::on(&root)
+        .set_label_area_size(LabelAreaPosition::Bottom, (4).percent())
+        .margin(20)
+        .build_cartesian_2d(0..max, 0_f32..1_f32)?;
+
+    graph_chart
+        .configure_mesh()
+        .disable_mesh()
+        .disable_axes()
         .draw()?;
 
     let mut keys = data.keys().map(|s| s.to_string()).collect::<Vec<String>>();
@@ -55,6 +66,7 @@ pub fn plot(
                         Event::Note(y, _) => *y,
                         Event::Drum(y) => *y,
                         Event::Hihat(y) => *y,
+                        Event::Raw(y) => *y,
                     })
                     .fold(0.0_f32, |acc, x| acc.max(x)),
             )
@@ -63,7 +75,8 @@ pub fn plot(
 
     for (index, key) in keys.iter().enumerate() {
         let color = Palette99::pick(index);
-        chart
+        if key != "Raw" {
+            circle_chart
             .draw_series({
                 data[key]
                     .iter()
@@ -73,6 +86,7 @@ pub fn plot(
                         Event::Note(y, _) => (*time, *y),
                         Event::Drum(y) => (*time, *y),
                         Event::Hihat(y) => (*time, *y),
+                        Event::Raw(y) => (*time, *y)
                     })
                     .map(|(time, y)| (time, y / data_max[key]))
                     .filter(|(t, _)| *t < TIME_WINDOW)
@@ -94,8 +108,31 @@ pub fn plot(
             })?
             .label(key)
             .legend(move |(x, y)| Rectangle::new([(x, y - 5), (x + 10, y + 5)], color.filled()));
+        }
+        else {
+            graph_chart.draw_series(
+                LineSeries::new(
+                    data[key].iter()
+                    .map(|(time, event)| {
+                        match event {
+                            Event::Full(y) => (*time, *y),
+                            Event::Atmosphere(y, _) => (*time, *y),
+                            Event::Note(y, _) => (*time, *y),
+                            Event::Drum(y) => (*time, *y),
+                            Event::Hihat(y) => (*time, *y),
+                            Event::Raw(y) => (*time, *y)
+                        }
+                    })
+                    .map(|(t, y)| (t, y / data_max[key] * 0.5))
+                    .filter(|(t, _)| *t < TIME_WINDOW),
+                    &RED.mix(0.8)
+                )
+            )?
+            .label("Onset function")
+            .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &RED));
+        }
     }
-    chart
+    circle_chart
         .configure_series_labels()
         .position(SeriesLabelPosition::UpperRight)
         .background_style(&WHITE)

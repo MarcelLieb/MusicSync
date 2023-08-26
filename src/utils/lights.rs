@@ -34,6 +34,7 @@ impl LightService for Console {
             Event::Atmosphere(s, _) => {
                 self.output[4] = "-".repeat((s * 9.0).ceil() as usize).black()
             }
+            _ => {}
         }
     }
 
@@ -67,6 +68,7 @@ pub enum Event {
     Note(f32, u16),
     Drum(f32),
     Hihat(f32),
+    Raw(f32),
 }
 
 struct Poller<T: Stream + Send + Sync> {

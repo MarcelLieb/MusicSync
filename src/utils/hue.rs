@@ -421,6 +421,7 @@ impl LightService for BridgeConnection {
                     self.envelopes.note.trigger(volume);
                 }
             }
+            _ => {}
         }
     }
 
