@@ -247,3 +247,65 @@ fn apply_window_mono(samples: &mut Vec<f32>, window: &[f32]) {
         .zip(window)
         .for_each(|(x, w)| *x = *x * w);
 }
+
+pub struct MelFilterBank {
+    filter: Vec<Vec<f32>>,
+    points: Vec<f32>,
+    fft_size: u32,
+    bands: usize,
+    sample_rate: u32,
+    max_frequency: u32,
+}
+
+impl MelFilterBank {
+    pub fn init(sample_rate: u32, fft_size: u32, bands: usize, max_frequency: u32) -> MelFilterBank {
+        let num_points = bands + 2;
+        let mel_max = 1127.0 * (max_frequency as f32 / 700.0).ln_1p();
+        let step = mel_max as f32 / (num_points - 1) as f32;
+
+        let mel = (0..num_points)
+            .map(|i| i as f32 * step)
+            .map(|m| 700.0 * (m / 1127.0).exp_m1())
+            .collect::<Vec<f32>>();
+
+        let bin_res = sample_rate as f32/ fft_size as f32;
+
+        let mut filter: Vec<Vec<f32>> = Vec::new();
+
+        (1..bands + 1).for_each(|m| {
+            let start = (mel[m - 1] / bin_res) as usize;
+            let mid = (mel[m] / bin_res) as usize;
+            let end = (mel[m + 1] / bin_res) as usize;
+
+            let mut band: Vec<f32> = Vec::new();
+
+            for k in start..mid {
+                band.push((k - start) as f32 / (mid - start) as f32)
+            }
+            for k in mid..end {
+                band.push((end - k) as f32 / (end - mid) as f32)
+            }
+
+            filter.push(band);
+        });
+
+        MelFilterBank { filter, points: mel, fft_size, bands, sample_rate, max_frequency }
+    }
+
+    pub fn filter(&self, freq_bins: &Vec<f32>, out: &mut Vec<f32>) {
+        let bin_res = self.sample_rate as f32 / self.fft_size as f32;
+
+        out.clear();
+
+        self.filter.iter().enumerate().for_each(|(m, band)| {
+            let start = (self.points[m] / bin_res) as usize;
+            let sum = freq_bins.iter()
+                .skip(start)
+                .take(band.len())
+                .zip(band)
+                .map(|(&f, &w)| f * w)
+                .sum::<f32>();
+            out.push(sum);
+        });
+    }
+}
