@@ -59,6 +59,7 @@ pub fn plot(
             (
                 key.to_string(),
                 vec.iter()
+                    .filter(|(t, _)| *t < TIME_WINDOW)
                     .map(|(_, event)| event)
                     .map(|event| match event {
                         Event::Full(y) => *y,
@@ -68,6 +69,8 @@ pub fn plot(
                         Event::Hihat(y) => *y,
                         Event::Raw(y) => *y,
                     })
+                    .skip(5) // Start is usually a unwanted click
+
                     .fold(0.0_f32, |acc, x| acc.max(x)),
             )
         })
@@ -123,8 +126,9 @@ pub fn plot(
                             Event::Raw(y) => (*time, *y)
                         }
                     })
-                    .map(|(t, y)| (t, y / data_max[key] * 0.5))
-                    .filter(|(t, _)| *t < TIME_WINDOW),
+                    .map(|(t, y)| (t + 20, y / data_max[key] * 0.5))
+                    .filter(|(t, _)| *t < TIME_WINDOW)
+                    .skip(5),
                     &RED.mix(0.8)
                 )
             )?
