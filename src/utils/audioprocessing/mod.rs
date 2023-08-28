@@ -13,7 +13,7 @@ use rustfft::num_complex::Complex;
 
 use crate::utils::audiodevices::BUFFER_SIZE;
 
-use self::{threshold::ThresholdSettings, hfc::DetectionWeights};
+use self::{threshold::DynamicSettings, hfc::DetectionWeights};
 
 lazy_static! {
     static ref FFT_WINDOW: Vec<f32> = window(BUFFER_SIZE as usize, WindowType::Hann);
@@ -24,7 +24,7 @@ lazy_static! {
 pub struct DetectionSettings {
     pub hop_size: usize,
     pub buffer_size: usize,
-    pub threshold_settings: ThresholdSettings,
+    pub threshold_settings: DynamicSettings,
     pub detection_weights: DetectionWeights,
 }
 
@@ -33,7 +33,7 @@ impl Default for DetectionSettings {
         DetectionSettings {
             hop_size: 480,
             buffer_size: 1024,
-            threshold_settings: ThresholdSettings::default(),
+            threshold_settings: DynamicSettings::default(),
             detection_weights: DetectionWeights::default(),
         }
     }
