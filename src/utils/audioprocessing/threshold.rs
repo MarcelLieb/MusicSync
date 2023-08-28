@@ -193,7 +193,7 @@ impl AdvancedThreshold {
             last_onset: 0,
             mean_range: 6,
             max_range: 3,
-            threshold: 0.75,
+            threshold: 0.8,
             threshold_range: 8
         }
     }
@@ -210,7 +210,7 @@ impl AdvancedThreshold {
         } else {
             self.past_samples.push_front(value);
         }
-        if value >= max && value >= mean + norm * self.threshold + 4.0 {
+        if value >= max && value >= mean + norm * self.threshold + 5.0 {
             self.last_onset = 0;
         }
         return self.last_onset == 2;

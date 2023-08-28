@@ -251,10 +251,10 @@ fn apply_window_mono(samples: &mut Vec<f32>, window: &[f32]) {
 pub struct MelFilterBank {
     filter: Vec<Vec<f32>>,
     points: Vec<f32>,
-    fft_size: u32,
-    bands: usize,
-    sample_rate: u32,
-    max_frequency: u32,
+    pub fft_size: u32,
+    pub bands: usize,
+    pub sample_rate: u32,
+    pub max_frequency: u32,
 }
 
 impl MelFilterBank {
