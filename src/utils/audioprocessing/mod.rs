@@ -308,4 +308,12 @@ impl MelFilterBank {
             out.push(sum);
         });
     }
+
+    pub fn hertz_to_mel(hertz: f32) -> f32 {
+        1127.0 * (hertz as f32 / 700.0).ln_1p()
+    }
+
+    pub fn mel_to_hertz(mel: f32) -> f32 {
+        700.0 * (mel / 1127.0).exp_m1()
+    }
 }
