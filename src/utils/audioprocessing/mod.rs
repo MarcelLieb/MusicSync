@@ -260,12 +260,12 @@ pub struct MelFilterBank {
 impl MelFilterBank {
     pub fn init(sample_rate: u32, fft_size: u32, bands: usize, max_frequency: u32) -> MelFilterBank {
         let num_points = bands + 2;
-        let mel_max = 1127.0 * (max_frequency as f32 / 700.0).ln_1p();
+        let mel_max = Self::hertz_to_mel(max_frequency as f32);
         let step = mel_max as f32 / (num_points - 1) as f32;
 
         let mel = (0..num_points)
             .map(|i| i as f32 * step)
-            .map(|m| 700.0 * (m / 1127.0).exp_m1())
+            .map(|m| Self::mel_to_hertz(m))
             .collect::<Vec<f32>>();
 
         let bin_res = sample_rate as f32/ fft_size as f32;

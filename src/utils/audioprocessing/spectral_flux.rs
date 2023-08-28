@@ -9,13 +9,26 @@ pub struct SpecFlux {
     filter_bank: MelFilterBank,
     old_spectrum: Vec<f32>,
     spectrum: Vec<f32>,
-    threshold: AdvancedThreshold
+    threshold: ThresholdBank
+}
+
+struct ThresholdBank {
+    drum: AdvancedThreshold,
+    hihat: AdvancedThreshold,
+    note: AdvancedThreshold,
+    full: AdvancedThreshold,
+}
+
+impl Default for ThresholdBank {
+    fn default() -> Self {
+        Self { drum: Default::default(), hihat: Default::default(), note: Default::default(), full: Default::default() }
+    }
 }
 
 impl SpecFlux {
     pub fn init() -> SpecFlux{
         let bank = MelFilterBank::init(SAMPLE_RATE, SAMPLE_RATE, 82, 20_000);
-        let threshold = AdvancedThreshold::init();
+        let threshold = ThresholdBank::default();
         let spectrum = Vec::with_capacity(82);
         let old_spectrum = Vec::with_capacity(82);
         SpecFlux { filter_bank: bank, spectrum, old_spectrum, threshold }
@@ -38,18 +51,53 @@ impl SpecFlux {
         self.spectrum.iter_mut().for_each(|x| *x = (*x * lambda).ln_1p());
 
 
-        let weight: f32 = self.old_spectrum.iter().zip(&self.spectrum).map(|(&a, &b) | (((b - a) + (b - a).abs()) / 2.0)).sum();
+        let diff = self.old_spectrum.iter().zip(&self.spectrum).map(|(&a, &b) | (((b - a) + (b - a).abs()) / 2.0));
 
-        let onset = self.threshold.is_above(weight);
+        let weight: f32 = diff.clone().sum();
+
+        let drum_weight: f32 = diff.clone().take(12).sum();
+
+        let hihat_weight: f32 = diff.clone().skip(61).sum();
+
+        let note_weight: f32 = diff.clone().skip(7).take(47).sum();
+
+        let onset = self.threshold.full.is_above(weight);
+
+        let index_of_max = freq_bins
+            .iter()
+            .enumerate()
+            .max_by(|(_, a), (_, b)| a.total_cmp(b))
+            .unwrap()
+            .0;
 
         lightservices
             .iter_mut()
-            .for_each(|service| service.event_detected(Event::Raw(weight)));
+            .for_each(|service| service.event_detected(Event::Raw(drum_weight)));
 
         if onset {
             lightservices
                 .iter_mut()
+                .for_each(|service| service.event_detected(Event::Full(rms)));
+        }
+
+        if self.threshold.drum.is_above(drum_weight) {
+            lightservices
+                .iter_mut()
                 .for_each(|service| service.event_detected(Event::Drum(rms)));
+        }
+
+        if self.threshold.hihat.is_above(hihat_weight) {
+            lightservices
+                .iter_mut()
+                .for_each(|service| service.event_detected(Event::Hihat(peak)));
+        }
+
+        if self.threshold.note.is_above(note_weight) {
+            lightservices
+                .iter_mut()
+                .for_each(|service| {
+                    service.event_detected(Event::Note(rms, index_of_max as u16))
+                });
         }
 
         lightservices
