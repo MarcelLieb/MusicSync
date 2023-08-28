@@ -7,6 +7,7 @@ static FREQUENCIES: &'static[f32] = &[0.0, 25.5, 29.14, 30.87, 32.7, 34.65, 36.7
 
 pub struct SpecFlux {
     filter_bank: MelFilterBank,
+    old_spectrum: Vec<f32>,
     spectrum: Vec<f32>,
     threshold: AdvancedThreshold
 }
@@ -16,7 +17,8 @@ impl SpecFlux {
         let bank = MelFilterBank::init(SAMPLE_RATE, SAMPLE_RATE, 82, 20_000);
         let threshold = AdvancedThreshold::init();
         let spectrum = Vec::with_capacity(82);
-        SpecFlux { filter_bank: bank, spectrum, threshold }
+        let old_spectrum = Vec::with_capacity(82);
+        SpecFlux { filter_bank: bank, spectrum, old_spectrum, threshold }
     }
 
     pub fn detect(
@@ -26,17 +28,17 @@ impl SpecFlux {
         rms: f32,
         lightservices: &mut [Box<dyn LightService + Send>], 
     ) {
-        let old_spec = &self.spectrum;
+        self.old_spectrum.clear();
+        self.old_spectrum.extend(&self.spectrum);
         
         let lambda = 0.1;
 
-        let mut spectrum: Vec<f32> = Vec::with_capacity(82);
-        self.filter_bank.filter(freq_bins, &mut spectrum);
+        self.filter_bank.filter(freq_bins, &mut self.spectrum);
 
-        spectrum.iter_mut().for_each(|x| *x = (*x * lambda).ln_1p());
+        self.spectrum.iter_mut().for_each(|x| *x = (*x * lambda).ln_1p());
 
 
-        let weight: f32 = old_spec.iter().zip(&spectrum).map(|(&a, &b) | (((b - a) + (b - a).abs()) / 2.0)).sum();
+        let weight: f32 = self.old_spectrum.iter().zip(&self.spectrum).map(|(&a, &b) | (((b - a) + (b - a).abs()) / 2.0)).sum();
 
         let onset = self.threshold.is_above(weight);
 
@@ -54,6 +56,5 @@ impl SpecFlux {
             .iter_mut()
             .for_each(|service| service.update());
 
-        self.spectrum = spectrum;
     }
 }
