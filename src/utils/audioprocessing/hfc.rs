@@ -2,7 +2,7 @@ use log::info;
 
 use crate::utils::lights::{Event, LightService};
 
-use super::threshold::{DynamicThreshold, DynamicSettings};
+use super::{threshold::{DynamicThreshold, DynamicSettings}, OnsetDetector};
 
 #[derive(Debug, Clone, Copy)]
 pub struct DetectionWeights {
@@ -145,6 +145,12 @@ impl HFC {
             .for_each(|service| service.update());
     }
     
+}
+
+impl OnsetDetector for HFC {
+    fn detect(&mut self, freq_bins: &Vec<f32>, peak: f32, rms: f32, lightservices: &mut [Box<dyn LightService + Send>]) {
+        self.detect(freq_bins, peak, rms, lightservices);
+    }
 }
 
 pub struct ThresholdBank {

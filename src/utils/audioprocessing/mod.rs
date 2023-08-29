@@ -13,6 +13,8 @@ use rustfft::num_complex::Complex;
 
 use crate::utils::audiodevices::BUFFER_SIZE;
 
+use super::lights::LightService;
+
 lazy_static! {
     static ref FFT_WINDOW: Vec<f32> = window(BUFFER_SIZE as usize, WindowType::Hann);
     static ref THRESHOLD_WINDOW: Vec<f32> = window(39, WindowType::Hann);
@@ -325,4 +327,8 @@ impl MelFilterBank {
     pub fn mel_to_hertz(mel: f32) -> f32 {
         700.0 * (mel / 1127.0).exp_m1()
     }
+}
+
+trait OnsetDetector {
+    fn detect(&mut self, freq_bins: &Vec<f32>, peak: f32, rms: f32, lightservices: &mut [Box<dyn LightService + Send>]);
 }
