@@ -1,3 +1,5 @@
+use crate::utils::audioprocessing::hfc::hfc;
+use crate::utils::audioprocessing::spectral_flux::SpecFlux;
 use crate::utils::{
     audioprocessing::{prepare_buffers, process_raw, threshold::MultiBandThreshold},
     hue,
@@ -9,8 +11,6 @@ use cpal::{
     traits::{DeviceTrait, HostTrait},
     BuildStreamError, StreamConfig,
 };
-use crate::utils::audioprocessing::hfc::hfc;
-use crate::utils::audioprocessing::spectral_flux::SpecFlux;
 use log::debug;
 use realfft::RealFftPlanner;
 
@@ -87,11 +87,11 @@ pub async fn create_default_output_stream() -> cpal::Stream {
                         );
                         /*
                         hfc(
-                            &detection_buffer.freq_bins, 
-                            peak, 
+                            &detection_buffer.freq_bins,
+                            peak,
                             rms,
-                            &mut multi_threshold, 
-                            None, 
+                            &mut multi_threshold,
+                            None,
                             &mut lightservices,
                         );
                          */

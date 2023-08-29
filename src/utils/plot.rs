@@ -2,10 +2,11 @@ use std::collections::HashMap;
 
 use plotters::{
     prelude::{
-        BitMapBackend, ChartBuilder, Circle, IntoDrawingArea, LabelAreaPosition, Rectangle,
-        SeriesLabelPosition, PathElement,
+        BitMapBackend, ChartBuilder, Circle, IntoDrawingArea, LabelAreaPosition, PathElement,
+        Rectangle, SeriesLabelPosition,
     },
-    style::{AsRelative, Color, Palette, Palette99, BLACK, WHITE, RED}, series::LineSeries,
+    series::LineSeries,
+    style::{AsRelative, Color, Palette, Palette99, BLACK, RED, WHITE},
 };
 
 use super::lights::Event;
@@ -45,7 +46,10 @@ pub fn plot(
         .disable_axes()
         .draw()?;
 
-    let mut keys = onsets.keys().map(|s| s.to_string()).collect::<Vec<String>>();
+    let mut keys = onsets
+        .keys()
+        .map(|s| s.to_string())
+        .collect::<Vec<String>>();
     keys.sort();
 
     let data_max: HashMap<String, f32> = onsets
@@ -65,7 +69,6 @@ pub fn plot(
                         Event::Hihat(y) => *y,
                         Event::Raw(y) => *y,
                     })
-
                     .fold(f32::EPSILON, |acc, x| acc.max(x)),
             )
         })
@@ -83,7 +86,7 @@ pub fn plot(
                         Event::Note(y, _) => (*time, *y),
                         Event::Drum(y) => (*time, *y),
                         Event::Hihat(y) => (*time, *y),
-                        Event::Raw(y) => (*time, *y)
+                        Event::Raw(y) => (*time, *y),
                     })
                     .map(|(time, y)| (time, y / data_max[key]))
                     .filter(|(t, _)| *t < TIME_WINDOW)
@@ -103,23 +106,23 @@ pub fn plot(
                         ]
                     })
                     .flatten()
-                })?
+            })?
             .label(key)
             .legend(move |(x, y)| Rectangle::new([(x, y - 5), (x + 10, y + 5)], color.filled()));
     }
 
     let raw_max = raw_data.iter().fold(f32::EPSILON, |acc, x| acc.max(*x));
-    graph_chart.draw_series(
-        LineSeries::new(
-            raw_data.iter()
-            .enumerate()
-            .map(|(t, y)| ((t as u32 * time_resolution + 20) as u128, y / raw_max * 0.5))
-            .filter(|(t, _)| *t < TIME_WINDOW),
-            &RED.mix(0.8)
-        )
-    )?
-    .label("Onset function")
-    .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &RED));
+    graph_chart
+        .draw_series(LineSeries::new(
+            raw_data
+                .iter()
+                .enumerate()
+                .map(|(t, y)| ((t as u32 * time_resolution + 20) as u128, y / raw_max * 0.5))
+                .filter(|(t, _)| *t < TIME_WINDOW),
+            &RED.mix(0.8),
+        ))?
+        .label("Onset function")
+        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &RED));
     circle_chart
         .configure_series_labels()
         .position(SeriesLabelPosition::UpperRight)

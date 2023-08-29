@@ -1,7 +1,7 @@
-use std::collections::VecDeque;
 use lazy_static::lazy_static;
+use std::collections::VecDeque;
 
-use super::{window, WindowType, apply_window_mono};
+use super::{apply_window_mono, window, WindowType};
 
 lazy_static! {
     static ref THRESHOLD_WINDOW: Vec<f32> = window(39, WindowType::Hann);
@@ -191,7 +191,7 @@ impl AdvancedThreshold {
     }
 
     pub fn with_settings(settings: AdvancedSettings) -> Self {
-        let AdvancedSettings { 
+        let AdvancedSettings {
             mean_range,
             max_range,
             adaptive_threshold,
@@ -201,8 +201,8 @@ impl AdvancedThreshold {
         let mut past_samples = VecDeque::with_capacity(12);
 
         past_samples.extend(vec![0.0; 8]);
-        AdvancedThreshold { 
-            past_samples, 
+        AdvancedThreshold {
+            past_samples,
             last_onset: 0,
             mean_range,
             max_range,
@@ -214,9 +214,19 @@ impl AdvancedThreshold {
 
     pub fn is_above(&mut self, value: f32) -> bool {
         self.last_onset += 1;
-        let max = self.past_samples.iter().take(self.max_range).fold(0.0_f32, |a, &b| a.max(b));
-        let mean = self.past_samples.iter().take(self.mean_range).sum::<f32>() / self.mean_range as f32;
-        let norm = self.past_samples.iter().take(self.threshold_range).sum::<f32>() / self.threshold_range as f32;
+        let max = self
+            .past_samples
+            .iter()
+            .take(self.max_range)
+            .fold(0.0_f32, |a, &b| a.max(b));
+        let mean =
+            self.past_samples.iter().take(self.mean_range).sum::<f32>() / self.mean_range as f32;
+        let norm = self
+            .past_samples
+            .iter()
+            .take(self.threshold_range)
+            .sum::<f32>()
+            / self.threshold_range as f32;
 
         if self.past_samples.len() >= self.past_samples.capacity() {
             self.past_samples.pop_back();
@@ -241,7 +251,7 @@ pub struct AdvancedSettings {
 
 impl Default for AdvancedSettings {
     fn default() -> Self {
-        AdvancedSettings { 
+        AdvancedSettings {
             mean_range: 6,
             max_range: 3,
             adaptive_threshold: 0.8,
@@ -255,8 +265,8 @@ impl Default for AdvancedThreshold {
     fn default() -> Self {
         let mut past_samples = VecDeque::with_capacity(12);
         past_samples.extend(vec![0.0; 8]);
-        AdvancedThreshold { 
-            past_samples, 
+        AdvancedThreshold {
+            past_samples,
             last_onset: 0,
             mean_range: 6,
             max_range: 3,
@@ -266,4 +276,3 @@ impl Default for AdvancedThreshold {
         }
     }
 }
-

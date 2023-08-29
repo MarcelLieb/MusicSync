@@ -33,7 +33,13 @@ async fn main() {
         raw: Vec<f32>,
         time_interval: u32,
     }
-    
+
     let data: OnsetContainer = from_reader(file).unwrap();
-    plot(&data.data, &data.raw, data.time_interval, "plot.png".to_string()).unwrap();
+    plot(
+        &data.data,
+        &data.raw,
+        data.time_interval,
+        "plot.png".to_string(),
+    )
+    .unwrap();
 }

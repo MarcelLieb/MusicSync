@@ -1,10 +1,8 @@
 use log::info;
 
-use crate::utils::lights::{LightService, Event};
+use crate::utils::lights::{Event, LightService};
 
 use super::threshold::MultiBandThreshold;
-
-
 
 #[derive(Debug, Clone, Copy)]
 pub struct DetectionWeights {
@@ -30,12 +28,12 @@ impl Default for DetectionWeights {
 }
 
 pub fn hfc(
-    freq_bins: &Vec<f32>, 
+    freq_bins: &Vec<f32>,
     peak: f32,
     rms: f32,
-    threshold: &mut MultiBandThreshold, 
-    detection_weights: Option<&DetectionWeights>, 
-    lightservices: &mut [Box<dyn LightService + Send>], 
+    threshold: &mut MultiBandThreshold,
+    detection_weights: Option<&DetectionWeights>,
+    lightservices: &mut [Box<dyn LightService + Send>],
 ) {
     let sound = freq_bins.iter().any(|&i| i != 0.0);
 
@@ -45,9 +43,8 @@ pub fn hfc(
             .for_each(|service| service.update());
     }
 
-
     let detection_weights = *(detection_weights.unwrap_or(&DetectionWeights::default()));
-    
+
     let DetectionWeights {
         low_end_weight_cutoff,
         high_end_weight_cutoff,
@@ -56,7 +53,7 @@ pub fn hfc(
         drum_click_weight,
         note_click_weight,
     } = detection_weights;
-    
+
     let weight: f32 = freq_bins
         .iter()
         .enumerate()
@@ -110,7 +107,7 @@ pub fn hfc(
     lightservices
         .iter_mut()
         .for_each(|service| service.event_detected(Event::Raw(weight)));
-    
+
     let drums_weight = low_end_weight * drum_click_weight * high_end_weight;
     if drums_weight >= threshold.drums.get_threshold(drums_weight) {
         lightservices
@@ -120,9 +117,9 @@ pub fn hfc(
 
     let notes_weight = mids_weight + note_click_weight * high_end_weight;
     if notes_weight >= threshold.notes.get_threshold(notes_weight) {
-        lightservices.iter_mut().for_each(|service| {
-            service.event_detected(Event::Note(rms, *index_of_max_mid as u16))
-        });
+        lightservices
+            .iter_mut()
+            .for_each(|service| service.event_detected(Event::Note(rms, *index_of_max_mid as u16)));
     }
 
     if *high_end_weight >= threshold.hihat.get_threshold(*high_end_weight) {
@@ -130,7 +127,6 @@ pub fn hfc(
             .iter_mut()
             .for_each(|service| service.event_detected(Event::Hihat(peak)));
     }
-
 
     lightservices
         .iter_mut()

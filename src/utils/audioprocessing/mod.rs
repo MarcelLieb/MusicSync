@@ -1,6 +1,6 @@
-pub mod threshold;
 pub mod hfc;
 pub mod spectral_flux;
+pub mod threshold;
 
 use std::{f32::consts::PI, sync::Arc};
 
@@ -13,7 +13,7 @@ use rustfft::num_complex::Complex;
 
 use crate::utils::audiodevices::BUFFER_SIZE;
 
-use self::{threshold::DynamicSettings, hfc::DetectionWeights};
+use self::{hfc::DetectionWeights, threshold::DynamicSettings};
 
 lazy_static! {
     static ref FFT_WINDOW: Vec<f32> = window(BUFFER_SIZE as usize, WindowType::Hann);
@@ -72,7 +72,8 @@ pub fn process_raw<T>(
     channels: u16,
     fft_planner: &Arc<dyn RealToComplex<f32>>,
     buffer: &mut Buffer,
-) -> (f32, f32) where
+) -> (f32, f32)
+where
     T: Sample + ToSample<f32>,
 {
     let Buffer {
@@ -81,7 +82,7 @@ pub fn process_raw<T>(
         fft_output,
         freq_bins,
     } = buffer;
-    
+
     //Check for silence and abort if present
     let sound = data.iter().any(|i| *i != Sample::EQUILIBRIUM);
     if !sound {
@@ -120,16 +121,15 @@ pub fn process_raw<T>(
     info!("RMS: {:.3}, Peak: {:.3}", rms, peak);
 
     fft(f32_samples, fft_output, fft_planner, freq_bins);
-    return (peak, rms)
+    return (peak, rms);
 }
 
 fn fft(
-    f32_samples: &mut Vec<Vec<f32>>, 
-    fft_output: &mut Vec<Vec<Complex<f32>>>, 
-    fft_planner: &Arc<dyn RealToComplex<f32>>, 
-    freq_bins: &mut Vec<f32>
-)
-{
+    f32_samples: &mut Vec<Vec<f32>>,
+    fft_output: &mut Vec<Vec<Complex<f32>>>,
+    fft_planner: &Arc<dyn RealToComplex<f32>>,
+    freq_bins: &mut Vec<f32>,
+) {
     // Could only apply window to collapsed mono signal
     apply_window(f32_samples, FFT_WINDOW.as_slice());
     f32_samples
@@ -160,7 +160,11 @@ fn fft(
     }));
 }
 
-fn collapse_mono<T: Sample + ToSample<f32>>(mono_samples: &mut Vec<f32>, data: &[T], channels: u16) {
+fn collapse_mono<T: Sample + ToSample<f32>>(
+    mono_samples: &mut Vec<f32>,
+    data: &[T],
+    channels: u16,
+) {
     mono_samples.clear();
     // buffer_len != BUFFER_SIZE on linux
     let buffer_len = data.len() / channels as usize;
@@ -199,7 +203,7 @@ where
 pub enum WindowType {
     Hann,
     FlatTop,
-    Triangular
+    Triangular,
 }
 
 #[allow(unused_variables, non_snake_case)]
@@ -226,12 +230,10 @@ fn window(length: usize, window_type: WindowType) -> Vec<f32> {
                 })
                 .collect::<Vec<f32>>();
             window
-        },
-        WindowType::Triangular => {
-            (0..length)
-            .map(|n| 1.0 - (2.0 * n as f32 / length as f32 - 1.0).abs())
-            .collect::<Vec<f32>>()
         }
+        WindowType::Triangular => (0..length)
+            .map(|n| 1.0 - (2.0 * n as f32 / length as f32 - 1.0).abs())
+            .collect::<Vec<f32>>(),
     }
 }
 
@@ -258,7 +260,12 @@ pub struct MelFilterBank {
 }
 
 impl MelFilterBank {
-    pub fn init(sample_rate: u32, fft_size: u32, bands: usize, max_frequency: u32) -> MelFilterBank {
+    pub fn init(
+        sample_rate: u32,
+        fft_size: u32,
+        bands: usize,
+        max_frequency: u32,
+    ) -> MelFilterBank {
         let num_points = bands + 2;
         let mel_max = Self::hertz_to_mel(max_frequency as f32);
         let step = mel_max as f32 / (num_points - 1) as f32;
@@ -268,7 +275,7 @@ impl MelFilterBank {
             .map(|m| Self::mel_to_hertz(m))
             .collect::<Vec<f32>>();
 
-        let bin_res = sample_rate as f32/ fft_size as f32;
+        let bin_res = sample_rate as f32 / fft_size as f32;
 
         let mut filter: Vec<Vec<f32>> = Vec::new();
 
@@ -289,7 +296,14 @@ impl MelFilterBank {
             filter.push(band);
         });
 
-        MelFilterBank { filter, points: mel, fft_size, bands, sample_rate, max_frequency }
+        MelFilterBank {
+            filter,
+            points: mel,
+            fft_size,
+            bands,
+            sample_rate,
+            max_frequency,
+        }
     }
 
     pub fn filter(&self, freq_bins: &Vec<f32>, out: &mut Vec<f32>) {
@@ -299,7 +313,8 @@ impl MelFilterBank {
 
         self.filter.iter().enumerate().for_each(|(m, band)| {
             let start = (self.points[m] / bin_res) as usize;
-            let sum = freq_bins.iter()
+            let sum = freq_bins
+                .iter()
                 .skip(start)
                 .take(band.len())
                 .zip(band)
