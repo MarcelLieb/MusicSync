@@ -22,18 +22,25 @@ struct ThresholdBank {
 impl Default for ThresholdBank {
     fn default() -> Self {
         let drum = AdvancedThreshold::with_settings(AdvancedSettings {
-            fixed_threshold: 2.0,
-            adaptive_threshold: 1.5,
+            fixed_threshold: 5.0,
+            adaptive_threshold: 0.25,
+            mean_range: 5,
             ..Default::default()
         });
 
         let hihat = AdvancedThreshold::with_settings(AdvancedSettings {
-            fixed_threshold: 5.0,
-            adaptive_threshold: 1.5,
+            fixed_threshold: 12.0,
+            adaptive_threshold: 0.6,
             ..Default::default()
         });
 
-        Self { drum, hihat, note: Default::default(), full: Default::default() }
+        let note = AdvancedThreshold::with_settings(AdvancedSettings {
+            fixed_threshold: 8.0,
+            adaptive_threshold: 0.4,
+            ..Default::default()
+        });
+
+        Self { drum, hihat, note, full: Default::default() }
     }
 }
 
@@ -67,7 +74,7 @@ impl SpecFlux {
 
         let weight: f32 = diff.clone().sum();
 
-        let drum_weight: f32 = diff.clone().take(12).sum();
+        let drum_weight: f32 = diff.clone().take(10).sum();
 
         let hihat_weight: f32 = diff.clone().skip(61).sum();
 
@@ -84,7 +91,7 @@ impl SpecFlux {
 
         lightservices
             .iter_mut()
-            .for_each(|service| service.event_detected(Event::Raw(drum_weight)));
+            .for_each(|service| service.event_detected(Event::Raw(note_weight)));
 
         if onset {
             lightservices
