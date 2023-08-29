@@ -14,9 +14,9 @@ pub struct OnsetContainer {
     filename: String,
     #[serde(skip_serializing, skip_deserializing)]
     time: u128,
-    #[serde(skip_serializing, skip_deserializing)]
     time_interval: u32,
     pub data: HashMap<String, Vec<(u128, Event)>>,
+    pub raw: Vec<f32>,
 }
 
 impl LightService for OnsetContainer {
@@ -31,7 +31,7 @@ impl LightService for OnsetContainer {
             Event::Note(_, _) => self.data.get_mut("Note").unwrap().push((self.time, event)),
             Event::Drum(_) => self.data.get_mut("Drum").unwrap().push((self.time, event)),
             Event::Hihat(_) => self.data.get_mut("Hihat").unwrap().push((self.time, event)),
-            Event::Raw(_) => self.data.get_mut("Raw").unwrap().push((self.time, event))
+            Event::Raw(value) => self.raw.push(value),
         }
     }
 
@@ -43,7 +43,7 @@ impl LightService for OnsetContainer {
 impl OnsetContainer {
     pub fn save(&self) -> std::io::Result<()> {
         let f = File::create(&self.filename)?;
-        into_writer(&self.data, f).unwrap();
+        into_writer(&self, f).unwrap();
         Ok(())
     }
 
@@ -54,19 +54,23 @@ impl OnsetContainer {
             ("Note".to_string(), Vec::new()),
             ("Drum".to_string(), Vec::new()),
             ("Hihat".to_string(), Vec::new()),
-            ("Raw".to_string(), Vec::new()),
         ]);
+        let raw = Vec::new();
         OnsetContainer {
             filename,
             time: 0,
             time_interval: ((HOP_SIZE as f64 / SAMPLE_RATE as f64) * 1000.0) as u32,
             data,
+            raw,
         }
     }
 }
 
 impl Drop for OnsetContainer {
     fn drop(&mut self) {
-        self.save().unwrap();
+        match self.save() {
+            Ok(_) => println!("Saved to {}", self.filename),
+            Err(e) => println!("Error saving to {}: {}", self.filename, e),
+        }
     }
 }
