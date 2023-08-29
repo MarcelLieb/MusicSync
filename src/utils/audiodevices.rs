@@ -1,7 +1,7 @@
-use crate::utils::audioprocessing::hfc::hfc;
+use crate::utils::audioprocessing::hfc::HFC;
 use crate::utils::audioprocessing::spectral_flux::SpecFlux;
 use crate::utils::{
-    audioprocessing::{prepare_buffers, process_raw, threshold::MultiBandThreshold},
+    audioprocessing::{prepare_buffers, process_raw},
     hue,
     lights::{Console, LightService},
     serialize,
@@ -44,8 +44,6 @@ pub async fn create_default_output_stream() -> cpal::Stream {
     let fft_planner = RealFftPlanner::<f32>::new().plan_fft_forward(SAMPLE_RATE as usize);
     let mut detection_buffer = prepare_buffers(channels, SAMPLE_RATE);
 
-    let mut multi_threshold = MultiBandThreshold::default();
-
     let mut lightservices: Vec<Box<dyn LightService + Send>> = Vec::new();
     if let Ok(bridge) = hue::connect().await {
         lightservices.push(Box::new(bridge));
@@ -58,6 +56,8 @@ pub async fn create_default_output_stream() -> cpal::Stream {
     lightservices.push(Box::new(serializer));
 
     let mut spec_flux = SpecFlux::init();
+
+    let mut _hfc = HFC::init();
 
     let buffer_size = (BUFFER_SIZE * channels as u32) as usize;
     let hop_size = (HOP_SIZE * channels as u32) as usize;
@@ -86,12 +86,10 @@ pub async fn create_default_output_stream() -> cpal::Stream {
                             &mut lightservices,
                         );
                         /*
-                        hfc(
+                        _hfc.detect(
                             &detection_buffer.freq_bins,
                             peak,
                             rms,
-                            &mut multi_threshold,
-                            None,
                             &mut lightservices,
                         );
                          */
