@@ -22,7 +22,7 @@ pub fn plot(
 
     root.fill(&WHITE)?;
 
-    let max = raw_data.len() as u128 * time_resolution as u128;
+    let max = (raw_data.len() as u128 * time_resolution as u128).min(TIME_WINDOW);
 
     let mut circle_chart = ChartBuilder::on(&root)
         .set_label_area_size(LabelAreaPosition::Bottom, (4).percent())
