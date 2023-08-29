@@ -1,5 +1,7 @@
+use crate::utils::audioprocessing::hfc::hfc;
+use crate::utils::audioprocessing::spectral_flux::SpecFlux;
 use crate::utils::{
-    audioprocessing::{prepare_buffers, print_onset, MultiBandThreshold},
+    audioprocessing::{prepare_buffers, process_raw, threshold::MultiBandThreshold},
     hue,
     lights::{Console, LightService},
     serialize,
@@ -55,6 +57,8 @@ pub async fn create_default_output_stream() -> cpal::Stream {
     let serializer = serialize::OnsetContainer::init("onsets.cbor".to_string());
     lightservices.push(Box::new(serializer));
 
+    let mut spec_flux = SpecFlux::init();
+
     let buffer_size = (BUFFER_SIZE * channels as u32) as usize;
     let hop_size = (HOP_SIZE * channels as u32) as usize;
     macro_rules! build_buffered_onset_stream {
@@ -68,15 +72,29 @@ pub async fn create_default_output_stream() -> cpal::Stream {
                     let n = (buffer.len() + hop_size).saturating_sub(buffer_size) / hop_size;
 
                     (0..n).for_each(|_| {
-                        print_onset(
+                        let (peak, rms) = process_raw(
                             &buffer[0..buffer_size],
                             channels,
                             &fft_planner,
                             &mut detection_buffer,
-                            &mut multi_threshold,
-                            &mut lightservices,
-                            None,
                         );
+
+                        spec_flux.detect(
+                            &detection_buffer.freq_bins,
+                            peak,
+                            rms,
+                            &mut lightservices,
+                        );
+                        /*
+                        hfc(
+                            &detection_buffer.freq_bins,
+                            peak,
+                            rms,
+                            &mut multi_threshold,
+                            None,
+                            &mut lightservices,
+                        );
+                         */
 
                         buffer.drain(0..hop_size);
                     })

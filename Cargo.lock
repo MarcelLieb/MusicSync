@@ -292,15 +292,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "biquad"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "820524f5e3e3add696ddf69f79575772e152c0e78e9f0370b56990a7e808ec3e"
-dependencies = [
- "libm",
-]
-
-[[package]]
 name = "bitflags"
 version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1640,7 +1631,6 @@ dependencies = [
 name = "music_sync"
 version = "0.1.0"
 dependencies = [
- "biquad",
  "ciborium",
  "colored",
  "cpal",

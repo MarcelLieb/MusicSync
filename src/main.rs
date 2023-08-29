@@ -8,6 +8,7 @@ use crate::utils::lights::Event;
 use crate::utils::plot::plot;
 use ciborium::from_reader;
 use cpal::traits::StreamTrait;
+use serde::Deserialize;
 
 #[tokio::main]
 async fn main() {
@@ -25,6 +26,20 @@ async fn main() {
     }
 
     let file = File::open("onsets.cbor").expect("Couldn't open file");
-    let data: HashMap<String, Vec<(u128, Event)>> = from_reader(file).unwrap();
-    plot(&data, "plot.png".to_string()).unwrap();
+
+    #[derive(Debug, Deserialize)]
+    struct OnsetContainer {
+        data: HashMap<String, Vec<(u128, Event)>>,
+        raw: Vec<f32>,
+        time_interval: u32,
+    }
+
+    let data: OnsetContainer = from_reader(file).unwrap();
+    plot(
+        &data.data,
+        &data.raw,
+        data.time_interval,
+        "plot.png".to_string(),
+    )
+    .unwrap();
 }
