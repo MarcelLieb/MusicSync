@@ -81,7 +81,7 @@ pub struct DynamicSettings {
 
 impl Default for DynamicSettings {
     fn default() -> Self {
-        Self { 
+        Self {
             buffer_size: 20,
             min_intensity: 0.2,
             delta_intensity: 0.15,

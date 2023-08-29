@@ -4,9 +4,7 @@ use realfft::RealFftPlanner;
 use rodio::{Decoder, Source};
 
 use super::{
-    audioprocessing::{
-        prepare_buffers, process_raw, ProcessingSettings, hfc::HFC,
-    },
+    audioprocessing::{hfc::HFC, prepare_buffers, process_raw, ProcessingSettings},
     lights::LightService,
     serialize,
 };
@@ -47,11 +45,6 @@ pub fn process_file(filename: String, settings: ProcessingSettings) {
             &fft_planner,
             &mut buffer_detection,
         );
-        hfc.detect(
-            &buffer_detection.freq_bins,
-            peak,
-            rms,
-            &mut lightservices,
-        );
+        hfc.detect(&buffer_detection.freq_bins, peak, rms, &mut lightservices);
     });
 }

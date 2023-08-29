@@ -158,7 +158,13 @@ impl SpecFlux {
 }
 
 impl OnsetDetector for SpecFlux {
-    fn detect(&mut self, freq_bins: &Vec<f32>, peak: f32, rms: f32, lightservices: &mut [Box<dyn LightService + Send>]) {
+    fn detect(
+        &mut self,
+        freq_bins: &Vec<f32>,
+        peak: f32,
+        rms: f32,
+        lightservices: &mut [Box<dyn LightService + Send>],
+    ) {
         self.detect(freq_bins, peak, rms, lightservices);
     }
 }
