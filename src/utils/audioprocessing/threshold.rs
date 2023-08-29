@@ -26,16 +26,17 @@ impl DynamicThreshold {
         }
     }
 
-    pub fn init_config(
-        buffer_size: usize,
-        min_intensity: Option<f32>,
-        delta_intensity: Option<f32>,
-    ) -> Self {
+    pub fn with_settings(settings: DynamicSettings) -> Self {
+        let DynamicSettings {
+            buffer_size,
+            min_intensity,
+            delta_intensity,
+        } = settings;
         DynamicThreshold {
             past_samples: VecDeque::with_capacity(buffer_size),
             buffer_size: buffer_size,
-            min_intensity: min_intensity.unwrap_or(0.2),
-            delta_intensity: delta_intensity.unwrap_or(0.15),
+            min_intensity: min_intensity,
+            delta_intensity: delta_intensity,
         }
     }
 
@@ -72,105 +73,29 @@ impl DynamicThreshold {
     }
 }
 
-impl Default for DynamicThreshold {
-    fn default() -> Self {
-        DynamicThreshold::init()
-    }
-}
-
-pub struct MultiBandThreshold {
-    pub drums: DynamicThreshold,
-    pub hihat: DynamicThreshold,
-    pub notes: DynamicThreshold,
-    pub fullband: DynamicThreshold,
-}
-
-#[derive(Debug)]
 pub struct DynamicSettings {
-    pub drum_buffer: usize,
-    pub drum_min_intensity: f32,
-    pub drum_delta_intensity: f32,
-    pub hihat_buffer: usize,
-    pub hihat_min_intensity: f32,
-    pub hihat_delta_intensity: f32,
-    pub note_buffer: usize,
-    pub note_min_intensity: f32,
-    pub note_delta_intensity: f32,
-    pub full_buffer: usize,
-    pub full_min_intensity: f32,
-    pub full_delta_intensity: f32,
+    pub buffer_size: usize,
+    pub min_intensity: f32,
+    pub delta_intensity: f32,
 }
 
 impl Default for DynamicSettings {
     fn default() -> Self {
-        Self {
-            drum_buffer: 30,
-            drum_min_intensity: 0.3,
-            drum_delta_intensity: 0.18,
-            hihat_buffer: 20,
-            hihat_min_intensity: 0.3,
-            hihat_delta_intensity: 0.18,
-            note_buffer: 20,
-            note_min_intensity: 0.2,
-            note_delta_intensity: 0.15,
-            full_buffer: 20,
-            full_min_intensity: 0.2,
-            full_delta_intensity: 0.15,
+        Self { 
+            buffer_size: 20,
+            min_intensity: 0.2,
+            delta_intensity: 0.15,
         }
     }
 }
 
-impl Default for MultiBandThreshold {
+impl Default for DynamicThreshold {
     fn default() -> Self {
-        let settings = DynamicSettings::default();
-        Self {
-            drums: DynamicThreshold::init_config(
-                settings.drum_buffer,
-                Some(settings.drum_min_intensity),
-                Some(settings.drum_delta_intensity),
-            ),
-            hihat: DynamicThreshold::init_config(
-                settings.hihat_buffer,
-                Some(settings.hihat_min_intensity),
-                Some(settings.hihat_delta_intensity),
-            ),
-            notes: DynamicThreshold::init_config(
-                settings.note_buffer,
-                Some(settings.note_min_intensity),
-                Some(settings.note_delta_intensity),
-            ),
-            fullband: DynamicThreshold::init_config(
-                settings.full_buffer,
-                Some(settings.full_min_intensity),
-                Some(settings.full_delta_intensity),
-            ),
-        }
-    }
-}
-
-impl MultiBandThreshold {
-    pub fn init_settings(settings: DynamicSettings) -> MultiBandThreshold {
-        Self {
-            drums: DynamicThreshold::init_config(
-                settings.drum_buffer,
-                Some(settings.drum_min_intensity),
-                Some(settings.drum_delta_intensity),
-            ),
-            hihat: DynamicThreshold::init_config(
-                settings.hihat_buffer,
-                Some(settings.hihat_min_intensity),
-                Some(settings.hihat_delta_intensity),
-            ),
-            notes: DynamicThreshold::init_config(
-                settings.note_buffer,
-                Some(settings.note_min_intensity),
-                Some(settings.note_delta_intensity),
-            ),
-            fullband: DynamicThreshold::init_config(
-                settings.full_buffer,
-                Some(settings.full_min_intensity),
-                Some(settings.full_delta_intensity),
-            ),
+        DynamicThreshold {
+            past_samples: VecDeque::with_capacity(20),
+            buffer_size: 20,
+            min_intensity: 0.2,
+            delta_intensity: 0.15,
         }
     }
 }

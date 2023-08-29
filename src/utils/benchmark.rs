@@ -5,13 +5,13 @@ use rodio::{Decoder, Source};
 
 use super::{
     audioprocessing::{
-        hfc::hfc, prepare_buffers, process_raw, threshold::MultiBandThreshold, DetectionSettings,
+        prepare_buffers, process_raw, ProcessingSettings, hfc::HFC,
     },
     lights::LightService,
     serialize,
 };
 
-pub fn process_file(filename: String, settings: DetectionSettings) {
+pub fn process_file(filename: String, settings: ProcessingSettings) {
     let file = BufReader::new(File::open(filename.clone()).unwrap());
 
     let source = Decoder::new(file).unwrap();
@@ -22,16 +22,16 @@ pub fn process_file(filename: String, settings: DetectionSettings) {
     let channels = source.channels();
     let sample_rate = source.sample_rate();
 
-    let DetectionSettings {
-        hop_size,
+    let ProcessingSettings {
         buffer_size,
-        threshold_settings,
-        detection_weights,
+        hop_size,
     } = settings;
+
     let buffer_size = buffer_size * channels as usize;
     let hop_size = hop_size * channels as usize;
 
-    let mut multi_threshold = MultiBandThreshold::init_settings(threshold_settings);
+    let mut hfc = HFC::init();
+
     let mut lightservices: Vec<Box<dyn LightService + Send>> = vec![Box::new(serializer)];
 
     let mut buffer_detection = prepare_buffers(channels, sample_rate);
@@ -47,12 +47,10 @@ pub fn process_file(filename: String, settings: DetectionSettings) {
             &fft_planner,
             &mut buffer_detection,
         );
-        hfc(
+        hfc.detect(
             &buffer_detection.freq_bins,
             peak,
             rms,
-            &mut multi_threshold,
-            Some(&detection_weights),
             &mut lightservices,
         );
     });
