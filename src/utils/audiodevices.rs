@@ -1,6 +1,6 @@
-use crate::utils::audioprocessing::ProcessingSettings;
 use crate::utils::audioprocessing::hfc::HFC;
 use crate::utils::audioprocessing::spectral_flux::SpecFlux;
+use crate::utils::audioprocessing::ProcessingSettings;
 use crate::utils::{
     audioprocessing::{prepare_buffers, process_raw},
     hue,
@@ -50,7 +50,11 @@ pub async fn create_default_output_stream() -> cpal::Stream {
     let console = Console::default();
     lightservices.push(Box::new(console));
 
-    let serializer = serialize::OnsetContainer::init("onsets.cbor".to_string(), settings.sample_rate as usize, settings.hop_size as usize);
+    let serializer = serialize::OnsetContainer::init(
+        "onsets.cbor".to_string(),
+        settings.sample_rate as usize,
+        settings.hop_size as usize,
+    );
     lightservices.push(Box::new(serializer));
 
     let mut spec_flux = SpecFlux::init(settings.sample_rate, settings.fft_size as u32);

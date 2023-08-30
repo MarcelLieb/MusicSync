@@ -14,8 +14,11 @@ pub fn process_file(filename: String, settings: ProcessingSettings) {
 
     let source = Decoder::new(file).unwrap();
 
-    let serializer =
-        serialize::OnsetContainer::init(filename.split(".").next().unwrap().to_owned() + ".cbor", settings.sample_rate as usize, settings.hop_size as usize);
+    let serializer = serialize::OnsetContainer::init(
+        filename.split(".").next().unwrap().to_owned() + ".cbor",
+        settings.sample_rate as usize,
+        settings.hop_size as usize,
+    );
 
     let channels = source.channels();
     let sample_rate = source.sample_rate();

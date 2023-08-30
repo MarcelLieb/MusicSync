@@ -109,14 +109,16 @@ impl HFC {
             .enumerate()
             .max_by(|(_, &a), (_, &b)| a.total_cmp(&b))
             .unwrap()
-            .0 as f32 * self.bin_resolution) as usize;
+            .0 as f32
+            * self.bin_resolution) as usize;
 
         let index_of_max = (freq_bins
             .iter()
             .enumerate()
             .max_by(|(_, a), (_, b)| a.total_cmp(b))
             .unwrap()
-            .0 as f32 * self.bin_resolution) as usize;
+            .0 as f32
+            * self.bin_resolution) as usize;
 
         info!("Loudest frequency: {}Hz", index_of_max);
 
