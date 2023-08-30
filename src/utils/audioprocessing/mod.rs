@@ -11,47 +11,50 @@ use log::info;
 use realfft::{RealFftPlanner, RealToComplex};
 use rustfft::num_complex::Complex;
 
-use crate::utils::audiodevices::BUFFER_SIZE;
-
 use super::lights::LightService;
 
 lazy_static! {
-    static ref FFT_WINDOW: Vec<f32> = window(BUFFER_SIZE as usize, WindowType::Hann);
     static ref THRESHOLD_WINDOW: Vec<f32> = window(39, WindowType::Hann);
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ProcessingSettings {
+    pub sample_rate: u32,
     pub hop_size: usize,
     pub buffer_size: usize,
+    pub fft_size: usize,
 }
 
 impl Default for ProcessingSettings {
     fn default() -> ProcessingSettings {
         ProcessingSettings {
+            sample_rate: 48000,
             hop_size: 480,
             buffer_size: 1024,
+            fft_size: 2048,
         }
     }
 }
 
-pub fn prepare_buffers(channels: u16, sample_rate: u32) -> Buffer {
+pub fn prepare_buffers(channels: u16, settings: &ProcessingSettings) -> Buffer {
     let mut f32_samples: Vec<Vec<f32>> = Vec::with_capacity(channels.into());
     for _ in 0..channels {
-        f32_samples.push(Vec::with_capacity(sample_rate as usize));
+        f32_samples.push(Vec::with_capacity(settings.fft_size));
     }
-    let mono_samples: Vec<f32> = Vec::with_capacity(sample_rate as usize);
+    let mono_samples: Vec<f32> = Vec::with_capacity(settings.buffer_size);
 
-    let fft_planner = RealFftPlanner::<f32>::new().plan_fft_forward(sample_rate as usize);
+    let fft_planner = RealFftPlanner::<f32>::new().plan_fft_forward(settings.fft_size);
     let fft_output: Vec<Vec<Complex<f32>>> = (0..channels)
         .map(|_| fft_planner.make_output_vec())
         .collect();
     let freq_bins: Vec<f32> = vec![0.0; fft_output[0].capacity()];
+    let fft_window = window(settings.buffer_size as usize, WindowType::Hann);
 
     return Buffer {
         f32_samples,
         mono_samples,
         fft_output,
+        fft_window,
         freq_bins,
     };
 }
@@ -60,6 +63,7 @@ pub struct Buffer {
     f32_samples: Vec<Vec<f32>>,
     mono_samples: Vec<f32>,
     fft_output: Vec<Vec<Complex<f32>>>,
+    fft_window: Vec<f32>,
     pub freq_bins: Vec<f32>,
 }
 
@@ -77,6 +81,7 @@ where
         mono_samples,
         fft_output,
         freq_bins,
+        fft_window,
     } = buffer;
 
     //Check for silence and abort if present
@@ -116,7 +121,7 @@ where
 
     info!("RMS: {:.3}, Peak: {:.3}", rms, peak);
 
-    fft(f32_samples, fft_output, fft_planner, freq_bins);
+    fft(f32_samples, fft_output, fft_planner, &fft_window, freq_bins);
     return (peak, rms);
 }
 
@@ -124,10 +129,11 @@ fn fft(
     f32_samples: &mut Vec<Vec<f32>>,
     fft_output: &mut Vec<Vec<Complex<f32>>>,
     fft_planner: &Arc<dyn RealToComplex<f32>>,
+    fft_window: &Vec<f32>,
     freq_bins: &mut Vec<f32>,
 ) {
     // Could only apply window to collapsed mono signal
-    apply_window(f32_samples, FFT_WINDOW.as_slice());
+    apply_window(f32_samples, &fft_window);
     f32_samples
         .iter_mut()
         .for_each(|chan| chan.extend(std::iter::repeat(0.0).take(chan.capacity() - chan.len())));

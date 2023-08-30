@@ -33,15 +33,18 @@ impl Default for DetectionWeights {
 pub struct HFC {
     threshold: ThresholdBank,
     detection_weights: DetectionWeights,
+    bin_resolution: f32,
 }
 
 impl HFC {
-    pub fn init() -> Self {
+    pub fn init(sample_rate: usize, fft_size: usize) -> Self {
         let threshold = ThresholdBank::default();
         let detection_weights = DetectionWeights::default();
+        let bin_resolution = sample_rate as f32 / fft_size as f32;
         Self {
             threshold,
             detection_weights,
+            bin_resolution,
         }
     }
 
@@ -58,6 +61,8 @@ impl HFC {
             lightservices
                 .iter_mut()
                 .for_each(|service| service.update());
+
+            return;
         }
 
         let DetectionWeights {
@@ -69,43 +74,49 @@ impl HFC {
             note_click_weight,
         } = self.detection_weights;
 
+        let low_end_weight_cutoff = (low_end_weight_cutoff as f32 / self.bin_resolution) as usize;
+        let high_end_weight_cutoff = (high_end_weight_cutoff as f32 / self.bin_resolution) as usize;
+        let mids_weight_low_cutoff = (mids_weight_low_cutoff as f32 / self.bin_resolution) as usize;
+        let mids_weight_high_cutoff =
+            (mids_weight_high_cutoff as f32 / self.bin_resolution) as usize;
+
         let weight: f32 = freq_bins
             .iter()
             .enumerate()
-            .map(|(k, freq)| k as f32 * freq)
+            .map(|(k, freq)| k as f32 * self.bin_resolution * freq)
             .sum();
 
-        let low_end_weight: &f32 = &freq_bins[50..low_end_weight_cutoff]
+        let low_end_weight: &f32 = &freq_bins[0..low_end_weight_cutoff]
             .iter()
             .enumerate()
-            .map(|(k, freq)| (k as f32 * *freq))
+            .map(|(k, freq)| (k as f32 * self.bin_resolution * *freq))
             .sum::<f32>();
 
         let high_end_weight: &f32 = &freq_bins[high_end_weight_cutoff..]
             .iter()
             .enumerate()
-            .map(|(k, freq)| (k as f32 * *freq))
+            .map(|(k, freq)| (k as f32 * self.bin_resolution * *freq))
             .sum::<f32>();
 
         let mids_weight: &f32 = &freq_bins[mids_weight_low_cutoff..mids_weight_high_cutoff]
             .iter()
             .enumerate()
-            .map(|(k, freq)| (k as f32 * *freq))
+            .map(|(k, freq)| (k as f32 * self.bin_resolution * *freq))
             .sum::<f32>();
 
-        let index_of_max_mid = &freq_bins[mids_weight_low_cutoff..mids_weight_high_cutoff]
+        let index_of_max_mid = (freq_bins[mids_weight_low_cutoff..mids_weight_high_cutoff]
             .iter()
             .enumerate()
-            .max_by(|(_, a), (_, b)| a.total_cmp(b))
+            .max_by(|(_, &a), (_, &b)| a.total_cmp(&b))
             .unwrap()
-            .0;
+            .0 as f32 * self.bin_resolution) as usize;
 
-        let index_of_max = freq_bins
+        let index_of_max = (freq_bins
             .iter()
             .enumerate()
             .max_by(|(_, a), (_, b)| a.total_cmp(b))
             .unwrap()
-            .0;
+            .0 as f32 * self.bin_resolution) as usize;
 
         info!("Loudest frequency: {}Hz", index_of_max);
 
@@ -133,7 +144,7 @@ impl HFC {
         let notes_weight = mids_weight + note_click_weight * high_end_weight;
         if notes_weight >= self.threshold.notes.get_threshold(notes_weight) {
             lightservices.iter_mut().for_each(|service| {
-                service.event_detected(Event::Note(rms, *index_of_max_mid as u16))
+                service.event_detected(Event::Note(rms, index_of_max_mid as u16))
             });
         }
 

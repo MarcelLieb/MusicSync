@@ -1,7 +1,4 @@
-use crate::utils::{
-    audiodevices::SAMPLE_RATE,
-    lights::{Event, LightService},
-};
+use crate::utils::lights::{Event, LightService};
 
 use super::{
     threshold::{AdvancedSettings, AdvancedThreshold},
@@ -69,8 +66,8 @@ impl Default for ThresholdBank {
 }
 
 impl SpecFlux {
-    pub fn init() -> SpecFlux {
-        let bank = MelFilterBank::init(SAMPLE_RATE, SAMPLE_RATE, 82, 20_000);
+    pub fn init(sample_rate: u32, fft_size: u32) -> SpecFlux {
+        let bank = MelFilterBank::init(sample_rate, fft_size, 82, 20_000);
         let threshold = ThresholdBank::default();
         let spectrum = Vec::with_capacity(82);
         let old_spectrum = Vec::with_capacity(82);
@@ -125,7 +122,7 @@ impl SpecFlux {
 
         lightservices
             .iter_mut()
-            .for_each(|service| service.event_detected(Event::Raw(note_weight)));
+            .for_each(|service| service.event_detected(Event::Raw(drum_weight)));
 
         if onset {
             lightservices
