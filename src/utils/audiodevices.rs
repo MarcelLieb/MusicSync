@@ -1,5 +1,6 @@
 use crate::utils::audioprocessing::hfc::HFC;
 use crate::utils::audioprocessing::spectral_flux::SpecFlux;
+use crate::utils::audioprocessing::ProcessingSettings;
 use crate::utils::{
     audioprocessing::{prepare_buffers, process_raw},
     hue,
@@ -13,11 +14,6 @@ use cpal::{
 };
 use log::debug;
 use realfft::RealFftPlanner;
-
-pub const SAMPLE_RATE: u32 = 48000;
-// buffer size is 10 ms long
-pub const BUFFER_SIZE: u32 = 1024;
-pub const HOP_SIZE: u32 = 480;
 
 fn capture_err_fn(err: cpal::StreamError) {
     eprintln!("an error occurred on stream: {}", err);
@@ -35,14 +31,16 @@ pub async fn create_default_output_stream() -> cpal::Stream {
         .expect("No default output config found");
 
     let channels = audio_cfg.channels();
+
+    let settings = ProcessingSettings::default();
     let config = StreamConfig {
         channels: channels,
-        sample_rate: cpal::SampleRate(SAMPLE_RATE),
+        sample_rate: cpal::SampleRate(settings.sample_rate),
         buffer_size: cpal::BufferSize::Default,
     };
 
-    let fft_planner = RealFftPlanner::<f32>::new().plan_fft_forward(SAMPLE_RATE as usize);
-    let mut detection_buffer = prepare_buffers(channels, SAMPLE_RATE);
+    let fft_planner = RealFftPlanner::<f32>::new().plan_fft_forward(settings.fft_size);
+    let mut detection_buffer = prepare_buffers(channels, &settings);
 
     let mut lightservices: Vec<Box<dyn LightService + Send>> = Vec::new();
     if let Ok(bridge) = hue::connect().await {
@@ -52,15 +50,19 @@ pub async fn create_default_output_stream() -> cpal::Stream {
     let console = Console::default();
     lightservices.push(Box::new(console));
 
-    let serializer = serialize::OnsetContainer::init("onsets.cbor".to_string());
+    let serializer = serialize::OnsetContainer::init(
+        "onsets.cbor".to_string(),
+        settings.sample_rate as usize,
+        settings.hop_size as usize,
+    );
     lightservices.push(Box::new(serializer));
 
-    let mut spec_flux = SpecFlux::init();
+    let mut spec_flux = SpecFlux::init(settings.sample_rate, settings.fft_size as u32);
 
-    let mut _hfc = HFC::init();
+    let mut _hfc = HFC::init(settings.sample_rate as usize, settings.fft_size);
 
-    let buffer_size = (BUFFER_SIZE * channels as u32) as usize;
-    let hop_size = (HOP_SIZE * channels as u32) as usize;
+    let buffer_size = settings.buffer_size * channels as usize;
+    let hop_size = settings.hop_size * channels as usize;
     macro_rules! build_buffered_onset_stream {
         ($t:ty) => {{
             let mut buffer: Vec<$t> = Vec::new();

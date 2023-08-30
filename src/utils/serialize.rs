@@ -3,10 +3,7 @@ use std::{collections::HashMap, fs::File};
 use ciborium::into_writer;
 use serde::{Deserialize, Serialize};
 
-use super::{
-    audiodevices::{HOP_SIZE, SAMPLE_RATE},
-    lights::{Event, LightService},
-};
+use super::lights::{Event, LightService};
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct OnsetContainer {
@@ -47,7 +44,7 @@ impl OnsetContainer {
         Ok(())
     }
 
-    pub fn init(filename: String) -> OnsetContainer {
+    pub fn init(filename: String, sample_rate: usize, hop_size: usize) -> OnsetContainer {
         let data: HashMap<String, Vec<(u128, Event)>> = HashMap::from([
             ("Full".to_string(), Vec::new()),
             ("Atmosphere".to_string(), Vec::new()),
@@ -59,7 +56,7 @@ impl OnsetContainer {
         OnsetContainer {
             filename,
             time: 0,
-            time_interval: ((HOP_SIZE as f64 / SAMPLE_RATE as f64) * 1000.0) as u32,
+            time_interval: ((hop_size as f64 / sample_rate as f64) * 1000.0) as u32,
             data,
             raw,
         }
