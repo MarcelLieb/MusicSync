@@ -33,7 +33,7 @@ impl LightService for OnsetContainer {
     }
 
     fn update(&mut self) {
-        self.time = self.time + self.time_interval as u128;
+        self.time += self.time_interval as u128;
     }
 }
 

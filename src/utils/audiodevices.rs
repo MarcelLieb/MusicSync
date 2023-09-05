@@ -1,4 +1,4 @@
-use crate::utils::audioprocessing::hfc::HFC;
+use crate::utils::audioprocessing::hfc::Hfc;
 use crate::utils::audioprocessing::spectral_flux::SpecFlux;
 use crate::utils::audioprocessing::ProcessingSettings;
 use crate::utils::{
@@ -34,7 +34,7 @@ pub async fn create_default_output_stream() -> cpal::Stream {
 
     let settings = ProcessingSettings::default();
     let config = StreamConfig {
-        channels: channels,
+        channels,
         sample_rate: cpal::SampleRate(settings.sample_rate),
         buffer_size: cpal::BufferSize::Default,
     };
@@ -53,13 +53,13 @@ pub async fn create_default_output_stream() -> cpal::Stream {
     let serializer = serialize::OnsetContainer::init(
         "onsets.cbor".to_string(),
         settings.sample_rate as usize,
-        settings.hop_size as usize,
+        settings.hop_size,
     );
     lightservices.push(Box::new(serializer));
 
     let mut spec_flux = SpecFlux::init(settings.sample_rate, settings.fft_size as u32);
 
-    let mut _hfc = HFC::init(settings.sample_rate as usize, settings.fft_size);
+    let mut _hfc = Hfc::init(settings.sample_rate as usize, settings.fft_size);
 
     let buffer_size = settings.buffer_size * channels as usize;
     let hop_size = settings.hop_size * channels as usize;

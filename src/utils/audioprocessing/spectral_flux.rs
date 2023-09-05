@@ -5,10 +5,10 @@ use super::{
     MelFilterBank, OnsetDetector,
 };
 
-static SCALE: &'static [f32] = &[
+static SCALE: &[f32] = &[
     25.5, 29.14, 30.87, 32.70, 34.65, 36.71, 38.89, 41.20, 43.65, 46.25, 49.0, 51.91,
 ];
-static FREQUENCIES: &'static [f32] = &[
+static FREQUENCIES: &[f32] = &[
     0.0, 25.5, 29.14, 30.87, 32.7, 34.65, 36.71, 38.89, 41.2, 43.65, 46.25, 49.0, 51.91, 51.0,
     58.28, 61.74, 65.4, 69.3, 73.42, 77.78, 82.4, 87.3, 92.5, 98.0, 103.82, 102.0, 116.56, 123.48,
     130.8, 138.6, 146.84, 155.56, 164.8, 174.6, 185.0, 196.0, 207.64, 204.0, 233.12, 246.96, 261.6,
@@ -69,8 +69,8 @@ impl SpecFlux {
     pub fn init(sample_rate: u32, fft_size: u32) -> SpecFlux {
         let bank = MelFilterBank::init(sample_rate, fft_size, 82, 20_000);
         let threshold = ThresholdBank::default();
-        let spectrum = Vec::with_capacity(82);
-        let old_spectrum = Vec::with_capacity(82);
+        let spectrum = vec![0.0; 82];
+        let old_spectrum = vec![0.0; 82];
         SpecFlux {
             filter_bank: bank,
             spectrum,
@@ -81,7 +81,7 @@ impl SpecFlux {
 
     pub fn detect(
         &mut self,
-        freq_bins: &Vec<f32>,
+        freq_bins: &[f32],
         peak: f32,
         rms: f32,
         lightservices: &mut [Box<dyn LightService + Send>],
@@ -157,7 +157,7 @@ impl SpecFlux {
 impl OnsetDetector for SpecFlux {
     fn detect(
         &mut self,
-        freq_bins: &Vec<f32>,
+        freq_bins: &[f32],
         peak: f32,
         rms: f32,
         lightservices: &mut [Box<dyn LightService + Send>],
