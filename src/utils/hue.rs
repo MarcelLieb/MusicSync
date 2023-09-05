@@ -88,7 +88,7 @@ impl BridgeConnection {
 
         let area_id = area.clone();
 
-        let polling_helper = PollingHelper::init::<Arc<fn(&[[u16; 3]]) -> Vec<u8>>>(
+        let polling_helper = PollingHelper::init(
             Arc::new(connection),
             Arc::new(move |colors| {
                 let mut bytes = "HueStream".as_bytes().to_vec(); // Prefix
@@ -122,12 +122,12 @@ impl BridgeConnection {
             ip,
             app_key,
             app_id,
-            area: area,
+            area,
             polling_helper,
             envelopes,
         };
 
-        return Ok(bridge);
+        Ok(bridge)
     }
 }
 
@@ -165,14 +165,12 @@ pub async fn connect() -> Result<BridgeConnection, ConnectionError> {
             }
         }
     }
-    if candidates.len() == 0 {
+    if candidates.is_empty() {
         let mut local_bridges = find_bridges().await?;
         local_bridges.retain(|b| {
-            saved_bridges
+            !saved_bridges
                 .iter()
-                .map(|save| save.ip.to_string())
-                .find(|ip| b.ip.to_string() == ip.to_owned())
-                .is_none()
+                .map(|save| save.ip.to_string()).any(|ip| b.ip.to_string() == *ip)
         });
         for bridge in local_bridges {
             if let Ok(authenticated) = bridge.authenticate().await {
@@ -182,7 +180,7 @@ pub async fn connect() -> Result<BridgeConnection, ConnectionError> {
         }
     }
 
-    if candidates.len() == 0 {
+    if candidates.is_empty() {
         warn!("Couldn't find compatible bridge");
         return Err(ConnectionError::TimeOut);
     }
@@ -228,7 +226,7 @@ pub async fn connect() -> Result<BridgeConnection, ConnectionError> {
     let response = response.json::<_EntResponse>().await?;
 
     // TODO: Allow selection of entertainment area
-    let area = (&response.data[0].id).to_string();
+    let area = response.data[0].id.to_string();
 
     let bridge = BridgeConnection::init(bridge, area)?;
 
@@ -250,7 +248,7 @@ async fn check_bridge(ip: &Ipv4Addr) -> bool {
 
     let config = response.json::<BridgeConfig>().await;
 
-    if let Err(_) = config {
+    if config.is_err() {
         return false;
     }
 
@@ -316,10 +314,10 @@ impl Bridge {
             .build()
             .unwrap();
 
-        let hostname = gethostname::gethostname()
+        let mut hostname = gethostname::gethostname()
             .into_string()
-            .unwrap()
-            .retain(|a| a != '\"');
+            .unwrap();
+        hostname.retain(|a| a != '\"');
 
         #[derive(Serialize, Debug)]
         struct Body {
@@ -329,7 +327,7 @@ impl Bridge {
 
         let devicetype = format!("music_sync#{hostname:?}");
         let params = Body {
-            devicetype: devicetype,
+            devicetype,
             generateclientkey: true,
         };
 
@@ -426,7 +424,7 @@ impl LightService for BridgeConnection {
     }
 
     fn update(&mut self) {
-        self.polling_helper.update_color(&vec![[0, 0, 0]; 1], false);
+        self.polling_helper.update_color(&[[0, 0, 0]; 1], false);
 
         /*
         if self.envelopes.fullband.envelope.get_value() > 0.0 {

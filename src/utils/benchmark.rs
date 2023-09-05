@@ -4,7 +4,7 @@ use realfft::RealFftPlanner;
 use rodio::{Decoder, Source};
 
 use super::{
-    audioprocessing::{hfc::HFC, prepare_buffers, process_raw, ProcessingSettings},
+    audioprocessing::{hfc::Hfc, prepare_buffers, process_raw, ProcessingSettings},
     lights::LightService,
     serialize,
 };
@@ -15,9 +15,9 @@ pub fn process_file(filename: String, settings: ProcessingSettings) {
     let source = Decoder::new(file).unwrap();
 
     let serializer = serialize::OnsetContainer::init(
-        filename.split(".").next().unwrap().to_owned() + ".cbor",
+        filename.split('.').next().unwrap().to_owned() + ".cbor",
         settings.sample_rate as usize,
-        settings.hop_size as usize,
+        settings.hop_size,
     );
 
     let channels = source.channels();
@@ -33,7 +33,7 @@ pub fn process_file(filename: String, settings: ProcessingSettings) {
     let buffer_size = buffer_size * channels as usize;
     let hop_size = hop_size * channels as usize;
 
-    let mut hfc = HFC::init(sample_rate as usize, fft_size);
+    let mut hfc = Hfc::init(sample_rate as usize, fft_size);
 
     let mut lightservices: Vec<Box<dyn LightService + Send>> = vec![Box::new(serializer)];
 

@@ -91,21 +91,20 @@ pub fn plot(
                     .map(|(time, y)| (time, y / data_max[key]))
                     .filter(|(t, _)| *t < TIME_WINDOW)
                     .filter(|(t, _)| *t > 20) // Start is usually a unwanted click
-                    .map(|(t, v)| {
+                    .flat_map(|(t, v)| {
                         [
                             Circle::new(
                                 (t, (-(index as i32) + 5) as u32),
                                 25.0 * v,
-                                &color.mix(0.8),
+                                color.mix(0.8),
                             ),
                             Circle::new(
                                 (t, (-(index as i32) + 5) as u32),
                                 2.0,
-                                *&color.mix(0.1).filled(),
+                                color.mix(0.1).filled(),
                             ),
                         ]
                     })
-                    .flatten()
             })?
             .label(key)
             .legend(move |(x, y)| Rectangle::new([(x, y - 5), (x + 10, y + 5)], color.filled()));
@@ -122,12 +121,12 @@ pub fn plot(
             &RED.mix(0.8),
         ))?
         .label("Onset function")
-        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &RED));
+        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], RED));
     circle_chart
         .configure_series_labels()
         .position(SeriesLabelPosition::UpperRight)
-        .background_style(&WHITE)
-        .border_style(&BLACK)
+        .background_style(WHITE)
+        .border_style(BLACK)
         .draw()?;
 
     root.present()?;

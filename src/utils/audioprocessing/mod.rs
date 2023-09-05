@@ -48,15 +48,15 @@ pub fn prepare_buffers(channels: u16, settings: &ProcessingSettings) -> Buffer {
         .map(|_| fft_planner.make_output_vec())
         .collect();
     let freq_bins: Vec<f32> = vec![0.0; fft_output[0].capacity()];
-    let fft_window = window(settings.buffer_size as usize, WindowType::Hann);
+    let fft_window = window(settings.buffer_size, WindowType::Hann);
 
-    return Buffer {
+    Buffer {
         f32_samples,
         mono_samples,
         fft_output,
         fft_window,
         freq_bins,
-    };
+    }
 }
 
 pub struct Buffer {
@@ -121,19 +121,19 @@ where
 
     info!("RMS: {:.3}, Peak: {:.3}", rms, peak);
 
-    fft(f32_samples, fft_output, fft_planner, &fft_window, freq_bins);
-    return (peak, rms);
+    fft(f32_samples, fft_output, fft_planner, fft_window, freq_bins);
+    (peak, rms)
 }
 
 fn fft(
-    f32_samples: &mut Vec<Vec<f32>>,
-    fft_output: &mut Vec<Vec<Complex<f32>>>,
+    f32_samples: &mut [Vec<f32>],
+    fft_output: &mut [Vec<Complex<f32>>],
     fft_planner: &Arc<dyn RealToComplex<f32>>,
-    fft_window: &Vec<f32>,
+    fft_window: &[f32],
     freq_bins: &mut Vec<f32>,
 ) {
     // Could only apply window to collapsed mono signal
-    apply_window(f32_samples, &fft_window);
+    apply_window(f32_samples, fft_window);
     f32_samples
         .iter_mut()
         .for_each(|chan| chan.extend(std::iter::repeat(0.0).take(chan.capacity() - chan.len())));
@@ -180,7 +180,7 @@ fn collapse_mono<T: Sample + ToSample<f32>>(
     mono_samples.extend(std::iter::repeat(0.0).take(mono_samples.capacity() - mono_samples.len()));
 }
 
-fn split_channels<T>(channels: u16, data: &[T], f32_samples: &mut Vec<Vec<f32>>)
+fn split_channels<T>(channels: u16, data: &[T], f32_samples: &mut [Vec<f32>])
 where
     T: Sample + ToSample<f32>,
 {
@@ -219,19 +219,18 @@ fn window(length: usize, window_type: WindowType) -> Vec<f32> {
             const A: [f32; 5] = [
                 0.21557895,
                 0.41663158,
-                0.277263158,
+                0.27726316,
                 0.083578947,
                 0.006947368,
             ];
-            let window = (0..length)
+            (0..length)
                 .map(|n| {
                     A[0] - A[1] * (2. * PI * n as f32 / length as f32).cos()
                         + A[2] * (4. * PI * n as f32 / length as f32).cos()
                         - A[3] * (6. * PI * n as f32 / length as f32).cos()
                         + A[4] * (8. * PI * n as f32 / length as f32).cos()
                 })
-                .collect::<Vec<f32>>();
-            window
+                .collect::<Vec<f32>>()
         }
         WindowType::Triangular => (0..length)
             .map(|n| 1.0 - (2.0 * n as f32 / length as f32 - 1.0).abs())
@@ -239,17 +238,17 @@ fn window(length: usize, window_type: WindowType) -> Vec<f32> {
     }
 }
 
-fn apply_window(samples: &mut Vec<Vec<f32>>, window: &[f32]) {
+fn apply_window(samples: &mut [Vec<f32>], window: &[f32]) {
     samples
         .iter_mut()
         .for_each(|channel| apply_window_mono(channel, window));
 }
 
-fn apply_window_mono(samples: &mut Vec<f32>, window: &[f32]) {
+fn apply_window_mono(samples: &mut [f32], window: &[f32]) {
     samples
         .iter_mut()
         .zip(window)
-        .for_each(|(x, w)| *x = *x * w);
+        .for_each(|(x, w)| *x *= w);
 }
 
 pub struct MelFilterBank {
@@ -270,11 +269,11 @@ impl MelFilterBank {
     ) -> MelFilterBank {
         let num_points = bands + 2;
         let mel_max = Self::hertz_to_mel(max_frequency as f32);
-        let step = mel_max as f32 / (num_points - 1) as f32;
+        let step = mel_max / (num_points - 1) as f32;
 
         let mel = (0..num_points)
             .map(|i| i as f32 * step)
-            .map(|m| Self::mel_to_hertz(m))
+            .map(Self::mel_to_hertz)
             .collect::<Vec<f32>>();
 
         let bin_res = sample_rate as f32 / fft_size as f32;
@@ -308,7 +307,7 @@ impl MelFilterBank {
         }
     }
 
-    pub fn filter(&self, freq_bins: &Vec<f32>, out: &mut Vec<f32>) {
+    pub fn filter(&self, freq_bins: &[f32], out: &mut Vec<f32>) {
         let bin_res = self.sample_rate as f32 / self.fft_size as f32;
 
         out.clear();
@@ -327,7 +326,7 @@ impl MelFilterBank {
     }
 
     pub fn hertz_to_mel(hertz: f32) -> f32 {
-        1127.0 * (hertz as f32 / 700.0).ln_1p()
+        1127.0 * (hertz / 700.0).ln_1p()
     }
 
     pub fn mel_to_hertz(mel: f32) -> f32 {
@@ -338,7 +337,7 @@ impl MelFilterBank {
 trait OnsetDetector {
     fn detect(
         &mut self,
-        freq_bins: &Vec<f32>,
+        freq_bins: &[f32],
         peak: f32,
         rms: f32,
         lightservices: &mut [Box<dyn LightService + Send>],

@@ -30,13 +30,13 @@ impl Default for DetectionWeights {
     }
 }
 
-pub struct HFC {
+pub struct Hfc {
     threshold: ThresholdBank,
     detection_weights: DetectionWeights,
     bin_resolution: f32,
 }
 
-impl HFC {
+impl Hfc {
     pub fn init(sample_rate: usize, fft_size: usize) -> Self {
         let threshold = ThresholdBank::default();
         let detection_weights = DetectionWeights::default();
@@ -50,7 +50,7 @@ impl HFC {
 
     pub fn detect(
         &mut self,
-        freq_bins: &Vec<f32>,
+        freq_bins: &[f32],
         peak: f32,
         rms: f32,
         lightservices: &mut [Box<dyn LightService + Send>],
@@ -162,10 +162,10 @@ impl HFC {
     }
 }
 
-impl OnsetDetector for HFC {
+impl OnsetDetector for Hfc {
     fn detect(
         &mut self,
-        freq_bins: &Vec<f32>,
+        freq_bins: &[f32],
         peak: f32,
         rms: f32,
         lightservices: &mut [Box<dyn LightService + Send>],

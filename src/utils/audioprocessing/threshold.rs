@@ -34,9 +34,9 @@ impl DynamicThreshold {
         } = settings;
         DynamicThreshold {
             past_samples: VecDeque::with_capacity(buffer_size),
-            buffer_size: buffer_size,
-            min_intensity: min_intensity,
-            delta_intensity: delta_intensity,
+            buffer_size,
+            min_intensity,
+            delta_intensity,
         }
     }
 
@@ -60,16 +60,14 @@ impl DynamicThreshold {
             .chain(std::iter::repeat(0.0).take(self.buffer_size - 1))
             .collect();
         let size = normalized.len();
-        let wndw: Vec<f32>;
-        if self.buffer_size == 20 {
-            wndw = THRESHOLD_WINDOW.to_vec();
+        let wndw: Vec<f32> = if self.buffer_size == 20 {
+            THRESHOLD_WINDOW.to_vec()
         } else {
-            wndw = window(size, WindowType::Hann);
-        }
+            window(size, WindowType::Hann)
+        };
         apply_window_mono(&mut normalized, wndw.as_slice());
         let sum = normalized.iter().sum::<f32>();
-        let threshold = (self.min_intensity + self.delta_intensity * sum) * max;
-        threshold
+        (self.min_intensity + self.delta_intensity * sum) * max
     }
 }
 
@@ -162,7 +160,7 @@ impl AdvancedThreshold {
         if value >= max && value >= mean + norm * self.dynamic_threshold + self.fixed_threshold {
             self.last_onset = 0;
         }
-        return self.last_onset == 2;
+        self.last_onset == 2
     }
 }
 

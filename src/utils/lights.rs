@@ -103,7 +103,7 @@ pub struct PollingHelper<T: Stream + Send + Sync> {
 }
 
 impl<T: Stream + Send + Sync + 'static> PollingHelper<T> {
-    pub fn init<F>(
+    pub fn init(
         stream: Arc<T>,
         formatter: Arc<dyn Fn(&[[u16; 3]]) -> Vec<u8> + Send + Sync>,
         polling_frequency: u16,
@@ -135,12 +135,12 @@ impl<T: Stream + Send + Sync + 'static> PollingHelper<T> {
                 (1000 / polling_frequency) as u64,
             ));
         });
-        return PollingHelper {
+        PollingHelper {
             colors,
             polling_frequency,
             poller,
             tx,
-        };
+        }
     }
 
     pub fn update_color(&mut self, colors: &[[u16; 3]], additive: bool) {
@@ -215,11 +215,11 @@ pub struct FixedDecayEnvelope {
 
 impl FixedDecayEnvelope {
     pub fn init(decay: std::time::Duration) -> FixedDecayEnvelope {
-        return FixedDecayEnvelope {
+        FixedDecayEnvelope {
             trigger_time: Instant::now(),
             length: decay,
             strength: 0.0,
-        };
+        }
     }
 }
 
@@ -234,7 +234,7 @@ impl Envelope for FixedDecayEnvelope {
             - (self.strength
                 * (self.trigger_time.elapsed().as_millis() as f32
                     / self.length.as_millis() as f32));
-        return if value > 0.0 { value } else { 0.0 };
+        if value > 0.0 { value } else { 0.0 }
     }
 }
 
@@ -246,11 +246,11 @@ pub struct DynamicDecayEnvelope {
 
 impl DynamicDecayEnvelope {
     pub fn init(decay_per_second: f32) -> DynamicDecayEnvelope {
-        return DynamicDecayEnvelope {
+        DynamicDecayEnvelope {
             trigger_time: Instant::now(),
-            decay_per_second: decay_per_second,
+            decay_per_second,
             strength: 0.0,
-        };
+        }
     }
 }
 
@@ -263,7 +263,7 @@ impl Envelope for DynamicDecayEnvelope {
     fn get_value(&self) -> f32 {
         let value = self.strength
             - (self.strength * self.trigger_time.elapsed().as_secs_f32() * self.decay_per_second);
-        return if value > 0.0 { value } else { 0.0 };
+        if value > 0.0 { value } else { 0.0 }
     }
 }
 
@@ -277,11 +277,11 @@ pub struct ColorEnvelope {
 #[allow(dead_code)]
 impl ColorEnvelope {
     pub fn init(from_color: &[u16; 3], to_color: &[u16; 3], length: Duration) -> ColorEnvelope {
-        return ColorEnvelope {
+        ColorEnvelope {
             start_color: rgb_to_hsv(from_color),
             end_color: rgb_to_hsv(to_color),
             envelope: FixedDecayEnvelope::init(length),
-        };
+        }
     }
 
     pub fn trigger(&mut self, strength: f32) {
@@ -290,7 +290,7 @@ impl ColorEnvelope {
 
     pub fn get_color(&self) -> [u16; 3] {
         let t = self.envelope.strength - self.envelope.get_value();
-        return hsv_to_rgb(&interpolate_hsv(&self.start_color, &self.end_color, t));
+        hsv_to_rgb(&interpolate_hsv(&self.start_color, &self.end_color, t))
     }
 }
 
@@ -375,7 +375,7 @@ pub fn rgb_to_xyb(rgb: &[u16; 3]) -> [f32; 3] {
     let x = X / (X + Y + Z);
     let y = Y / (X + Y + Z);
 
-    return [x, y, Y];
+    [x, y, Y]
 }
 
 #[allow(non_snake_case, dead_code)]
@@ -404,11 +404,11 @@ pub fn xyb_to_rgb(xyb: &[f32; 3]) -> [u16; 3] {
     } else {
         (1.0 + 0.055) * b.powf(1.0 / 2.4) - 0.055
     };
-    return [
+    [
         (r * u16::MAX as f32) as u16,
         (g * u16::MAX as f32) as u16,
         (b * u16::MAX as f32) as u16,
-    ];
+    ]
 }
 
 pub fn rgb_to_hsv(rgb: &[u16; 3]) -> [f32; 3] {
