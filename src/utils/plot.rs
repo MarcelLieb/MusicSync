@@ -15,7 +15,7 @@ const TIME_WINDOW: u128 = 10000;
 
 pub fn plot(
     onsets: &HashMap<String, Vec<(u128, Event)>>,
-    raw_data: &Vec<f32>,
+    raw_data: &[f32],
     time_resolution: u32,
     file: String,
 ) -> Result<(), Box<dyn std::error::Error>> {

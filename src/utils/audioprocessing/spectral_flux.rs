@@ -69,8 +69,8 @@ impl SpecFlux {
     pub fn init(sample_rate: u32, fft_size: u32) -> SpecFlux {
         let bank = MelFilterBank::init(sample_rate, fft_size, 82, 20_000);
         let threshold = ThresholdBank::default();
-        let spectrum = Vec::with_capacity(82);
-        let old_spectrum = Vec::with_capacity(82);
+        let spectrum = vec![0.0; 82];
+        let old_spectrum = vec![0.0; 82];
         SpecFlux {
             filter_bank: bank,
             spectrum,
