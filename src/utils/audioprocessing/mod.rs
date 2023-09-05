@@ -151,30 +151,30 @@ fn fft(
         f32_samples[i].extend(out.iter().map(|s| (s.re * s.re + s.im * s.im).sqrt()))
     });
 
-    freq_bins.iter_mut().zip((0..fft_output[0].len()).map(|i| {
-        f32_samples
-            .iter()
-            .flatten()
-            .skip(i)
-            .step_by(f32_samples[0].len())
-            .sum::<f32>()
-    }))
-    .for_each(|(f, s)| *f = s);
+    freq_bins
+        .iter_mut()
+        .zip((0..fft_output[0].len()).map(|i| {
+            f32_samples
+                .iter()
+                .flatten()
+                .skip(i)
+                .step_by(f32_samples[0].len())
+                .sum::<f32>()
+        }))
+        .for_each(|(f, s)| *f = s);
 }
 
-fn collapse_mono<T: Sample + ToSample<f32>>(
-    mono_samples: &mut [f32],
-    data: &[T],
-    channels: u16,
-) {
+fn collapse_mono<T: Sample + ToSample<f32>>(mono_samples: &mut [f32], data: &[T], channels: u16) {
     let buffer_len = data.len() / channels as usize;
     // Convert to mono
-    mono_samples.iter_mut().zip(
-        data.chunks(channels as usize)
-            .take(buffer_len)
-            .map(|x| x.iter().map(|s| (*s).to_sample::<f32>()).sum::<f32>()),
-    )
-    .for_each(|(m, s)| *m = s);
+    mono_samples
+        .iter_mut()
+        .zip(
+            data.chunks(channels as usize)
+                .take(buffer_len)
+                .map(|x| x.iter().map(|s| (*s).to_sample::<f32>()).sum::<f32>()),
+        )
+        .for_each(|(m, s)| *m = s);
 }
 
 fn split_channels<T>(channels: u16, data: &[T], f32_samples: &mut [Vec<f32>])
@@ -213,13 +213,7 @@ fn window(length: usize, window_type: WindowType) -> Vec<f32> {
             .collect::<Vec<f32>>(),
         WindowType::FlatTop => {
             // Matlab coefficients
-            const A: [f32; 5] = [
-                0.21557895,
-                0.41663158,
-                0.27726316,
-                0.083578947,
-                0.006947368,
-            ];
+            const A: [f32; 5] = [0.21557895, 0.41663158, 0.27726316, 0.083578947, 0.006947368];
             (0..length)
                 .map(|n| {
                     A[0] - A[1] * (2. * PI * n as f32 / length as f32).cos()
@@ -242,10 +236,7 @@ fn apply_window(samples: &mut [Vec<f32>], window: &[f32]) {
 }
 
 fn apply_window_mono(samples: &mut [f32], window: &[f32]) {
-    samples
-        .iter_mut()
-        .zip(window)
-        .for_each(|(x, w)| *x *= w);
+    samples.iter_mut().zip(window).for_each(|(x, w)| *x *= w);
 }
 
 pub struct MelFilterBank {
@@ -307,18 +298,22 @@ impl MelFilterBank {
     pub fn filter(&self, freq_bins: &[f32], out: &mut [f32]) {
         let bin_res = self.sample_rate as f32 / self.fft_size as f32;
 
-        self.filter.iter().zip(out).enumerate().for_each(|(m, (band, x))| {
-            let start = (self.points[m] / bin_res) as usize;
-            let sum = freq_bins
-                .iter()
-                .skip(start)
-                .take(band.len())
-                .zip(band)
-                .map(|(&f, &w)| f * w)
-                .sum::<f32>();
-            
-            *x = sum;
-        });
+        self.filter
+            .iter()
+            .zip(out)
+            .enumerate()
+            .for_each(|(m, (band, x))| {
+                let start = (self.points[m] / bin_res) as usize;
+                let sum = freq_bins
+                    .iter()
+                    .skip(start)
+                    .take(band.len())
+                    .zip(band)
+                    .map(|(&f, &w)| f * w)
+                    .sum::<f32>();
+
+                *x = sum;
+            });
     }
 
     pub fn hertz_to_mel(hertz: f32) -> f32 {

@@ -234,7 +234,11 @@ impl Envelope for FixedDecayEnvelope {
             - (self.strength
                 * (self.trigger_time.elapsed().as_millis() as f32
                     / self.length.as_millis() as f32));
-        if value > 0.0 { value } else { 0.0 }
+        if value > 0.0 {
+            value
+        } else {
+            0.0
+        }
     }
 }
 
@@ -263,7 +267,11 @@ impl Envelope for DynamicDecayEnvelope {
     fn get_value(&self) -> f32 {
         let value = self.strength
             - (self.strength * self.trigger_time.elapsed().as_secs_f32() * self.decay_per_second);
-        if value > 0.0 { value } else { 0.0 }
+        if value > 0.0 {
+            value
+        } else {
+            0.0
+        }
     }
 }
 

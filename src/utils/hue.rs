@@ -170,7 +170,8 @@ pub async fn connect() -> Result<BridgeConnection, ConnectionError> {
         local_bridges.retain(|b| {
             !saved_bridges
                 .iter()
-                .map(|save| save.ip.to_string()).any(|ip| b.ip.to_string() == *ip)
+                .map(|save| save.ip.to_string())
+                .any(|ip| b.ip.to_string() == *ip)
         });
         for bridge in local_bridges {
             if let Ok(authenticated) = bridge.authenticate().await {
@@ -314,9 +315,7 @@ impl Bridge {
             .build()
             .unwrap();
 
-        let mut hostname = gethostname::gethostname()
-            .into_string()
-            .unwrap();
+        let mut hostname = gethostname::gethostname().into_string().unwrap();
         hostname.retain(|a| a != '\"');
 
         #[derive(Serialize, Debug)]
