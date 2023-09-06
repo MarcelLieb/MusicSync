@@ -1,6 +1,5 @@
 use std::{
     sync::{
-        mpsc::{self, Sender, TryRecvError},
         Arc, Mutex,
     },
     thread::sleep,
@@ -9,7 +8,7 @@ use std::{
 use async_trait::async_trait;
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
-use tokio::{task::JoinHandle, time};
+use tokio::{task::JoinHandle, time, select, sync::mpsc::{self, Sender}};
 
 pub mod color;
 pub mod console;
@@ -63,26 +62,25 @@ impl PollingHelper {
         pollable: Poll,
         polling_frequency: u16,
     ) -> PollingHelper {
-        let (tx, rx) = mpsc::channel::<bool>();
+        let (tx, mut rx) = mpsc::channel(1);
 
         let handle = tokio::task::spawn(async move {
-            loop {
-                match rx.try_recv() {
-                    Ok(_) | Err(TryRecvError::Disconnected) => {
-                        tokio::task::spawn(async move {
-                            stream.close_connection().await;
-                        });
-                        break;
+            select! {
+                _ = async {
+                    loop {
+                        let bytes = { pollable.clone().lock().unwrap().poll() };
+                        stream.write_data(&bytes).await.unwrap();
+                        
+                        time::sleep(std::time::Duration::from_millis(
+                            (1000.0 / polling_frequency as f64) as u64,
+                        ))
+                        .await;
                     }
-                    Err(TryRecvError::Empty) => {}
+                } => {}
+                _ = rx.recv() => {
+                    stream.close_connection().await;
+                    return;
                 }
-                let bytes = { pollable.clone().lock().unwrap().poll() };
-                stream.write_data(&bytes).await.unwrap();
-
-                time::sleep(std::time::Duration::from_millis(
-                    (1000.0 / polling_frequency as f64) as u64,
-                ))
-                .await;
             }
         });
 
@@ -96,11 +94,12 @@ impl PollingHelper {
 
 impl Drop for PollingHelper {
     fn drop(&mut self) {
-        self.tx.send(true).unwrap();
+        let tx = self.tx.clone();
+        tokio::runtime::Runtime::new().unwrap().block_on(async move {
+            tx.send(true).await.unwrap();
+        });
         while !self.handle.is_finished() {
-            sleep(std::time::Duration::from_millis(
-                (1000.0 / self.polling_frequency as f64) as u64,
-            ));
+            sleep(std::time::Duration::from_millis(10));
         }
     }
 }
