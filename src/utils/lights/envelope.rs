@@ -153,10 +153,3 @@ impl<T> AnimationHelper<T> {
         self.looping = looping
     }
 }
-
-pub struct MultibandEnvelope {
-    pub drum: DynamicDecayEnvelope,
-    pub hihat: FixedDecayEnvelope,
-    pub note: FixedDecayEnvelope,
-    pub fullband: ColorEnvelope,
-}

@@ -1,8 +1,9 @@
-use std::{sync::{Arc, Mutex, mpsc::{Sender, self, TryRecvError}}, thread};
+use std::{sync::{Arc, mpsc::{self, TryRecvError, Sender}, Mutex}, thread::sleep};
 
-use futures::executor::block_on;
+use bytes::Bytes;
 use serde::{Serialize, Deserialize};
-use webrtc_dtls::conn::DTLSConn;
+use tokio::{time, task::JoinHandle};
+use async_trait::async_trait;
 
 pub mod envelope;
 pub mod color;
@@ -26,144 +27,78 @@ pub trait LightService {
     fn update(&mut self);
 }
 
-
-pub trait Closable {
-    fn close_connection(&self);
+pub trait Pollable {
+    fn poll(&self) -> Bytes;
 }
 
+#[async_trait]
 pub trait Writeable {
-    fn write_buffer(&self, buffer: &[u8]);
+    async fn write_data(&mut self, data: &Bytes) -> std::io::Result<()>;
 }
 
-pub trait Stream: Writeable + Closable + Send {}
-
-struct Poller<T: Stream + Send + Sync> {
-    stream: T,
+#[async_trait]
+pub trait Closeable {
+    async fn close_connection(&mut self);
 }
 
-impl<T: Stream + Send + Sync> Poller<T> {
-    fn poll(&self, bytes: &[u8]) {
-        self.stream.write_buffer(bytes);
-    }
-}
+pub trait Stream: Writeable + Closeable {}
 
-impl<T: Stream + Send + Sync> Closable for Arc<Poller<T>> {
-    fn close_connection(&self) {
-        self.stream.close_connection()
-    }
-}
-
-impl<T: Stream + Send + Sync> Writeable for Arc<Poller<T>> {
-    fn write_buffer(&self, buffer: &[u8]) {
-        self.stream.write_buffer(buffer)
-    }
-}
-
-impl<T: Stream + Send + Sync> Stream for Arc<Poller<T>> {}
-
-pub struct PollingHelper<T: Stream + Send + Sync> {
-    colors: Arc<Mutex<Vec<[u16; 3]>>>,
+pub struct PollingHelper {
     pub polling_frequency: u16,
-    poller: Arc<Poller<T>>,
     tx: Sender<bool>,
+    handle: JoinHandle<()>,
 }
 
-impl<T: Stream + Send + Sync + 'static> PollingHelper<T> {
-    pub fn init(
-        stream: Arc<T>,
-        formatter: Arc<dyn Fn(&[[u16; 3]]) -> Vec<u8> + Send + Sync>,
-        polling_frequency: u16,
-    ) -> PollingHelper<Arc<T>>
-    where
-        Arc<T>: Stream,
-    {
-        let poller = Arc::new(Poller { stream });
-        let colors: Vec<[u16; 3]> = vec![[0, 0, 0]];
-        let colors = Arc::new(Mutex::new(colors));
-        let format = formatter;
-        let poller_rc = poller.clone();
-        let colors_rc = colors.clone();
+type Poll = Arc<Mutex<dyn Pollable + Send + Sync+ 'static>>;
 
+
+
+impl PollingHelper {
+    pub fn init(
+        mut stream: impl Stream + Send + Sync + 'static,
+        pollable: Poll,
+        polling_frequency: u16,
+    ) -> PollingHelper
+    {
         let (tx, rx) = mpsc::channel::<bool>();
 
-        thread::spawn(move || loop {
-            match rx.try_recv() {
-                Ok(_) | Err(TryRecvError::Disconnected) => {
-                    break;
+        let handle = tokio::task::spawn(async move {
+            loop {
+                match rx.try_recv() {
+                    Ok(_) | Err(TryRecvError::Disconnected) => {
+                        tokio::task::spawn(async move {
+                            stream.close_connection().await;
+                        });
+                        break;
+                    },
+                    Err(TryRecvError::Empty) => {}
                 }
-                Err(TryRecvError::Empty) => {}
-            }
-            let colors = colors_rc.lock().unwrap();
-            let bytes = format(&colors);
-            poller_rc.poll(&bytes);
-            drop(colors);
-            thread::sleep(std::time::Duration::from_millis(
-                (1000 / polling_frequency) as u64,
-            ));
-        });
-        PollingHelper {
-            colors,
-            polling_frequency,
-            poller,
-            tx,
-        }
-    }
+                let bytes = {
+                    pollable.clone().lock().unwrap().poll()
+                };
+                stream.write_data(&bytes).await.unwrap();
 
-    pub fn update_color(&mut self, colors: &[[u16; 3]], additive: bool) {
-        let mut colors_lock = self.colors.lock().unwrap();
-        let size = colors_lock.len();
-        if colors.len() > size {
-            colors_lock.extend(std::iter::repeat([0, 0, 0]).take(colors.len() - size))
-        }
-        if additive {
-            colors_lock
-                .iter_mut()
-                .zip(colors.iter())
-                .for_each(|(old, new)| {
-                    (0..3).for_each(|i| old[i] = old[i].saturating_add(new[i]));
-                });
-        } else {
-            colors_lock
-                .iter_mut()
-                .zip(colors.iter())
-                .for_each(|(old, new)| {
-                    (0..3).for_each(|i| old[i] = new[i]);
-                });
+                time::sleep(std::time::Duration::from_millis(
+                    (1000.0 / polling_frequency as f64) as u64,
+                )).await;
+            }
+        });
+
+        PollingHelper {
+            polling_frequency,
+            tx,
+            handle,
         }
     }
 }
 
-impl<T: Stream + Send + Sync> Drop for PollingHelper<T> {
+impl Drop for PollingHelper {
     fn drop(&mut self) {
         self.tx.send(true).unwrap();
-        self.poller.close_connection();
+        while !self.handle.is_finished() {
+            sleep(std::time::Duration::from_millis(
+                (1000.0 / self.polling_frequency as f64) as u64,
+            ));
+        }
     }
 }
-
-impl Writeable for DTLSConn {
-    fn write_buffer(&self, buffer: &[u8]) {
-        block_on(self.write(buffer, None)).unwrap();
-    }
-}
-
-impl Closable for DTLSConn {
-    fn close_connection(&self) {
-        block_on(self.close()).unwrap();
-    }
-}
-
-impl Stream for DTLSConn {}
-
-impl Writeable for Arc<DTLSConn> {
-    fn write_buffer(&self, buffer: &[u8]) {
-        block_on(self.write(buffer, None)).unwrap();
-    }
-}
-
-impl Closable for Arc<DTLSConn> {
-    fn close_connection(&self) {
-        block_on(self.close()).unwrap();
-    }
-}
-
-impl Stream for Arc<DTLSConn> {}
