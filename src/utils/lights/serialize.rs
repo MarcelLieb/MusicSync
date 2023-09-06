@@ -3,7 +3,7 @@ use std::{collections::HashMap, fs::File};
 use ciborium::into_writer;
 use serde::{Deserialize, Serialize};
 
-use super::lights::{Event, LightService};
+use super::{Event, LightService};
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct OnsetContainer {

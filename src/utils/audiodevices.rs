@@ -1,11 +1,11 @@
 use crate::utils::audioprocessing::hfc::Hfc;
 use crate::utils::audioprocessing::spectral_flux::SpecFlux;
 use crate::utils::audioprocessing::ProcessingSettings;
+use crate::utils::lights::console::Console;
+use crate::utils::lights::{hue, serialize};
 use crate::utils::{
     audioprocessing::{prepare_buffers, process_raw},
-    hue,
-    lights::{Console, LightService},
-    serialize,
+    lights::LightService,
 };
 use cpal::{
     self,

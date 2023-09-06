@@ -1,5 +1,6 @@
+use async_trait::async_trait;
+use bytes::{BufMut, Bytes, BytesMut};
 use ciborium::{from_reader, into_writer};
-use futures::executor::block_on;
 use log::{info, warn};
 use reqwest::ClientBuilder;
 use serde::{Deserialize, Serialize};
@@ -8,15 +9,18 @@ use std::{
     fs::File,
     net::{IpAddr, Ipv4Addr, SocketAddr},
     num::ParseIntError,
-    sync::Arc,
+    sync::{Arc, Mutex},
     time::Duration,
 };
 use tokio::net::UdpSocket;
 use webrtc_dtls::{cipher_suite::CipherSuiteId, config::Config, conn::DTLSConn};
 
-use super::lights::{FixedDecayEnvelope, LightService, PollingHelper};
+use super::{
+    envelope::Envelope, Closeable, LightService, Pollable, PollingHelper, Stream, Writeable,
+};
 use crate::utils::lights::{
-    ColorEnvelope, DynamicDecayEnvelope, Envelope, Event, MultibandEnvelope,
+    envelope::{ColorEnvelope, DynamicDecayEnvelope, FixedDecayEnvelope},
+    Event,
 };
 #[allow(dead_code)]
 pub struct BridgeConnection {
@@ -25,8 +29,8 @@ pub struct BridgeConnection {
     app_key: String,
     app_id: String,
     area: String,
-    polling_helper: PollingHelper<Arc<DTLSConn>>,
-    envelopes: MultibandEnvelope,
+    polling_helper: PollingHelper,
+    state: Arc<Mutex<State>>,
 }
 
 #[derive(Debug)]
@@ -65,8 +69,33 @@ impl From<webrtc_dtls::Error> for ConnectionError {
     }
 }
 
+#[async_trait]
+impl Writeable for DTLSConn {
+    async fn write_data(&mut self, data: &Bytes) -> std::io::Result<()> {
+        match self.write(data, None).await {
+            Ok(_) => Ok(()),
+            Err(e) => Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("DTLS write failed: {}", e),
+            )),
+        }
+    }
+}
+
+#[async_trait]
+impl Closeable for DTLSConn {
+    async fn close_connection(&mut self) {
+        self.close().await.unwrap();
+    }
+}
+
+impl Stream for DTLSConn {}
+
 impl BridgeConnection {
-    pub fn init(bridge: SavedBridge, area: String) -> Result<BridgeConnection, ConnectionError> {
+    pub async fn init(
+        bridge: SavedBridge,
+        area: String,
+    ) -> Result<BridgeConnection, ConnectionError> {
         let SavedBridge {
             id,
             ip,
@@ -76,46 +105,22 @@ impl BridgeConnection {
         } = bridge;
 
         info!("Start Entertainment mode");
-        block_on(start_entertainment_mode(&ip, &area, &app_key))?;
+        start_entertainment_mode(&ip, &area, &app_key).await?;
         info!("Building DTLS Connection");
-        let connection = block_on(dtls_connection(
+        let connection = dtls_connection(
             app_id.as_bytes().to_vec(),
             psk.to_owned(),
             IpAddr::V4(ip),
             2100,
-        ))?;
+        )
+        .await?;
         info!("Connection established");
 
         let area_id = area.clone();
 
-        let polling_helper = PollingHelper::init(
-            Arc::new(connection),
-            Arc::new(move |colors| {
-                let mut bytes = "HueStream".as_bytes().to_vec(); // Prefix
-                bytes.extend([2, 0, 0, 0, 0, 0, 0]);
-                bytes.extend(area_id.as_bytes()); // area UUID
-                (0..usize::min(7, colors.len())).for_each(|i| {
-                    let rgb = colors[i];
-                    bytes.push(i as u8);
-                    bytes.extend(rgb[0].to_be_bytes());
-                    bytes.extend(rgb[1].to_be_bytes());
-                    bytes.extend(rgb[2].to_be_bytes());
-                });
-                bytes
-            }),
-            55,
-        );
+        let state = Arc::new(Mutex::new(State::init(&area_id)));
 
-        let envelopes = MultibandEnvelope {
-            drum: DynamicDecayEnvelope::init(8.0),
-            hihat: FixedDecayEnvelope::init(Duration::from_millis(80)),
-            note: FixedDecayEnvelope::init(Duration::from_millis(100)),
-            fullband: ColorEnvelope::init(
-                &[u16::MAX, 0, 0],
-                &[2, 0, 1],
-                Duration::from_millis(250),
-            ),
-        };
+        let polling_helper = PollingHelper::init(connection, state.clone(), 55);
 
         let bridge = BridgeConnection {
             id,
@@ -124,10 +129,54 @@ impl BridgeConnection {
             app_id,
             area,
             polling_helper,
-            envelopes,
+            state,
         };
-
         Ok(bridge)
+    }
+}
+
+struct State {
+    pub drum: DynamicDecayEnvelope,
+    pub hihat: FixedDecayEnvelope,
+    pub note: FixedDecayEnvelope,
+    pub fullband: ColorEnvelope,
+    prefix: Vec<u8>,
+}
+
+impl State {
+    fn init(area_id: &str) -> State {
+        let mut prefix = BytesMut::from("HueStream");
+        prefix.extend([2, 0, 0, 0, 0, 0, 0]);
+        prefix.put(area_id.as_bytes());
+
+        State {
+            drum: DynamicDecayEnvelope::init(8.0),
+            hihat: FixedDecayEnvelope::init(Duration::from_millis(80)),
+            note: FixedDecayEnvelope::init(Duration::from_millis(100)),
+            fullband: ColorEnvelope::init(
+                &[u16::MAX, 0, 0],
+                &[2, 0, 1],
+                Duration::from_millis(250),
+            ),
+            prefix: prefix.into(),
+        }
+    }
+}
+
+impl Pollable for State {
+    fn poll(&self) -> Bytes {
+        let r = (self.drum.get_value() * u16::MAX as f32) as u16;
+        let white = (self.hihat.get_value() * u16::MAX as f32) as u16 >> 3;
+        let b = (self.note.get_value() * u16::MAX as f32) as u16 >> 1;
+
+        let mut bytes = BytesMut::with_capacity(32);
+        bytes.extend(self.prefix.clone());
+        bytes.put_u8(0);
+        bytes.put_u16(r.saturating_add(white));
+        bytes.put_u16(white);
+        bytes.put_u16(b.saturating_add(white));
+
+        bytes.into()
     }
 }
 
@@ -229,7 +278,7 @@ pub async fn connect() -> Result<BridgeConnection, ConnectionError> {
     // TODO: Allow selection of entertainment area
     let area = response.data[0].id.to_string();
 
-    let bridge = BridgeConnection::init(bridge, area)?;
+    let bridge = BridgeConnection::init(bridge, area).await?;
 
     Ok(bridge)
 }
@@ -392,11 +441,12 @@ impl Bridge {
 }
 
 impl LightService for BridgeConnection {
-    fn event_detected(&mut self, event: super::lights::Event) {
+    fn event_detected(&mut self, event: Event) {
+        let mut state = self.state.lock().unwrap();
         match event {
             Event::Full(volume) => {
-                if volume > self.envelopes.fullband.envelope.get_value() {
-                    self.envelopes.fullband.trigger(volume)
+                if volume > state.fullband.envelope.get_value() {
+                    state.fullband.trigger(volume)
                 }
             }
             Event::Atmosphere(_, _volume) => {
@@ -404,18 +454,18 @@ impl LightService for BridgeConnection {
                 // self.polling_helper.update_color(&[[0, brightness, 0]], true);
             }
             Event::Drum(volume) => {
-                if volume > self.envelopes.drum.get_value() {
-                    self.envelopes.drum.trigger(volume);
+                if volume > state.drum.get_value() {
+                    state.drum.trigger(volume);
                 }
             }
             Event::Hihat(volume) => {
-                if volume > self.envelopes.hihat.get_value() {
-                    self.envelopes.hihat.trigger(volume);
+                if volume > state.hihat.get_value() {
+                    state.hihat.trigger(volume);
                 }
             }
             Event::Note(volume, _) => {
-                if volume > self.envelopes.note.get_value() {
-                    self.envelopes.note.trigger(volume);
+                if volume > state.note.get_value() {
+                    state.note.trigger(volume);
                 }
             }
             _ => {}
@@ -423,6 +473,7 @@ impl LightService for BridgeConnection {
     }
 
     fn update(&mut self) {
+        /*
         self.polling_helper.update_color(&[[0, 0, 0]; 1], false);
 
         /*
@@ -440,6 +491,7 @@ impl LightService for BridgeConnection {
         let brightness = (self.envelopes.note.get_value() * u16::MAX as f32) as u16 >> 1;
         self.polling_helper
             .update_color(&[[0, 0, brightness]], true);
+         */
     }
 }
 
