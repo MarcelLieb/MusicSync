@@ -5,8 +5,7 @@ use rodio::{Decoder, Source};
 
 use super::{
     audioprocessing::{hfc::Hfc, prepare_buffers, process_raw, ProcessingSettings},
-    lights::LightService,
-    serialize,
+    lights::{LightService, serialize},
 };
 
 pub fn process_file(filename: String, settings: ProcessingSettings) {

@@ -14,10 +14,8 @@ use std::{
 use tokio::net::UdpSocket;
 use webrtc_dtls::{cipher_suite::CipherSuiteId, config::Config, conn::DTLSConn};
 
-use super::lights::{FixedDecayEnvelope, LightService, PollingHelper};
-use crate::utils::lights::{
-    ColorEnvelope, DynamicDecayEnvelope, Envelope, Event, MultibandEnvelope,
-};
+use super::{LightService, PollingHelper, envelope::{MultibandEnvelope, Envelope}};
+use crate::utils::lights::{Event, envelope::{DynamicDecayEnvelope, FixedDecayEnvelope, ColorEnvelope}};
 #[allow(dead_code)]
 pub struct BridgeConnection {
     id: String,
@@ -392,7 +390,7 @@ impl Bridge {
 }
 
 impl LightService for BridgeConnection {
-    fn event_detected(&mut self, event: super::lights::Event) {
+    fn event_detected(&mut self, event: Event) {
         match event {
             Event::Full(volume) => {
                 if volume > self.envelopes.fullband.envelope.get_value() {
