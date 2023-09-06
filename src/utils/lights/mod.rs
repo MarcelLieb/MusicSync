@@ -1,13 +1,19 @@
-use std::{sync::{Arc, mpsc::{self, TryRecvError, Sender}, Mutex}, thread::sleep};
+use std::{
+    sync::{
+        mpsc::{self, Sender, TryRecvError},
+        Arc, Mutex,
+    },
+    thread::sleep,
+};
 
-use bytes::Bytes;
-use serde::{Serialize, Deserialize};
-use tokio::{time, task::JoinHandle};
 use async_trait::async_trait;
+use bytes::Bytes;
+use serde::{Deserialize, Serialize};
+use tokio::{task::JoinHandle, time};
 
-pub mod envelope;
 pub mod color;
 pub mod console;
+pub mod envelope;
 pub mod hue;
 pub mod serialize;
 
@@ -49,17 +55,14 @@ pub struct PollingHelper {
     handle: JoinHandle<()>,
 }
 
-type Poll = Arc<Mutex<dyn Pollable + Send + Sync+ 'static>>;
-
-
+type Poll = Arc<Mutex<dyn Pollable + Send + Sync + 'static>>;
 
 impl PollingHelper {
     pub fn init(
         mut stream: impl Stream + Send + Sync + 'static,
         pollable: Poll,
         polling_frequency: u16,
-    ) -> PollingHelper
-    {
+    ) -> PollingHelper {
         let (tx, rx) = mpsc::channel::<bool>();
 
         let handle = tokio::task::spawn(async move {
@@ -70,17 +73,16 @@ impl PollingHelper {
                             stream.close_connection().await;
                         });
                         break;
-                    },
+                    }
                     Err(TryRecvError::Empty) => {}
                 }
-                let bytes = {
-                    pollable.clone().lock().unwrap().poll()
-                };
+                let bytes = { pollable.clone().lock().unwrap().poll() };
                 stream.write_data(&bytes).await.unwrap();
 
                 time::sleep(std::time::Duration::from_millis(
                     (1000.0 / polling_frequency as f64) as u64,
-                )).await;
+                ))
+                .await;
             }
         });
 

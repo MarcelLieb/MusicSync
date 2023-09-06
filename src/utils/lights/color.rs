@@ -1,5 +1,3 @@
-
-
 #[allow(non_snake_case, dead_code)]
 pub fn rgb_to_xyb(rgb: &[u16; 3]) -> [f32; 3] {
     let mut rgb: [f32; 3] = rgb

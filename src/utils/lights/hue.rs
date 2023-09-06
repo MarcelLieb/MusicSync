@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use bytes::{Bytes, BytesMut, BufMut};
+use bytes::{BufMut, Bytes, BytesMut};
 use ciborium::{from_reader, into_writer};
 use log::{info, warn};
 use reqwest::ClientBuilder;
@@ -15,8 +15,13 @@ use std::{
 use tokio::net::UdpSocket;
 use webrtc_dtls::{cipher_suite::CipherSuiteId, config::Config, conn::DTLSConn};
 
-use super::{LightService, PollingHelper, envelope::Envelope, Pollable, Writeable, Closeable, Stream};
-use crate::utils::lights::{Event, envelope::{DynamicDecayEnvelope, FixedDecayEnvelope, ColorEnvelope}};
+use super::{
+    envelope::Envelope, Closeable, LightService, Pollable, PollingHelper, Stream, Writeable,
+};
+use crate::utils::lights::{
+    envelope::{ColorEnvelope, DynamicDecayEnvelope, FixedDecayEnvelope},
+    Event,
+};
 #[allow(dead_code)]
 pub struct BridgeConnection {
     id: String,
@@ -69,12 +74,10 @@ impl Writeable for DTLSConn {
     async fn write_data(&mut self, data: &Bytes) -> std::io::Result<()> {
         match self.write(data, None).await {
             Ok(_) => Ok(()),
-            Err(e) => {
-                Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!("DTLS write failed: {}", e),
-                ))
-            }
+            Err(e) => Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("DTLS write failed: {}", e),
+            )),
         }
     }
 }
@@ -89,7 +92,10 @@ impl Closeable for DTLSConn {
 impl Stream for DTLSConn {}
 
 impl BridgeConnection {
-    pub async fn init(bridge: SavedBridge, area: String) -> Result<BridgeConnection, ConnectionError> {
+    pub async fn init(
+        bridge: SavedBridge,
+        area: String,
+    ) -> Result<BridgeConnection, ConnectionError> {
         let SavedBridge {
             id,
             ip,
@@ -106,18 +112,15 @@ impl BridgeConnection {
             psk.to_owned(),
             IpAddr::V4(ip),
             2100,
-        ).await?;
+        )
+        .await?;
         info!("Connection established");
 
         let area_id = area.clone();
 
         let state = Arc::new(Mutex::new(State::init(&area_id)));
 
-        let polling_helper = PollingHelper::init(
-            connection,
-            state.clone(),
-            55
-        );
+        let polling_helper = PollingHelper::init(connection, state.clone(), 55);
 
         let bridge = BridgeConnection {
             id,
@@ -165,7 +168,6 @@ impl Pollable for State {
         let r = (self.drum.get_value() * u16::MAX as f32) as u16;
         let white = (self.hihat.get_value() * u16::MAX as f32) as u16 >> 3;
         let b = (self.note.get_value() * u16::MAX as f32) as u16 >> 1;
-
 
         let mut bytes = BytesMut::with_capacity(32);
         bytes.extend(self.prefix.clone());

@@ -1,7 +1,6 @@
-use std::time::{Instant, Duration};
+use std::time::{Duration, Instant};
 
-use super::color::{rgb_to_hsv, interpolate_hsv, hsv_to_rgb};
-
+use super::color::{hsv_to_rgb, interpolate_hsv, rgb_to_hsv};
 
 pub trait Envelope {
     fn trigger(&mut self, strength: f32);

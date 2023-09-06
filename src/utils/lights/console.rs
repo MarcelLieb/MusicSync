@@ -1,6 +1,5 @@
-use super::{LightService, Event};
+use super::{Event, LightService};
 use colored::{ColoredString, Colorize};
-
 
 #[derive(Debug, Default)]
 pub struct Console {
