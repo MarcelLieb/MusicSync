@@ -7,15 +7,15 @@ pub trait Envelope {
     fn get_value(&self) -> f32;
 }
 // Linear Envelope
-pub struct FixedDecayEnvelope {
+pub struct FixedDecay {
     trigger_time: Instant,
     length: Duration,
     strength: f32,
 }
 
-impl FixedDecayEnvelope {
-    pub fn init(decay: std::time::Duration) -> FixedDecayEnvelope {
-        FixedDecayEnvelope {
+impl FixedDecay {
+    pub fn init(decay: std::time::Duration) -> FixedDecay {
+        FixedDecay {
             trigger_time: Instant::now(),
             length: decay,
             strength: 0.0,
@@ -23,7 +23,7 @@ impl FixedDecayEnvelope {
     }
 }
 
-impl Envelope for FixedDecayEnvelope {
+impl Envelope for FixedDecay {
     fn trigger(&mut self, strength: f32) {
         self.trigger_time = Instant::now();
         self.strength = strength;
@@ -42,15 +42,15 @@ impl Envelope for FixedDecayEnvelope {
     }
 }
 
-pub struct DynamicDecayEnvelope {
+pub struct DynamicDecay {
     trigger_time: Instant,
     decay_per_second: f32,
     strength: f32,
 }
 
-impl DynamicDecayEnvelope {
-    pub fn init(decay_per_second: f32) -> DynamicDecayEnvelope {
-        DynamicDecayEnvelope {
+impl DynamicDecay {
+    pub fn init(decay_per_second: f32) -> DynamicDecay {
+        DynamicDecay {
             trigger_time: Instant::now(),
             decay_per_second,
             strength: 0.0,
@@ -58,7 +58,7 @@ impl DynamicDecayEnvelope {
     }
 }
 
-impl Envelope for DynamicDecayEnvelope {
+impl Envelope for DynamicDecay {
     fn trigger(&mut self, strength: f32) {
         self.trigger_time = Instant::now();
         self.strength = strength;
@@ -76,19 +76,19 @@ impl Envelope for DynamicDecayEnvelope {
 }
 
 #[allow(dead_code)]
-pub struct ColorEnvelope {
+pub struct Color {
     start_color: [f32; 3],
     end_color: [f32; 3],
-    pub envelope: FixedDecayEnvelope,
+    pub envelope: FixedDecay,
 }
 
 #[allow(dead_code)]
-impl ColorEnvelope {
-    pub fn init(from_color: &[u16; 3], to_color: &[u16; 3], length: Duration) -> ColorEnvelope {
-        ColorEnvelope {
+impl Color {
+    pub fn init(from_color: [u16; 3], to_color: [u16; 3], length: Duration) -> Color {
+        Color {
             start_color: rgb_to_hsv(from_color),
             end_color: rgb_to_hsv(to_color),
-            envelope: FixedDecayEnvelope::init(length),
+            envelope: FixedDecay::init(length),
         }
     }
 
@@ -149,6 +149,6 @@ impl<T> AnimationHelper<T> {
     }
 
     pub fn set_looping(&mut self, looping: bool) {
-        self.looping = looping
+        self.looping = looping;
     }
 }

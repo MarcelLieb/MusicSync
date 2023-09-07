@@ -1,7 +1,7 @@
 use crate::utils::lights::{Event, LightService};
 
 use super::{
-    threshold::{AdvancedSettings, AdvancedThreshold},
+    threshold::{Advanced, AdvancedSettings},
     MelFilterBank, OnsetDetector,
 };
 
@@ -29,28 +29,28 @@ pub struct SpecFlux {
 }
 
 struct ThresholdBank {
-    drum: AdvancedThreshold,
-    hihat: AdvancedThreshold,
-    note: AdvancedThreshold,
-    full: AdvancedThreshold,
+    drum: Advanced,
+    hihat: Advanced,
+    note: Advanced,
+    full: Advanced,
 }
 
 impl Default for ThresholdBank {
     fn default() -> Self {
-        let drum = AdvancedThreshold::with_settings(AdvancedSettings {
+        let drum = Advanced::with_settings(AdvancedSettings {
             fixed_threshold: 5.0,
             adaptive_threshold: 0.25,
             mean_range: 5,
             ..Default::default()
         });
 
-        let hihat = AdvancedThreshold::with_settings(AdvancedSettings {
+        let hihat = Advanced::with_settings(AdvancedSettings {
             fixed_threshold: 12.0,
             adaptive_threshold: 0.6,
             ..Default::default()
         });
 
-        let note = AdvancedThreshold::with_settings(AdvancedSettings {
+        let note = Advanced::with_settings(AdvancedSettings {
             fixed_threshold: 8.0,
             adaptive_threshold: 0.4,
             ..Default::default()
@@ -60,7 +60,7 @@ impl Default for ThresholdBank {
             drum,
             hihat,
             note,
-            full: Default::default(),
+            full: Advanced::default(),
         }
     }
 }
@@ -120,37 +120,37 @@ impl SpecFlux {
             .unwrap()
             .0;
 
-        lightservices
-            .iter_mut()
-            .for_each(|service| service.event_detected(Event::Raw(drum_weight)));
+        for service in &mut *lightservices {
+            service.event_detected(Event::Raw(drum_weight));
+        }
 
         if onset {
-            lightservices
-                .iter_mut()
-                .for_each(|service| service.event_detected(Event::Full(rms)));
+            for service in &mut *lightservices {
+                service.event_detected(Event::Full(rms));
+            }
         }
 
         if self.threshold.drum.is_above(drum_weight) {
-            lightservices
-                .iter_mut()
-                .for_each(|service| service.event_detected(Event::Drum(rms)));
+            for service in &mut *lightservices {
+                service.event_detected(Event::Drum(rms));
+            }
         }
 
         if self.threshold.hihat.is_above(hihat_weight) {
-            lightservices
-                .iter_mut()
-                .for_each(|service| service.event_detected(Event::Hihat(peak)));
+            for service in &mut *lightservices {
+                service.event_detected(Event::Hihat(peak));
+            }
         }
 
         if self.threshold.note.is_above(note_weight) {
-            lightservices
-                .iter_mut()
-                .for_each(|service| service.event_detected(Event::Note(rms, index_of_max as u16)));
+            for service in &mut *lightservices {
+                service.event_detected(Event::Note(rms, index_of_max as u16));
+            }
         }
 
-        lightservices
-            .iter_mut()
-            .for_each(|service| service.update());
+        for service in &mut *lightservices {
+            service.update();
+        }
     }
 }
 

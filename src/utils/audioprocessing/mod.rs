@@ -17,7 +17,7 @@ lazy_static! {
     static ref THRESHOLD_WINDOW: Vec<f32> = window(39, WindowType::Hann);
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct ProcessingSettings {
     pub sample_rate: u32,
     pub hop_size: usize,
@@ -87,7 +87,7 @@ where
     //Check for silence and abort if present
     let sound = data.iter().any(|i| *i != Sample::EQUILIBRIUM);
     if !sound {
-        for channel in f32_samples.iter_mut() {
+        for channel in &mut *f32_samples {
             channel.clear();
             channel.extend(std::iter::repeat(0.0).take(channel.capacity()));
         }
@@ -142,13 +142,13 @@ fn fft(
     f32_samples.iter_mut().zip(fft_output.iter_mut()).for_each(
         |(samples, output)| match fft_planner.process(samples, output) {
             Ok(()) => (),
-            Err(e) => println!("Error: {:?}", e),
+            Err(e) => println!("Error: {e:?}"),
         },
     );
     // Save per channel freq in f32_samples as it has been scrambled already by fft
     fft_output.iter().enumerate().for_each(|(i, out)| {
         f32_samples[i].clear();
-        f32_samples[i].extend(out.iter().map(|s| (s.re * s.re + s.im * s.im).sqrt()))
+        f32_samples[i].extend(out.iter().map(|s| (s.re * s.re + s.im * s.im).sqrt()));
     });
 
     freq_bins
@@ -199,6 +199,7 @@ where
 }
 
 #[allow(dead_code)]
+#[derive(Debug, Clone, Copy)]
 pub enum WindowType {
     Hann,
     FlatTop,
@@ -268,7 +269,7 @@ impl MelFilterBank {
 
         let mut filter: Vec<Vec<f32>> = Vec::new();
 
-        (1..bands + 1).for_each(|m| {
+        (1..=bands).for_each(|m| {
             let start = (mel[m - 1] / bin_res) as usize;
             let mid = (mel[m] / bin_res) as usize;
             let end = (mel[m + 1] / bin_res) as usize;
@@ -276,10 +277,10 @@ impl MelFilterBank {
             let mut band: Vec<f32> = Vec::new();
 
             for k in start..mid {
-                band.push((k - start) as f32 / (mid - start) as f32)
+                band.push((k - start) as f32 / (mid - start) as f32);
             }
             for k in mid..end {
-                band.push((end - k) as f32 / (end - mid) as f32)
+                band.push((end - k) as f32 / (end - mid) as f32);
             }
 
             filter.push(band);

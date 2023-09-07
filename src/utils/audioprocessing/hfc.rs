@@ -3,7 +3,7 @@ use log::info;
 use crate::utils::lights::{Event, LightService};
 
 use super::{
-    threshold::{DynamicSettings, DynamicThreshold},
+    threshold::{Dynamic, DynamicSettings},
     OnsetDetector,
 };
 
@@ -123,42 +123,42 @@ impl Hfc {
         info!("Loudest frequency: {}Hz", index_of_max);
 
         if weight >= self.threshold.fullband.get_threshold(weight) {
-            lightservices
-                .iter_mut()
-                .for_each(|service| service.event_detected(Event::Full(rms)));
+            for service in &mut *lightservices {
+                service.event_detected(Event::Full(rms));
+            }
         } else {
-            lightservices.iter_mut().for_each(|service| {
-                service.event_detected(Event::Atmosphere(rms, index_of_max as u16))
-            });
+            for service in &mut *lightservices {
+                service.event_detected(Event::Atmosphere(rms, index_of_max as u16));
+            }
         }
 
-        lightservices
-            .iter_mut()
-            .for_each(|service| service.event_detected(Event::Raw(weight)));
+        for service in &mut *lightservices {
+            service.event_detected(Event::Raw(weight));
+        }
 
         let drums_weight = low_end_weight * drum_click_weight * high_end_weight;
         if drums_weight >= self.threshold.drums.get_threshold(drums_weight) {
-            lightservices
-                .iter_mut()
-                .for_each(|service| service.event_detected(Event::Drum(rms)));
+            for service in &mut *lightservices {
+                service.event_detected(Event::Drum(rms));
+            }
         }
 
         let notes_weight = mids_weight + note_click_weight * high_end_weight;
         if notes_weight >= self.threshold.notes.get_threshold(notes_weight) {
-            lightservices.iter_mut().for_each(|service| {
-                service.event_detected(Event::Note(rms, index_of_max_mid as u16))
-            });
+            for service in &mut *lightservices {
+                service.event_detected(Event::Note(rms, index_of_max_mid as u16));
+            }
         }
 
         if *high_end_weight >= self.threshold.hihat.get_threshold(*high_end_weight) {
-            lightservices
-                .iter_mut()
-                .for_each(|service| service.event_detected(Event::Hihat(peak)));
+            for service in &mut *lightservices {
+                service.event_detected(Event::Hihat(peak));
+            }
         }
 
-        lightservices
-            .iter_mut()
-            .for_each(|service| service.update());
+        for service in &mut *lightservices {
+            service.update();
+        }
     }
 }
 
@@ -175,31 +175,31 @@ impl OnsetDetector for Hfc {
 }
 
 pub struct ThresholdBank {
-    pub drums: DynamicThreshold,
-    pub hihat: DynamicThreshold,
-    pub notes: DynamicThreshold,
-    pub fullband: DynamicThreshold,
+    pub drums: Dynamic,
+    pub hihat: Dynamic,
+    pub notes: Dynamic,
+    pub fullband: Dynamic,
 }
 
 impl Default for ThresholdBank {
     fn default() -> Self {
         Self {
-            drums: DynamicThreshold::with_settings(DynamicSettings {
+            drums: Dynamic::with_settings(DynamicSettings {
                 buffer_size: 30,
                 min_intensity: 0.3,
                 delta_intensity: 0.18,
             }),
-            hihat: DynamicThreshold::with_settings(DynamicSettings {
+            hihat: Dynamic::with_settings(DynamicSettings {
                 buffer_size: 20,
                 min_intensity: 0.3,
                 delta_intensity: 0.18,
             }),
-            notes: DynamicThreshold::with_settings(DynamicSettings {
+            notes: Dynamic::with_settings(DynamicSettings {
                 buffer_size: 20,
                 min_intensity: 0.2,
                 delta_intensity: 0.15,
             }),
-            fullband: DynamicThreshold::with_settings(DynamicSettings {
+            fullband: Dynamic::with_settings(DynamicSettings {
                 buffer_size: 20,
                 min_intensity: 0.2,
                 delta_intensity: 0.15,
@@ -211,14 +211,15 @@ impl Default for ThresholdBank {
 impl ThresholdBank {
     pub fn with_settings(settings: ThresholdBankSettings) -> ThresholdBank {
         Self {
-            drums: DynamicThreshold::with_settings(settings.drums),
-            hihat: DynamicThreshold::with_settings(settings.hihat),
-            notes: DynamicThreshold::with_settings(settings.notes),
-            fullband: DynamicThreshold::with_settings(settings.fullband),
+            drums: Dynamic::with_settings(settings.drums),
+            hihat: Dynamic::with_settings(settings.hihat),
+            notes: Dynamic::with_settings(settings.notes),
+            fullband: Dynamic::with_settings(settings.fullband),
         }
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct ThresholdBankSettings {
     pub drums: DynamicSettings,
     pub hihat: DynamicSettings,

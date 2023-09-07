@@ -14,7 +14,7 @@ impl LightService for Console {
             Event::Full(s) => self.output[2] = "■".repeat((s * 9.0).ceil() as usize).cyan(),
             Event::Note(s, _) => self.output[3] = "■".repeat((s * 9.0).ceil() as usize).blue(),
             Event::Atmosphere(s, _) => {
-                self.output[4] = "-".repeat((s * 9.0).ceil() as usize).black()
+                self.output[4] = "-".repeat((s * 9.0).ceil() as usize).black();
             }
             _ => {}
         }
@@ -23,7 +23,7 @@ impl LightService for Console {
     fn update(&mut self) {
         print!("|  ");
         for s in self.output.iter().take(4) {
-            print!("{:^9}  |  ", s);
+            print!("{s:^9}  |  ");
         }
         println!();
         for s in &mut self.output {
