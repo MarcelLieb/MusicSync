@@ -1,14 +1,17 @@
 use std::{
-    sync::{
-        Arc, Mutex,
-    },
+    sync::{Arc, Mutex},
     thread::sleep,
 };
 
 use async_trait::async_trait;
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
-use tokio::{task::JoinHandle, time, select, sync::mpsc::{self, Sender}};
+use tokio::{
+    select,
+    sync::mpsc::{self, Sender},
+    task::JoinHandle,
+    time,
+};
 
 pub mod color;
 pub mod console;
@@ -70,16 +73,15 @@ impl PollingHelper {
                     loop {
                         let bytes = { pollable.clone().lock().unwrap().poll() };
                         stream.write_data(&bytes).await.unwrap();
-                        
-                        time::sleep(std::time::Duration::from_millis(
-                            (1000.0 / polling_frequency as f64) as u64,
+
+                        time::sleep(std::time::Duration::from_secs_f64(
+                            1.0 / polling_frequency as f64,
                         ))
                         .await;
                     }
                 } => {}
                 _ = rx.recv() => {
                     stream.close_connection().await;
-                    return;
                 }
             }
         });
@@ -95,9 +97,11 @@ impl PollingHelper {
 impl Drop for PollingHelper {
     fn drop(&mut self) {
         let tx = self.tx.clone();
-        tokio::runtime::Runtime::new().unwrap().block_on(async move {
-            tx.send(true).await.unwrap();
-        });
+        tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(async move {
+                tx.send(true).await.unwrap();
+            });
         while !self.handle.is_finished() {
             sleep(std::time::Duration::from_millis(10));
         }
