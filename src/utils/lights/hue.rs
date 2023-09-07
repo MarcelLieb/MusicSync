@@ -19,7 +19,7 @@ use super::{
     envelope::Envelope, Closeable, LightService, Pollable, PollingHelper, Stream, Writeable,
 };
 use crate::utils::lights::{
-    envelope::{ColorEnvelope, DynamicDecayEnvelope, FixedDecayEnvelope},
+    envelope::{Color, DynamicDecay, FixedDecay},
     Event,
 };
 #[allow(dead_code)]
@@ -76,7 +76,7 @@ impl Writeable for DTLSConn {
             Ok(_) => Ok(()),
             Err(e) => Err(std::io::Error::new(
                 std::io::ErrorKind::Other,
-                format!("DTLS write failed: {}", e),
+                format!("DTLS write failed: {e}"),
             )),
         }
     }
@@ -109,7 +109,7 @@ impl BridgeConnection {
         info!("Building DTLS Connection");
         let connection = dtls_connection(
             app_id.as_bytes().to_vec(),
-            psk.to_owned(),
+            psk.clone(),
             IpAddr::V4(ip),
             2100,
         )
@@ -136,10 +136,10 @@ impl BridgeConnection {
 }
 
 struct State {
-    pub drum: DynamicDecayEnvelope,
-    pub hihat: FixedDecayEnvelope,
-    pub note: FixedDecayEnvelope,
-    pub fullband: ColorEnvelope,
+    pub drum: DynamicDecay,
+    pub hihat: FixedDecay,
+    pub note: FixedDecay,
+    pub fullband: Color,
     prefix: Vec<u8>,
 }
 
@@ -150,14 +150,10 @@ impl State {
         prefix.put(area_id.as_bytes());
 
         State {
-            drum: DynamicDecayEnvelope::init(8.0),
-            hihat: FixedDecayEnvelope::init(Duration::from_millis(80)),
-            note: FixedDecayEnvelope::init(Duration::from_millis(100)),
-            fullband: ColorEnvelope::init(
-                &[u16::MAX, 0, 0],
-                &[2, 0, 1],
-                Duration::from_millis(250),
-            ),
+            drum: DynamicDecay::init(8.0),
+            hihat: FixedDecay::init(Duration::from_millis(80)),
+            note: FixedDecay::init(Duration::from_millis(100)),
+            fullband: Color::init([u16::MAX, 0, 0], [2, 0, 1], Duration::from_millis(250)),
             prefix: prefix.into(),
         }
     }
@@ -203,6 +199,24 @@ enum ApiResponse {
 }
 
 pub async fn connect() -> Result<BridgeConnection, ConnectionError> {
+    #[derive(Deserialize, Debug)]
+    struct _Metadata {
+        #[serde(rename = "name")]
+        _name: String,
+    }
+
+    #[derive(Deserialize, Debug)]
+    struct _EntertainmentArea {
+        id: String,
+        #[serde(rename = "metadata")]
+        _metadata: _Metadata,
+    }
+
+    #[derive(Deserialize, Debug)]
+    struct _EntResponse {
+        data: Vec<_EntertainmentArea>,
+    }
+
     let mut saved_bridges: Vec<SavedBridge> = Vec::new();
     let mut candidates: Vec<SavedBridge> = Vec::new();
     if let Ok(file) = File::open("hue.cbor") {
@@ -238,24 +252,6 @@ pub async fn connect() -> Result<BridgeConnection, ConnectionError> {
     let f = File::create("hue.cbor").unwrap();
     into_writer(&saved_bridges, f).unwrap();
 
-    #[derive(Deserialize, Debug)]
-    struct _Metadata {
-        #[serde(rename = "name")]
-        _name: String,
-    }
-
-    #[derive(Deserialize, Debug)]
-    struct _EntertainmentArea {
-        id: String,
-        #[serde(rename = "metadata")]
-        _metadata: _Metadata,
-    }
-
-    #[derive(Deserialize, Debug)]
-    struct _EntResponse {
-        data: Vec<_EntertainmentArea>,
-    }
-
     // TODO: Add ability to select bridge
     let bridge = candidates[0].clone();
 
@@ -284,17 +280,16 @@ pub async fn connect() -> Result<BridgeConnection, ConnectionError> {
 }
 
 async fn check_bridge(ip: &Ipv4Addr) -> bool {
-    let url = format!("http://{}/api/config", ip);
-    let response = match reqwest::get(url).await {
-        Ok(r) => r,
-        Err(_) => return false,
-    };
-
     #[derive(Deserialize, Debug)]
     struct BridgeConfig {
         name: String,
         swversion: String,
     }
+
+    let url = format!("http://{ip}/api/config");
+    let Ok(response) = reqwest::get(url).await else {
+        return false;
+    };
 
     let config = response.json::<BridgeConfig>().await;
 
@@ -313,16 +308,16 @@ async fn check_bridge(ip: &Ipv4Addr) -> bool {
 }
 
 pub async fn find_bridges() -> Result<Vec<Bridge>, ConnectionError> {
-    let response = reqwest::get("https://discovery.meethue.com/")
-        .await?
-        .error_for_status()?;
-
     #[derive(Deserialize, Debug)]
     struct BridgeJson {
         id: String,
         #[serde(rename = "internalipaddress")]
         ip_address: String,
     }
+
+    let response = reqwest::get("https://discovery.meethue.com/")
+        .await?
+        .error_for_status()?;
 
     let local_bridges = response.json::<Vec<BridgeJson>>().await?;
 
@@ -334,7 +329,7 @@ pub async fn find_bridges() -> Result<Vec<Bridge>, ConnectionError> {
         }
 
         bridges.push(Bridge {
-            id: bridge.id.to_owned(),
+            id: bridge.id.clone(),
             ip: bridge.ip_address.parse().unwrap(),
         });
     }
@@ -343,14 +338,21 @@ pub async fn find_bridges() -> Result<Vec<Bridge>, ConnectionError> {
 
 impl Bridge {
     pub async fn authenticate(&self) -> Result<SavedBridge, ConnectionError> {
-        let response = reqwest::get(format!("http://{}/api/config", self.ip)).await?;
-
         #[derive(Deserialize)]
         struct BridgeConfig {
             #[serde(rename = "name")]
             _name: String,
             swversion: String,
         }
+
+        #[derive(Serialize, Debug)]
+        struct Body {
+            devicetype: String,
+            generateclientkey: bool,
+        }
+
+        let response = reqwest::get(format!("http://{}/api/config", self.ip)).await?;
+
         let config = response.json::<BridgeConfig>().await?;
 
         if config.swversion.parse::<u32>().unwrap() < 1948086000 {
@@ -367,12 +369,6 @@ impl Bridge {
         let mut hostname = gethostname::gethostname().into_string().unwrap();
         hostname.retain(|a| a != '\"');
 
-        #[derive(Serialize, Debug)]
-        struct Body {
-            devicetype: String,
-            generateclientkey: bool,
-        }
-
         let devicetype = format!("music_sync#{hostname:?}");
         let params = Body {
             devicetype,
@@ -385,9 +381,9 @@ impl Bridge {
         let mut saved_bridge = SavedBridge {
             id: self.id.to_string(),
             ip: self.ip,
-            app_key: "".to_string(),
-            app_id: "".to_string(),
-            psk: "".to_string(),
+            app_key: String::new(),
+            app_id: String::new(),
+            psk: String::new(),
         };
         loop {
             let response = client
@@ -396,35 +392,32 @@ impl Bridge {
                 .send()
                 .await?;
 
-            match response.json::<Vec<ApiResponse>>().await {
-                Ok(s) => {
-                    match &s[0] {
-                        ApiResponse::Success {
-                            username,
-                            clientkey,
-                        } => {
-                            saved_bridge.app_key = username.to_string();
-                            saved_bridge.psk = clientkey.to_string();
-                            break;
-                        }
-                        ApiResponse::Error { description } => {
-                            warn!("Error: {description}");
-                            tokio::time::sleep(Duration::from_secs(1)).await;
-                            timeout += 1;
-                            if timeout >= 30 {
-                                return Err(ConnectionError::TimeOut);
-                            }
-                        }
-                    };
-                }
-                Err(_) => {
-                    tokio::time::sleep(Duration::from_secs(1)).await;
-                    timeout += 1;
-                    if timeout >= 30 {
-                        return Err(ConnectionError::TimeOut);
+            if let Ok(s) = response.json::<Vec<ApiResponse>>().await {
+                match &s[0] {
+                    ApiResponse::Success {
+                        username,
+                        clientkey,
+                    } => {
+                        saved_bridge.app_key = username.to_string();
+                        saved_bridge.psk = clientkey.to_string();
+                        break;
                     }
+                    ApiResponse::Error { description } => {
+                        warn!("Error: {description}");
+                        tokio::time::sleep(Duration::from_secs(1)).await;
+                        timeout += 1;
+                        if timeout >= 30 {
+                            return Err(ConnectionError::TimeOut);
+                        }
+                    }
+                };
+            } else {
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                timeout += 1;
+                if timeout >= 30 {
+                    return Err(ConnectionError::TimeOut);
                 }
-            };
+            }
         }
         let response = client
             .get(format!("https://{}/auth/v1", self.ip))
@@ -446,12 +439,8 @@ impl LightService for BridgeConnection {
         match event {
             Event::Full(volume) => {
                 if volume > state.fullband.envelope.get_value() {
-                    state.fullband.trigger(volume)
+                    state.fullband.trigger(volume);
                 }
-            }
-            Event::Atmosphere(_, _volume) => {
-                // let brightness = (volume * u16::MAX as f32) as u16 >> 4;
-                // self.polling_helper.update_color(&[[0, brightness, 0]], true);
             }
             Event::Drum(volume) => {
                 if volume > state.drum.get_value() {

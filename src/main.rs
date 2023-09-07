@@ -12,6 +12,13 @@ use serde::Deserialize;
 
 #[tokio::main]
 async fn main() {
+    #[derive(Debug, Deserialize)]
+    struct OnsetContainer {
+        data: HashMap<String, Vec<(u128, Event)>>,
+        raw: Vec<f32>,
+        time_interval: u32,
+    }
+
     {
         let stream = create_default_output_stream().await;
         stream.play().unwrap();
@@ -27,19 +34,6 @@ async fn main() {
 
     let file = File::open("onsets.cbor").expect("Couldn't open file");
 
-    #[derive(Debug, Deserialize)]
-    struct OnsetContainer {
-        data: HashMap<String, Vec<(u128, Event)>>,
-        raw: Vec<f32>,
-        time_interval: u32,
-    }
-
     let data: OnsetContainer = from_reader(file).unwrap();
-    plot(
-        &data.data,
-        &data.raw,
-        data.time_interval,
-        "plot.png".to_string(),
-    )
-    .unwrap();
+    plot(&data.data, &data.raw, data.time_interval, "plot.png").unwrap();
 }

@@ -8,7 +8,7 @@ use super::{
     lights::{serialize, LightService},
 };
 
-pub fn process_file(filename: String, settings: ProcessingSettings) {
+pub fn process_file(filename: &str, settings: ProcessingSettings) {
     let file = BufReader::new(File::open(filename.clone()).unwrap());
 
     let source = Decoder::new(file).unwrap();

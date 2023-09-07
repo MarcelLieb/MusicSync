@@ -1,18 +1,18 @@
 #[allow(non_snake_case, dead_code)]
-pub fn rgb_to_xyb(rgb: &[u16; 3]) -> [f32; 3] {
+pub fn rgb_to_xyb(rgb: [u16; 3]) -> [f32; 3] {
     let mut rgb: [f32; 3] = rgb
         .iter()
         .map(|v| *v as f32 / u16::MAX as f32)
         .collect::<Vec<f32>>()
         .try_into()
         .unwrap();
-    rgb.iter_mut().for_each(|v| {
+    for v in &mut rgb {
         *v = if *v > 0.04045 {
             ((*v + 0.055) / 1.055).powf(2.4)
         } else {
             *v / 12.92
         }
-    });
+    }
 
     let X = rgb[0] * 0.4124 + rgb[1] * 0.3576 + rgb[2] * 0.1805;
     let Y = rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
@@ -25,7 +25,7 @@ pub fn rgb_to_xyb(rgb: &[u16; 3]) -> [f32; 3] {
 }
 
 #[allow(non_snake_case, dead_code)]
-pub fn xyb_to_rgb(xyb: &[f32; 3]) -> [u16; 3] {
+pub fn xyb_to_rgb(xyb: [f32; 3]) -> [u16; 3] {
     let x = xyb[0];
     let y = xyb[1];
     let z = 1.0 - x - y;
@@ -57,7 +57,7 @@ pub fn xyb_to_rgb(xyb: &[f32; 3]) -> [u16; 3] {
     ]
 }
 
-pub fn rgb_to_hsv(rgb: &[u16; 3]) -> [f32; 3] {
+pub fn rgb_to_hsv(rgb: [u16; 3]) -> [f32; 3] {
     let out: [f32; 3] = [
         rgb[0] as f32 / u16::MAX as f32,
         rgb[1] as f32 / u16::MAX as f32,
@@ -69,7 +69,7 @@ pub fn rgb_to_hsv(rgb: &[u16; 3]) -> [f32; 3] {
 
     let h: f32;
     if delta == 0.0 {
-        h = 0.0
+        h = 0.0;
     } else {
         match c_max {
             i if out[0] == *i => {

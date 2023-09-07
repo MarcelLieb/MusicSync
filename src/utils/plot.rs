@@ -17,7 +17,7 @@ pub fn plot(
     onsets: &HashMap<String, Vec<(u128, Event)>>,
     raw_data: &[f32],
     time_resolution: u32,
-    file: String,
+    file: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let root = BitMapBackend::new(&file, (1920, 1080)).into_drawing_area();
 
@@ -48,7 +48,7 @@ pub fn plot(
 
     let mut keys = onsets
         .keys()
-        .map(|s| s.to_string())
+        .map(std::string::ToString::to_string)
         .collect::<Vec<String>>();
     keys.sort();
 
@@ -62,14 +62,14 @@ pub fn plot(
                     .filter(|(t, _)| *t > 20) // Start is usually a unwanted click
                     .map(|(_, event)| event)
                     .map(|event| match event {
-                        Event::Full(y) => *y,
-                        Event::Atmosphere(y, _) => *y,
-                        Event::Note(y, _) => *y,
-                        Event::Drum(y) => *y,
-                        Event::Hihat(y) => *y,
-                        Event::Raw(y) => *y,
+                        Event::Full(y)
+                        | Event::Atmosphere(y, _)
+                        | Event::Note(y, _)
+                        | Event::Drum(y)
+                        | Event::Hihat(y)
+                        | Event::Raw(y) => *y,
                     })
-                    .fold(f32::EPSILON, |acc, x| acc.max(x)),
+                    .fold(f32::EPSILON, f32::max),
             )
         })
         .collect();
@@ -81,12 +81,12 @@ pub fn plot(
                 onsets[key]
                     .iter()
                     .map(|(time, event)| match event {
-                        Event::Full(y) => (*time, *y),
-                        Event::Atmosphere(y, _) => (*time, *y),
-                        Event::Note(y, _) => (*time, *y),
-                        Event::Drum(y) => (*time, *y),
-                        Event::Hihat(y) => (*time, *y),
-                        Event::Raw(y) => (*time, *y),
+                        Event::Full(y)
+                        | Event::Atmosphere(y, _)
+                        | Event::Note(y, _)
+                        | Event::Drum(y)
+                        | Event::Hihat(y)
+                        | Event::Raw(y) => (*time, *y),
                     })
                     .map(|(time, y)| (time, y / data_max[key]))
                     .filter(|(t, _)| *t < TIME_WINDOW)
