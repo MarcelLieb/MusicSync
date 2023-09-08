@@ -21,7 +21,7 @@ pub mod hue;
 pub mod serialize;
 pub mod wled;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 #[serde(untagged)]
 pub enum Event {
     Full(f32),
@@ -35,6 +35,20 @@ pub enum Event {
 pub trait LightService {
     fn event_detected(&mut self, event: Event);
     fn update(&mut self);
+}
+
+impl LightService for [Box<dyn LightService + Send>] {
+    fn event_detected(&mut self, event: Event) {
+        for service in self {
+            service.event_detected(event);
+        }
+    }
+
+    fn update(&mut self) {
+        for service in self {
+            service.update();
+        }
+    }
 }
 
 pub trait Pollable {

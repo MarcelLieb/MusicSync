@@ -120,37 +120,26 @@ impl SpecFlux {
             .unwrap()
             .0;
 
-        for service in &mut *lightservices {
-            service.event_detected(Event::Raw(drum_weight));
-        }
+
+        lightservices.event_detected(Event::Raw(drum_weight));
 
         if onset {
-            for service in &mut *lightservices {
-                service.event_detected(Event::Full(rms));
-            }
+            lightservices.event_detected(Event::Full(rms));
         }
 
         if self.threshold.drum.is_above(drum_weight) {
-            for service in &mut *lightservices {
-                service.event_detected(Event::Drum(rms));
-            }
+            lightservices.event_detected(Event::Drum(rms));
         }
 
         if self.threshold.hihat.is_above(hihat_weight) {
-            for service in &mut *lightservices {
-                service.event_detected(Event::Hihat(peak));
-            }
+            lightservices.event_detected(Event::Hihat(peak));
         }
 
         if self.threshold.note.is_above(note_weight) {
-            for service in &mut *lightservices {
-                service.event_detected(Event::Note(rms, index_of_max as u16));
-            }
+            lightservices.event_detected(Event::Note(rms, index_of_max as u16));
         }
 
-        for service in &mut *lightservices {
-            service.update();
-        }
+        lightservices.update();
     }
 }
 
