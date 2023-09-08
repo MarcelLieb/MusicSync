@@ -13,6 +13,7 @@ use tokio::{
     time, runtime::Handle,
 };
 
+#[allow(dead_code)]
 pub mod color;
 pub mod console;
 pub mod envelope;
