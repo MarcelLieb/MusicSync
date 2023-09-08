@@ -10,7 +10,7 @@ use tokio::{
     select,
     sync::mpsc::{self, Sender},
     task::JoinHandle,
-    time,
+    time, runtime::Handle,
 };
 
 pub mod color;
@@ -97,11 +97,19 @@ impl PollingHelper {
 impl Drop for PollingHelper {
     fn drop(&mut self) {
         let tx = self.tx.clone();
-        tokio::runtime::Runtime::new()
-            .unwrap()
-            .block_on(async move {
+
+        if let Ok(_) = Handle::try_current() {
+            tokio::spawn(async move {
                 tx.send(true).await.unwrap();
             });
+        } else {
+            tokio::runtime::Runtime::new()
+                .unwrap()
+                .block_on(async move {
+                    tx.send(true).await.unwrap();
+                });
+        }
+
         while !self.handle.is_finished() {
             sleep(std::time::Duration::from_millis(10));
         }
