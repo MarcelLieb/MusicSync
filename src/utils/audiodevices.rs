@@ -2,7 +2,7 @@ use crate::utils::audioprocessing::hfc::Hfc;
 use crate::utils::audioprocessing::spectral_flux::SpecFlux;
 use crate::utils::audioprocessing::ProcessingSettings;
 use crate::utils::lights::console::Console;
-use crate::utils::lights::{hue, serialize};
+use crate::utils::lights::{hue, serialize, wled};
 use crate::utils::{
     audioprocessing::{prepare_buffers, process_raw},
     lights::LightService,
@@ -45,6 +45,11 @@ pub async fn create_default_output_stream() -> cpal::Stream {
     let mut lightservices: Vec<Box<dyn LightService + Send>> = Vec::new();
     if let Ok(bridge) = hue::connect().await {
         lightservices.push(Box::new(bridge));
+    }
+
+    let strip = wled::LEDStrip::connect("192.168.2.53").await;
+    if let Ok(strip) = strip {
+        lightservices.push(Box::new(strip));
     }
 
     let console = Console::default();

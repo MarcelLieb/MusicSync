@@ -18,6 +18,7 @@ pub mod console;
 pub mod envelope;
 pub mod hue;
 pub mod serialize;
+pub mod wled;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -45,11 +46,28 @@ pub trait Writeable {
 }
 
 #[async_trait]
+impl Writeable for tokio::net::UdpSocket {
+    async fn write_data(&mut self, data: &Bytes) -> std::io::Result<()> {
+        self.send(data).await?;
+        Ok(())
+    }
+}
+
+#[async_trait]
 pub trait Closeable {
     async fn close_connection(&mut self);
 }
 
+#[async_trait]
+impl Closeable for tokio::net::UdpSocket {
+    async fn close_connection(&mut self) {
+        // UDP socket does not need to be closed
+    }
+}
+
 pub trait Stream: Writeable + Closeable {}
+
+impl Stream for tokio::net::UdpSocket {}
 
 pub struct PollingHelper {
     pub polling_frequency: u16,
