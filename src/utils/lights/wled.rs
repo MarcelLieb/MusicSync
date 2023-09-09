@@ -29,6 +29,7 @@ struct Segment {
 #[derive(Debug)]
 struct State {
     led_count: u16,
+    brightness: f64,
     rgbw: bool,
     drum_envelope: DynamicDecay,
     note_envelope: DynamicDecay,
@@ -37,7 +38,7 @@ struct State {
 }
 
 impl State {
-    pub fn init(led_count: u16, rgbw: bool) -> Self {
+    pub fn init(led_count: u16, rgbw: bool, brightness: f64) -> Self {
         let prefix = if rgbw {
             vec![0x03, 0x01]
         } else {
@@ -50,6 +51,7 @@ impl State {
             note_envelope: DynamicDecay::init(4.0), 
             hihat_envelope: FixedDecay::init(Duration::from_millis(200)),
             prefix,
+            brightness,
         }
     }
 }
@@ -72,9 +74,9 @@ impl Pollable for State {
         };
         
         for (i, color) in &mut colors.iter_mut().enumerate() {
-            let r = ((red - i as f64).clamp(0.0, 1.0) * u8::MAX as f64).round() as u8;
-            let b = ((blue - i as f64).clamp(0.0, 1.0) * u8::MAX as f64).round() as u8;
-            let w = ((white - (self.led_count / 2 - i as u16) as f64).clamp(0.0, 1.0) * u8::MAX as f64).round() as u8;
+            let r = ((red - i as f64).clamp(0.0, 1.0) * u8::MAX as f64 * self.brightness).round() as u8;
+            let b = ((blue - i as f64).clamp(0.0, 1.0) * u8::MAX as f64 * self.brightness).round() as u8;
+            let w = ((white - (self.led_count / 2 - i as u16) as f64).clamp(0.0, 1.0) * u8::MAX as f64 * self.brightness).round() as u8;
 
             if self.rgbw {
                 *color = vec![r, 0, b, w];
@@ -117,7 +119,7 @@ impl LEDStrip {
         let socket = UdpSocket::bind("0.0.0.0:0").await?;
         socket.connect((ip, info.udpport)).await?;
 
-        let state = State::init(info.leds.count, info.leds.rgbw);
+        let state = State::init(info.leds.count, info.leds.rgbw, 0.2);
 
         let state = Arc::new(Mutex::new(state));
 
