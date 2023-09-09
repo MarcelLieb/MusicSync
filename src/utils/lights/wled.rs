@@ -41,7 +41,7 @@ impl State {
         let prefix = if rgbw {
             vec![0x03, 0x01]
         } else {
-            vec![0x03, 0x01]
+            vec![0x02, 0x01]
         };
         State { 
             led_count, 
