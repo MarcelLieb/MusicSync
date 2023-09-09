@@ -84,6 +84,7 @@ pub trait Stream: Writeable + Closeable {}
 
 impl Stream for tokio::net::UdpSocket {}
 
+#[derive(Debug)]
 pub struct PollingHelper {
     pub polling_frequency: u16,
     tx: Sender<bool>,
