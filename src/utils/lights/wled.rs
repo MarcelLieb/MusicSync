@@ -1,11 +1,13 @@
-use std::sync::{Mutex, Arc};
+use std::{sync::{Mutex, Arc}, time::Duration};
 
 use bytes::{Bytes, BytesMut, BufMut};
 use serde::{Serialize, Deserialize};
 use tokio::net::UdpSocket;
 
-use super::{PollingHelper, envelope::{AnimationHelper, DynamicDecay, Envelope}, Pollable, LightService, Event};
+use super::{PollingHelper, envelope::{DynamicDecay, Envelope, FixedDecay}, Pollable, LightService, Event};
 
+#[allow(dead_code)]
+#[derive(Debug)]
 pub struct LEDStrip {
     name: String,
     led_count: u16,
@@ -17,38 +19,84 @@ pub struct LEDStrip {
     state: Arc<Mutex<State>>,
 }
 
+#[allow(dead_code)]
+#[derive(Debug)]
 struct Segment {
     start: usize,
     stop: usize,
 }
 
+#[derive(Debug)]
 struct State {
     led_count: u16,
     rgbw: bool,
-    envelope: DynamicDecay
+    drum_envelope: DynamicDecay,
+    note_envelope: DynamicDecay,
+    hihat_envelope: FixedDecay,
+    prefix: Vec<u8>
+}
+
+impl State {
+    pub fn init(led_count: u16, rgbw: bool) -> Self {
+        let prefix = if rgbw {
+            vec![0x03, 0x01]
+        } else {
+            vec![0x03, 0x01]
+        };
+        State { 
+            led_count, 
+            rgbw, 
+            drum_envelope: DynamicDecay::init(2.0), 
+            note_envelope: DynamicDecay::init(4.0), 
+            hihat_envelope: FixedDecay::init(Duration::from_millis(200)),
+            prefix,
+        }
+    }
 }
 
 impl Pollable for State {
     fn poll(&self) -> Bytes {
-        let mut data = BytesMut::with_capacity(2 + self.led_count as usize * 3);
-        data.put_u8(0x03); // DRGBW Mode
-        data.put_u8(0x01); // Timeout in seconds
+        let channels = 3 + usize::from(self.rgbw);
+        let mut bytes = BytesMut::with_capacity(2 + self.led_count as usize * channels);
+        
+        bytes.put_slice(&self.prefix);
 
-        // Blink all LEDs
-        for _ in 0..self.led_count {
-            let value = (self.envelope.get_value() * u8::MAX as f32) as u8;
-            let color = [0, 0, 0, value];
-            data.put_slice(&color);
+        let red = self.drum_envelope.get_value() as f64 * self.led_count as f64 * 0.5;
+        let blue = self.note_envelope.get_value() as f64 * self.led_count as f64 * 0.5;
+        let white = self.hihat_envelope.get_value() as f64 * self.led_count as f64 * 0.2;
+
+        let mut colors: Vec<Vec<u8>> = if self.rgbw {
+            vec![vec![0, 0, 0, 0]; self.led_count as usize / 2]
+        } else {
+            vec![vec![0, 0, 0]; self.led_count as usize / 2]
+        };
+        
+        for (i, color) in &mut colors.iter_mut().enumerate() {
+            let r = ((red - i as f64).clamp(0.0, 1.0) * u8::MAX as f64).round() as u8;
+            let b = ((blue - i as f64).clamp(0.0, 1.0) * u8::MAX as f64).round() as u8;
+            let w = ((white - (self.led_count / 2 - i as u16) as f64).clamp(0.0, 1.0) * u8::MAX as f64).round() as u8;
+
+            if self.rgbw {
+                *color = vec![r, 0, b, w];
+            } else {
+                *color = vec![r.saturating_add(w), w, b.saturating_add(w)];
+            }
+        }
+        let mut reversed = colors.clone();
+        reversed.reverse();
+        reversed.extend(colors);
+        for colors in reversed {
+            bytes.put_slice(&colors);
         }
 
-        data.into()
+        bytes.into()
     }
 }
 
 impl LEDStrip {
     pub async fn connect(ip: &str) -> Result<LEDStrip, Box<dyn std::error::Error>> {
         #[derive(Debug, Serialize, Deserialize)]
-        struct leds {
+        struct Leds {
             count: u16,
             rgbw: bool,
         }
@@ -57,32 +105,23 @@ impl LEDStrip {
         struct Info {
             name: String,
             udpport: u16,
-            leds: leds,
+            leds: Leds,
             ver: String,
         }
-
+        let client = reqwest::Client::builder().timeout(Duration::from_secs(2)).build()?;
         let url = format!("http://{}/json/info", ip);
-        let resp = reqwest::get(&url).await?;
+        let resp = client.get(&url).send().await?;
         let info: Info = resp.json().await?;
-
-        let mut animater = AnimationHelper::init(|pos| pos < 1000, 2000, true);
-        let envelope = DynamicDecay::init(8.0);
-        animater.start();
+        println!("Got config: {info:#?}");
 
         let socket = UdpSocket::bind("0.0.0.0:0").await?;
         socket.connect((ip, info.udpport)).await?;
 
-        let state = State {
-            led_count: info.leds.count,
-            rgbw: info.leds.rgbw,
-            envelope,
-        };
+        let state = State::init(info.leds.count, info.leds.rgbw);
 
         let state = Arc::new(Mutex::new(state));
 
         let polling_helper = PollingHelper::init(socket, state.clone(), 30);
-
-
 
         Ok(LEDStrip {
             name: info.name,
@@ -102,10 +141,16 @@ impl LEDStrip {
 
 impl LightService for LEDStrip {
     fn event_detected(&mut self, event: Event) {
+        let mut state = self.state.lock().unwrap();
         match event {
             Event::Drum(strength) => {
-                let mut state = self.state.lock().unwrap();
-                state.envelope.trigger(strength);
+                state.drum_envelope.trigger(strength);
+            }
+            Event::Hihat(strength) => {
+                state.hihat_envelope.trigger(strength);
+            }
+            Event::Note(strength, _) => {
+                state.note_envelope.trigger(strength);
             }
             _ => {}
         };
