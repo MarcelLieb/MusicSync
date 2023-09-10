@@ -114,12 +114,12 @@ impl LEDStrip {
         let url = format!("http://{}/json/info", ip);
         let resp = client.get(&url).send().await?;
         let info: Info = resp.json().await?;
-        println!("Got config: {info:#?}");
+        println!("Found strip {}", info.name);
 
         let socket = UdpSocket::bind("0.0.0.0:0").await?;
         socket.connect((ip, info.udpport)).await?;
 
-        let state = State::init(info.leds.count, info.leds.rgbw, 0.2);
+        let state = State::init(info.leds.count, info.leds.rgbw, 1.0);
 
         let state = Arc::new(Mutex::new(state));
 
