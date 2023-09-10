@@ -123,42 +123,28 @@ impl Hfc {
         info!("Loudest frequency: {}Hz", index_of_max);
 
         if weight >= self.threshold.fullband.get_threshold(weight) {
-            for service in &mut *lightservices {
-                service.event_detected(Event::Full(rms));
-            }
+            lightservices.event_detected(Event::Full(rms));
         } else {
-            for service in &mut *lightservices {
-                service.event_detected(Event::Atmosphere(rms, index_of_max as u16));
-            }
+            lightservices.event_detected(Event::Atmosphere(rms, index_of_max as u16));
         }
 
-        for service in &mut *lightservices {
-            service.event_detected(Event::Raw(weight));
-        }
+        lightservices.event_detected(Event::Raw(weight));
 
         let drums_weight = low_end_weight * drum_click_weight * high_end_weight;
         if drums_weight >= self.threshold.drums.get_threshold(drums_weight) {
-            for service in &mut *lightservices {
-                service.event_detected(Event::Drum(rms));
-            }
+            lightservices.event_detected(Event::Drum(rms));
         }
 
         let notes_weight = mids_weight + note_click_weight * high_end_weight;
         if notes_weight >= self.threshold.notes.get_threshold(notes_weight) {
-            for service in &mut *lightservices {
-                service.event_detected(Event::Note(rms, index_of_max_mid as u16));
-            }
+            lightservices.event_detected(Event::Note(rms, index_of_max_mid as u16));
         }
 
         if *high_end_weight >= self.threshold.hihat.get_threshold(*high_end_weight) {
-            for service in &mut *lightservices {
-                service.event_detected(Event::Hihat(peak));
-            }
+            lightservices.event_detected(Event::Hihat(peak));
         }
 
-        for service in &mut *lightservices {
-            service.update();
-        }
+        lightservices.update();
     }
 }
 

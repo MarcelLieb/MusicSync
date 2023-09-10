@@ -117,3 +117,49 @@ pub fn interpolate_hsv(a: &[f32; 3], b: &[f32; 3], t: f32) -> [f32; 3] {
 
     [h, s, v]
 }
+
+pub fn color_downsample(color: [u16; 3]) -> [u8; 3] {
+    [
+        ((color[0] as f64 / u16::MAX as f64) * u8::MAX as f64) as u8,
+        ((color[1] as f64 / u16::MAX as f64) * u8::MAX as f64) as u8,
+        ((color[2] as f64 / u16::MAX as f64) * u8::MAX as f64) as u8,
+    ]
+}
+
+pub fn color_upsample(color: [u8; 3]) -> [u16; 3] {
+    [
+        ((color[0] as f64 / u8::MAX as f64) * u16::MAX as f64) as u16,
+        ((color[1] as f64 / u8::MAX as f64) * u16::MAX as f64) as u16,
+        ((color[2] as f64 / u8::MAX as f64) * u16::MAX as f64) as u16,
+    ]
+}
+
+pub fn interpolate_rgb(a: &[u16; 3], b: &[u16; 3], t: f32) -> [u16; 3] {
+    let r = a[0] + ((b[0] - a[0]) as f32 * t) as u16;
+    let g = a[1] + ((b[1] - a[1]) as f32 * t) as u16;
+    let b = a[2] + ((b[2] - a[2]) as f32 * t) as u16;
+
+    [r, g, b]
+}
+
+pub fn color_to_hex(color: &[u16; 3]) -> String {
+    format!("#{:02X}{:02X}{:02X}", color[0], color[1], color[2])
+}
+
+pub fn hex_to_color(hex: &str) -> [u16; 3] {
+    let r = u16::from_str_radix(&hex[1..3], 16).unwrap();
+    let g = u16::from_str_radix(&hex[3..5], 16).unwrap();
+    let b = u16::from_str_radix(&hex[5..7], 16).unwrap();
+
+    [r, g, b]
+}
+
+pub fn color_to_hue(color: &[u16; 3]) -> u16 {
+    let hsv = rgb_to_hsv(*color);
+    hsv[0] as u16
+}
+
+pub fn hue_to_color(hue: u16) -> [u16; 3] {
+    let hsv = [hue as f32, 1.0, 1.0];
+    hsv_to_rgb(&hsv)
+}

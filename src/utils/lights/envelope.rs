@@ -7,6 +7,7 @@ pub trait Envelope {
     fn get_value(&self) -> f32;
 }
 // Linear Envelope
+#[derive(Debug)]
 pub struct FixedDecay {
     trigger_time: Instant,
     length: Duration,
@@ -42,6 +43,7 @@ impl Envelope for FixedDecay {
     }
 }
 
+#[derive(Debug)]
 pub struct DynamicDecay {
     trigger_time: Instant,
     decay_per_second: f32,
