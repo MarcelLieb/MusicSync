@@ -7,10 +7,11 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use tokio::{
+    runtime::Handle,
     select,
     sync::mpsc::{self, Sender},
     task::JoinHandle,
-    time, runtime::Handle,
+    time,
 };
 
 #[allow(dead_code)]
@@ -132,7 +133,7 @@ impl Drop for PollingHelper {
     fn drop(&mut self) {
         let tx = self.tx.clone();
 
-        if let Ok(_) = Handle::try_current() {
+        if Handle::try_current().is_ok() {
             tokio::spawn(async move {
                 tx.send(true).await.unwrap();
             });

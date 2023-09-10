@@ -12,7 +12,7 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
-use tokio::net::UdpSocket;
+use tokio::{net::UdpSocket, select};
 use webrtc_dtls::{cipher_suite::CipherSuiteId, config::Config, conn::DTLSConn};
 
 use super::{
@@ -377,7 +377,6 @@ impl Bridge {
 
         println!("Please press push link button");
 
-        let mut timeout = 0;
         let mut saved_bridge = SavedBridge {
             id: self.id.to_string(),
             ip: self.ip,
@@ -385,40 +384,40 @@ impl Bridge {
             app_id: String::new(),
             psk: String::new(),
         };
-        loop {
-            let response = client
-                .post(format!("https://{}/api", self.ip))
-                .json(&params)
-                .send()
-                .await?;
 
-            if let Ok(s) = response.json::<Vec<ApiResponse>>().await {
-                match &s[0] {
-                    ApiResponse::Success {
-                        username,
-                        clientkey,
-                    } => {
-                        saved_bridge.app_key = username.to_string();
-                        saved_bridge.psk = clientkey.to_string();
-                        break;
+        select! {
+            _ = async {
+                loop {
+                    let response = client
+                        .post(format!("https://{}/api", self.ip))
+                        .json(&params)
+                        .send()
+                        .await?;
+
+                    if let Ok(s) = response.json::<Vec<ApiResponse>>().await {
+                        match &s[0] {
+                            ApiResponse::Success {
+                                username,
+                                clientkey,
+                            } => {
+                                saved_bridge.app_key = username.to_string();
+                                saved_bridge.psk = clientkey.to_string();
+                                break;
+                            }
+                            ApiResponse::Error { description } => {
+                                warn!("Error: {description}");
+                                tokio::time::sleep(Duration::from_secs(1)).await;
+                            }
+                        };
                     }
-                    ApiResponse::Error { description } => {
-                        warn!("Error: {description}");
-                        tokio::time::sleep(Duration::from_secs(1)).await;
-                        timeout += 1;
-                        if timeout >= 30 {
-                            return Err(ConnectionError::TimeOut);
-                        }
-                    }
-                };
-            } else {
-                tokio::time::sleep(Duration::from_secs(1)).await;
-                timeout += 1;
-                if timeout >= 30 {
-                    return Err(ConnectionError::TimeOut);
                 }
+                Ok::<_, reqwest::Error>(())
+            } => {}
+            _ = tokio::time::sleep(Duration::from_secs(30)) => {
+                return Err(ConnectionError::TimeOut);
             }
         }
+
         let response = client
             .get(format!("https://{}/auth/v1", self.ip))
             .header("hue-application-key", &saved_bridge.app_key)
@@ -462,25 +461,7 @@ impl LightService for BridgeConnection {
     }
 
     fn update(&mut self) {
-        /*
-        self.polling_helper.update_color(&[[0, 0, 0]; 1], false);
-
-        /*
-        if self.envelopes.fullband.envelope.get_value() > 0.0 {
-            self.polling_helper.update_color(&[self.envelopes.fullband.get_color()], false)
-        }
-         */
-        let brightness = (self.envelopes.drum.get_value() * u16::MAX as f32) as u16;
-        self.polling_helper
-            .update_color(&[[brightness, 0, 0]], true);
-
-        let brightness = (self.envelopes.hihat.get_value() * u16::MAX as f32) as u16 >> 3;
-        self.polling_helper
-            .update_color(&[[brightness, brightness, brightness]], true);
-        let brightness = (self.envelopes.note.get_value() * u16::MAX as f32) as u16 >> 1;
-        self.polling_helper
-            .update_color(&[[0, 0, brightness]], true);
-         */
+        // no update needed
     }
 }
 
