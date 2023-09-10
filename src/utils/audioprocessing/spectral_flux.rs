@@ -120,7 +120,6 @@ impl SpecFlux {
             .unwrap()
             .0;
 
-
         lightservices.event_detected(Event::Raw(drum_weight));
 
         if onset {

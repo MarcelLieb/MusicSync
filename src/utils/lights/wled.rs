@@ -1,10 +1,16 @@
-use std::{sync::{Mutex, Arc}, time::Duration};
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
-use bytes::{Bytes, BytesMut, BufMut};
-use serde::{Serialize, Deserialize};
+use bytes::{BufMut, Bytes, BytesMut};
+use serde::{Deserialize, Serialize};
 use tokio::net::UdpSocket;
 
-use super::{PollingHelper, envelope::{DynamicDecay, Envelope, FixedDecay}, Pollable, LightService, Event};
+use super::{
+    envelope::{DynamicDecay, Envelope, FixedDecay},
+    Event, LightService, Pollable, PollingHelper,
+};
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -34,7 +40,7 @@ struct State {
     drum_envelope: DynamicDecay,
     note_envelope: DynamicDecay,
     hihat_envelope: FixedDecay,
-    prefix: Vec<u8>
+    prefix: Vec<u8>,
 }
 
 impl State {
@@ -44,11 +50,11 @@ impl State {
         } else {
             vec![0x02, 0x01]
         };
-        State { 
-            led_count, 
-            rgbw, 
-            drum_envelope: DynamicDecay::init(2.0), 
-            note_envelope: DynamicDecay::init(4.0), 
+        State {
+            led_count,
+            rgbw,
+            drum_envelope: DynamicDecay::init(2.0),
+            note_envelope: DynamicDecay::init(4.0),
             hihat_envelope: FixedDecay::init(Duration::from_millis(200)),
             prefix,
             brightness,
@@ -60,7 +66,7 @@ impl Pollable for State {
     fn poll(&self) -> Bytes {
         let channels = 3 + usize::from(self.rgbw);
         let mut bytes = BytesMut::with_capacity(2 + self.led_count as usize * channels);
-        
+
         bytes.put_slice(&self.prefix);
 
         let red = self.drum_envelope.get_value() as f64 * self.led_count as f64 * 0.5;
@@ -72,11 +78,16 @@ impl Pollable for State {
         } else {
             vec![vec![0, 0, 0]; self.led_count as usize / 2]
         };
-        
+
         for (i, color) in &mut colors.iter_mut().enumerate() {
-            let r = ((red - i as f64).clamp(0.0, 1.0) * u8::MAX as f64 * self.brightness).round() as u8;
-            let b = ((blue - i as f64).clamp(0.0, 1.0) * u8::MAX as f64 * self.brightness).round() as u8;
-            let w = ((white - (self.led_count / 2 - i as u16) as f64).clamp(0.0, 1.0) * u8::MAX as f64 * self.brightness).round() as u8;
+            let r =
+                ((red - i as f64).clamp(0.0, 1.0) * u8::MAX as f64 * self.brightness).round() as u8;
+            let b = ((blue - i as f64).clamp(0.0, 1.0) * u8::MAX as f64 * self.brightness).round()
+                as u8;
+            let w = ((white - (self.led_count / 2 - i as u16) as f64).clamp(0.0, 1.0)
+                * u8::MAX as f64
+                * self.brightness)
+                .round() as u8;
 
             if self.rgbw {
                 *color = vec![r, 0, b, w];
@@ -110,7 +121,9 @@ impl LEDStrip {
             leds: Leds,
             ver: String,
         }
-        let client = reqwest::Client::builder().timeout(Duration::from_secs(2)).build()?;
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(2))
+            .build()?;
         let url = format!("http://{}/json/info", ip);
         let resp = client.get(&url).send().await?;
         let info: Info = resp.json().await?;
