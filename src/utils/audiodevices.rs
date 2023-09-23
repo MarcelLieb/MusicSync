@@ -47,10 +47,14 @@ pub async fn create_default_output_stream() -> cpal::Stream {
         lightservices.push(Box::new(bridge));
     }
 
-    let strip = wled::LEDStrip::connect("192.168.2.53").await;
+    /*
+    let strip = wled::LEDStripOnset::connect("192.168.2.53").await;
     if let Ok(strip) = strip {
         lightservices.push(Box::new(strip));
     }
+     */
+
+    let mut strip = wled::LEDStripSpectrum::connect("192.168.2.53").await.unwrap();
 
     let console = Console::default();
     lightservices.push(Box::new(console));
@@ -92,6 +96,7 @@ pub async fn create_default_output_stream() -> cpal::Stream {
                             rms,
                             &mut lightservices,
                         );
+                        strip.process_spectrum(&detection_buffer.freq_bins);
                         /*
                         _hfc.detect(
                             &detection_buffer.freq_bins,
