@@ -2,11 +2,9 @@ use crate::utils::audioprocessing::hfc::Hfc;
 use crate::utils::audioprocessing::spectral_flux::SpecFlux;
 use crate::utils::audioprocessing::ProcessingSettings;
 use crate::utils::lights::console::Console;
-use crate::utils::lights::{hue, serialize, wled};
-use crate::utils::{
-    audioprocessing::{prepare_buffers, process_raw},
-    lights::OnsetConsumer,
-};
+use crate::utils::lights::{hue, serialize, wled, LightService};
+use crate::utils::audioprocessing::{prepare_buffers, process_raw};
+use crate::utils::lights::SpectrumConsumer;
 use cpal::{
     self,
     traits::{DeviceTrait, HostTrait},
@@ -42,9 +40,9 @@ pub async fn create_default_output_stream() -> cpal::Stream {
     let fft_planner = RealFftPlanner::<f32>::new().plan_fft_forward(settings.fft_size);
     let mut detection_buffer = prepare_buffers(channels, &settings);
 
-    let mut lightservices: Vec<Box<dyn OnsetConsumer + Send>> = Vec::new();
+    let mut lightservices: Vec<LightService> = Vec::new();
     if let Ok(bridge) = hue::connect().await {
-        lightservices.push(Box::new(bridge));
+        lightservices.push(LightService::Onset(Box::new(bridge)));
     }
 
     /*
@@ -54,17 +52,19 @@ pub async fn create_default_output_stream() -> cpal::Stream {
     }
      */
 
-    let mut strip = wled::LEDStripSpectrum::connect("192.168.2.53").await.unwrap();
+    if let Ok(strip) = wled::LEDStripSpectrum::connect("192.168.2.53").await {
+        lightservices.push(strip);
+    }
 
     let console = Console::default();
-    lightservices.push(Box::new(console));
+    lightservices.push(LightService::Onset(Box::new(console)));
 
     let serializer = serialize::OnsetContainer::init(
         "onsets.cbor".to_string(),
         settings.sample_rate as usize,
         settings.hop_size,
     );
-    lightservices.push(Box::new(serializer));
+    lightservices.push(LightService::Onset(Box::new(serializer)));
 
     let mut spec_flux = SpecFlux::init(settings.sample_rate, settings.fft_size as u32);
 
@@ -96,7 +96,7 @@ pub async fn create_default_output_stream() -> cpal::Stream {
                             rms,
                             &mut lightservices,
                         );
-                        strip.process_spectrum(&detection_buffer.freq_bins);
+                        lightservices.process_spectrum(&detection_buffer.freq_bins);
                         /*
                         _hfc.detect(
                             &detection_buffer.freq_bins,

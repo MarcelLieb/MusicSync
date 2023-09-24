@@ -7,11 +7,9 @@ use bytes::{BufMut, Bytes, BytesMut};
 use serde::{Deserialize, Serialize};
 use tokio::net::UdpSocket;
 
-use crate::utils::audioprocessing::MelFilterBank;
-
 use super::{
     envelope::{DynamicDecay, Envelope, FixedDecay},
-    Onset, OnsetConsumer, Pollable, PollingHelper,
+    Onset, OnsetConsumer, Pollable, PollingHelper, SpectrumConsumer, LightService, SpectrumOnsetConsumer,
 };
 
 #[allow(dead_code)]
@@ -193,7 +191,7 @@ pub struct LEDStripSpectrum {
 }
 
 impl LEDStripSpectrum {
-    pub async fn connect(ip: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    pub async fn connect(ip: &str) -> Result<LightService, Box<dyn std::error::Error>> {
         #[derive(Debug, Serialize, Deserialize)]
         struct Leds {
             count: u16,
@@ -224,28 +222,54 @@ impl LEDStripSpectrum {
 
         let polling_helper = PollingHelper::init(socket, state.clone(), 50);
 
-        Ok(LEDStripSpectrum {
-            strip: LEDStrip {
-                name: info.name,
-                led_count: info.leds.count,
-                ip: ip.to_string(),
-                port: info.udpport,
-                segments: vec![Segment {
-                    start: 0,
-                    stop: info.leds.count as usize,
-                }],
-                rgbw: info.leds.rgbw,
-            },
-            polling_helper,
-            state,
-        })
+        Ok(
+            LightService::SpectralOnset(
+                Box::new(
+                    LEDStripSpectrum {
+                        strip: LEDStrip {
+                            name: info.name,
+                            led_count: info.leds.count,
+                            ip: ip.to_string(),
+                            port: info.udpport,
+                            segments: vec![Segment {
+                                start: 0,
+                                stop: info.leds.count as usize,
+                            }],
+                            rgbw: info.leds.rgbw,
+                        },
+                        polling_helper,
+                        state,
+                    }
+                )
+            )
+        )
     }
+}
 
-    pub fn process_spectrum(&mut self, freq_bins: &[f32]) {
+impl SpectrumConsumer for LEDStripSpectrum {
+    fn process_spectrum(&mut self, freq_bins: &[f32]) {
         let mut state = self.state.lock().unwrap();
         state.visualize_spectrum(freq_bins);
     }
 }
+
+impl OnsetConsumer for LEDStripSpectrum {
+    fn onset_detected(&mut self, event: Onset) {
+        let mut state = self.state.lock().unwrap();
+        match event {
+            Onset::Full(strength) => {
+                state.envelope.trigger(strength)
+            },
+            _ => {}
+        }
+    }
+
+    fn update(&mut self) {
+        // self updating
+    }
+}
+
+impl SpectrumOnsetConsumer for LEDStripSpectrum {}
 
 pub struct SpectrumState {
     colors: VecDeque<[u8; 3]>,
@@ -254,6 +278,7 @@ pub struct SpectrumState {
     brightness: f64,
     aggregate: u8,
     aggregate_count: u8,
+    envelope: DynamicDecay
 }
 
 impl SpectrumState {
@@ -266,6 +291,7 @@ impl SpectrumState {
             brightness,
             aggregate,
             aggregate_count: 0,
+            envelope: DynamicDecay::init(8.0)
         }
     }
 
@@ -285,7 +311,9 @@ impl SpectrumState {
 
         let max = low_weight.max(mid_weight.max(highs_weight));
 
-        let [r, g, b] = [(low_weight / max * 255.0) as u8, (mid_weight / max * 255.0) as u8, (highs_weight / max * 255.0) as u8];
+        let brightness = (((self.envelope.get_value() / 4.0 * 3.0) + 0.25) as f64 * self.brightness) as f32; // Set a minimum quarter brightness
+
+        let [r, g, b] = [(low_weight / max * 255.0 * brightness) as u8, (mid_weight / max * 255.0 * brightness) as u8, (highs_weight / max * 255.0 * brightness) as u8];
 
         if self.aggregate_count == self.aggregate {
             self.colors.pop_back();
