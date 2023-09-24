@@ -7,7 +7,7 @@ pub struct Console {
 }
 
 impl OnsetConsumer for Console {
-    fn event_detected(&mut self, event: Onset) {
+    fn onset_detected(&mut self, event: Onset) {
         match event {
             Onset::Drum(s) => self.output[0] = "■".repeat((s * 9.0).ceil() as usize).bright_red(),
             Onset::Hihat(s) => self.output[1] = "■".repeat((s * 9.0).ceil() as usize).white(),

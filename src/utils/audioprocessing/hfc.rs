@@ -123,25 +123,25 @@ impl Hfc {
         info!("Loudest frequency: {}Hz", index_of_max);
 
         if weight >= self.threshold.fullband.get_threshold(weight) {
-            lightservices.event_detected(Onset::Full(rms));
+            lightservices.onset_detected(Onset::Full(rms));
         } else {
-            lightservices.event_detected(Onset::Atmosphere(rms, index_of_max as u16));
+            lightservices.onset_detected(Onset::Atmosphere(rms, index_of_max as u16));
         }
 
-        lightservices.event_detected(Onset::Raw(weight));
+        lightservices.onset_detected(Onset::Raw(weight));
 
         let drums_weight = low_end_weight * drum_click_weight * high_end_weight;
         if drums_weight >= self.threshold.drums.get_threshold(drums_weight) {
-            lightservices.event_detected(Onset::Drum(rms));
+            lightservices.onset_detected(Onset::Drum(rms));
         }
 
         let notes_weight = mids_weight + note_click_weight * high_end_weight;
         if notes_weight >= self.threshold.notes.get_threshold(notes_weight) {
-            lightservices.event_detected(Onset::Note(rms, index_of_max_mid as u16));
+            lightservices.onset_detected(Onset::Note(rms, index_of_max_mid as u16));
         }
 
         if *high_end_weight >= self.threshold.hihat.get_threshold(*high_end_weight) {
-            lightservices.event_detected(Onset::Hihat(peak));
+            lightservices.onset_detected(Onset::Hihat(peak));
         }
 
         lightservices.update();

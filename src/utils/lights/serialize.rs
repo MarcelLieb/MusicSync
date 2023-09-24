@@ -17,7 +17,7 @@ pub struct OnsetContainer {
 }
 
 impl OnsetConsumer for OnsetContainer {
-    fn event_detected(&mut self, event: Onset) {
+    fn onset_detected(&mut self, event: Onset) {
         match event {
             Onset::Full(_) => self.data.get_mut("Full").unwrap().push((self.time, event)),
             Onset::Atmosphere(_, _) => self

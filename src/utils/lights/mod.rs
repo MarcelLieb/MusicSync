@@ -34,14 +34,14 @@ pub enum Onset {
 }
 
 pub trait OnsetConsumer {
-    fn event_detected(&mut self, event: Onset);
+    fn onset_detected(&mut self, event: Onset);
     fn update(&mut self);
 }
 
 impl OnsetConsumer for [Box<dyn OnsetConsumer + Send>] {
-    fn event_detected(&mut self, event: Onset) {
+    fn onset_detected(&mut self, onset: Onset) {
         for service in self {
-            service.event_detected(event);
+            service.onset_detected(onset);
         }
     }
 

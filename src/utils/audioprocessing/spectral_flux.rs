@@ -360,22 +360,22 @@ impl SpecFlux {
             .unwrap()
             .0;
 
-        lightservices.event_detected(Onset::Raw(hihat_weight));
+        lightservices.onset_detected(Onset::Raw(hihat_weight));
 
         if onset {
-            lightservices.event_detected(Onset::Full(rms));
+            lightservices.onset_detected(Onset::Full(rms));
         }
 
         if self.threshold.drum.is_above(drum_weight) {
-            lightservices.event_detected(Onset::Drum(rms));
+            lightservices.onset_detected(Onset::Drum(rms));
         }
 
         if self.threshold.hihat.is_above(hihat_weight) {
-            lightservices.event_detected(Onset::Hihat(peak));
+            lightservices.onset_detected(Onset::Hihat(peak));
         }
 
         if self.threshold.note.is_above(note_weight) {
-            lightservices.event_detected(Onset::Note(rms, index_of_max as u16));
+            lightservices.onset_detected(Onset::Note(rms, index_of_max as u16));
         }
 
         lightservices.update();

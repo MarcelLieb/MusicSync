@@ -433,7 +433,7 @@ impl Bridge {
 }
 
 impl OnsetConsumer for BridgeConnection {
-    fn event_detected(&mut self, event: Onset) {
+    fn onset_detected(&mut self, event: Onset) {
         let mut state = self.state.lock().unwrap();
         match event {
             Onset::Full(volume) => {
