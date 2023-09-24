@@ -20,7 +20,7 @@ use super::{
 };
 use crate::utils::lights::{
     envelope::{Color, DynamicDecay, FixedDecay},
-    Onset,
+    Onset, LightService,
 };
 #[allow(dead_code)]
 pub struct BridgeConnection {
@@ -198,7 +198,7 @@ enum ApiResponse {
     Error { description: String },
 }
 
-pub async fn connect() -> Result<BridgeConnection, ConnectionError> {
+pub async fn connect() -> Result<LightService, ConnectionError> {
     #[derive(Deserialize, Debug)]
     struct _Metadata {
         #[serde(rename = "name")]
@@ -276,7 +276,11 @@ pub async fn connect() -> Result<BridgeConnection, ConnectionError> {
 
     let bridge = BridgeConnection::init(bridge, area).await?;
 
-    Ok(bridge)
+    Ok(
+        LightService::Onset(
+            Box::new(bridge)
+        )
+    )
 }
 
 async fn check_bridge(ip: &Ipv4Addr) -> bool {

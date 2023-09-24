@@ -42,7 +42,7 @@ pub async fn create_default_output_stream() -> cpal::Stream {
 
     let mut lightservices: Vec<LightService> = Vec::new();
     if let Ok(bridge) = hue::connect().await {
-        lightservices.push(LightService::Onset(Box::new(bridge)));
+        lightservices.push(bridge);
     }
 
     /*
@@ -64,7 +64,7 @@ pub async fn create_default_output_stream() -> cpal::Stream {
         settings.sample_rate as usize,
         settings.hop_size,
     );
-    lightservices.push(LightService::Onset(Box::new(serializer)));
+    lightservices.push(serializer);
 
     let mut spec_flux = SpecFlux::init(settings.sample_rate, settings.fft_size as u32);
 
