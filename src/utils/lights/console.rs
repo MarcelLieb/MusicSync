@@ -1,4 +1,4 @@
-use super::{Event, LightService};
+use super::{Onset, OnsetConsumer};
 use colored::{ColoredString, Colorize};
 
 #[derive(Debug, Default)]
@@ -6,14 +6,14 @@ pub struct Console {
     output: [ColoredString; 5],
 }
 
-impl LightService for Console {
-    fn event_detected(&mut self, event: Event) {
+impl OnsetConsumer for Console {
+    fn event_detected(&mut self, event: Onset) {
         match event {
-            Event::Drum(s) => self.output[0] = "■".repeat((s * 9.0).ceil() as usize).bright_red(),
-            Event::Hihat(s) => self.output[1] = "■".repeat((s * 9.0).ceil() as usize).white(),
-            Event::Full(s) => self.output[2] = "■".repeat((s * 9.0).ceil() as usize).cyan(),
-            Event::Note(s, _) => self.output[3] = "■".repeat((s * 9.0).ceil() as usize).blue(),
-            Event::Atmosphere(s, _) => {
+            Onset::Drum(s) => self.output[0] = "■".repeat((s * 9.0).ceil() as usize).bright_red(),
+            Onset::Hihat(s) => self.output[1] = "■".repeat((s * 9.0).ceil() as usize).white(),
+            Onset::Full(s) => self.output[2] = "■".repeat((s * 9.0).ceil() as usize).cyan(),
+            Onset::Note(s, _) => self.output[3] = "■".repeat((s * 9.0).ceil() as usize).blue(),
+            Onset::Atmosphere(s, _) => {
                 self.output[4] = "-".repeat((s * 9.0).ceil() as usize).black();
             }
             _ => {}

@@ -11,7 +11,7 @@ use log::info;
 use realfft::{RealFftPlanner, RealToComplex};
 use rustfft::num_complex::Complex;
 
-use super::lights::LightService;
+use super::lights::OnsetConsumer;
 
 lazy_static! {
     static ref THRESHOLD_WINDOW: Vec<f32> = window(39, WindowType::Hann);
@@ -332,6 +332,6 @@ trait OnsetDetector {
         freq_bins: &[f32],
         peak: f32,
         rms: f32,
-        lightservices: &mut [Box<dyn LightService + Send>],
+        lightservices: &mut [Box<dyn OnsetConsumer + Send>],
     );
 }

@@ -5,7 +5,7 @@ use rodio::{Decoder, Source};
 
 use super::{
     audioprocessing::{hfc::Hfc, prepare_buffers, process_raw, ProcessingSettings},
-    lights::{serialize, LightService},
+    lights::{serialize, OnsetConsumer},
 };
 
 pub fn process_file(filename: &str, settings: ProcessingSettings) {
@@ -34,7 +34,7 @@ pub fn process_file(filename: &str, settings: ProcessingSettings) {
 
     let mut hfc = Hfc::init(sample_rate as usize, fft_size);
 
-    let mut lightservices: Vec<Box<dyn LightService + Send>> = vec![Box::new(serializer)];
+    let mut lightservices: Vec<Box<dyn OnsetConsumer + Send>> = vec![Box::new(serializer)];
 
     let mut buffer_detection = prepare_buffers(channels, &settings);
     let fft_planner = RealFftPlanner::<f32>::new().plan_fft_forward(fft_size);

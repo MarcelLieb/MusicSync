@@ -9,12 +9,12 @@ use plotters::{
     style::{AsRelative, Color, Palette, Palette99, BLACK, RED, WHITE},
 };
 
-use super::lights::Event;
+use super::lights::Onset;
 
 const TIME_WINDOW: u128 = 10000;
 
 pub fn plot(
-    onsets: &HashMap<String, Vec<(u128, Event)>>,
+    onsets: &HashMap<String, Vec<(u128, Onset)>>,
     raw_data: &[f32],
     time_resolution: u32,
     file: &str,
@@ -62,12 +62,12 @@ pub fn plot(
                     .filter(|(t, _)| *t > 20) // Start is usually a unwanted click
                     .map(|(_, event)| event)
                     .map(|event| match event {
-                        Event::Full(y)
-                        | Event::Atmosphere(y, _)
-                        | Event::Note(y, _)
-                        | Event::Drum(y)
-                        | Event::Hihat(y)
-                        | Event::Raw(y) => *y,
+                        Onset::Full(y)
+                        | Onset::Atmosphere(y, _)
+                        | Onset::Note(y, _)
+                        | Onset::Drum(y)
+                        | Onset::Hihat(y)
+                        | Onset::Raw(y) => *y,
                     })
                     .fold(f32::EPSILON, f32::max),
             )
@@ -81,12 +81,12 @@ pub fn plot(
                 onsets[key]
                     .iter()
                     .map(|(time, event)| match event {
-                        Event::Full(y)
-                        | Event::Atmosphere(y, _)
-                        | Event::Note(y, _)
-                        | Event::Drum(y)
-                        | Event::Hihat(y)
-                        | Event::Raw(y) => (*time, *y),
+                        Onset::Full(y)
+                        | Onset::Atmosphere(y, _)
+                        | Onset::Note(y, _)
+                        | Onset::Drum(y)
+                        | Onset::Hihat(y)
+                        | Onset::Raw(y) => (*time, *y),
                     })
                     .map(|(time, y)| (time, y / data_max[key]))
                     .filter(|(t, _)| *t < TIME_WINDOW)

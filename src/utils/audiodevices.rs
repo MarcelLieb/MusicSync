@@ -5,7 +5,7 @@ use crate::utils::lights::console::Console;
 use crate::utils::lights::{hue, serialize, wled};
 use crate::utils::{
     audioprocessing::{prepare_buffers, process_raw},
-    lights::LightService,
+    lights::OnsetConsumer,
 };
 use cpal::{
     self,
@@ -42,7 +42,7 @@ pub async fn create_default_output_stream() -> cpal::Stream {
     let fft_planner = RealFftPlanner::<f32>::new().plan_fft_forward(settings.fft_size);
     let mut detection_buffer = prepare_buffers(channels, &settings);
 
-    let mut lightservices: Vec<Box<dyn LightService + Send>> = Vec::new();
+    let mut lightservices: Vec<Box<dyn OnsetConsumer + Send>> = Vec::new();
     if let Ok(bridge) = hue::connect().await {
         lightservices.push(Box::new(bridge));
     }

@@ -16,11 +16,11 @@ use tokio::{net::UdpSocket, select};
 use webrtc_dtls::{cipher_suite::CipherSuiteId, config::Config, conn::DTLSConn};
 
 use super::{
-    envelope::Envelope, Closeable, LightService, Pollable, PollingHelper, Stream, Writeable,
+    envelope::Envelope, Closeable, OnsetConsumer, Pollable, PollingHelper, Stream, Writeable,
 };
 use crate::utils::lights::{
     envelope::{Color, DynamicDecay, FixedDecay},
-    Event,
+    Onset,
 };
 #[allow(dead_code)]
 pub struct BridgeConnection {
@@ -432,26 +432,26 @@ impl Bridge {
     }
 }
 
-impl LightService for BridgeConnection {
-    fn event_detected(&mut self, event: Event) {
+impl OnsetConsumer for BridgeConnection {
+    fn event_detected(&mut self, event: Onset) {
         let mut state = self.state.lock().unwrap();
         match event {
-            Event::Full(volume) => {
+            Onset::Full(volume) => {
                 if volume > state.fullband.envelope.get_value() {
                     state.fullband.trigger(volume);
                 }
             }
-            Event::Drum(volume) => {
+            Onset::Drum(volume) => {
                 if volume > state.drum.get_value() {
                     state.drum.trigger(volume);
                 }
             }
-            Event::Hihat(volume) => {
+            Onset::Hihat(volume) => {
                 if volume > state.hihat.get_value() {
                     state.hihat.trigger(volume);
                 }
             }
-            Event::Note(volume, _) => {
+            Onset::Note(volume, _) => {
                 if volume > state.note.get_value() {
                     state.note.trigger(volume);
                 }

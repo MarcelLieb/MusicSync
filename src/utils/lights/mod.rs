@@ -24,7 +24,7 @@ pub mod wled;
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 #[serde(untagged)]
-pub enum Event {
+pub enum Onset {
     Full(f32),
     Atmosphere(f32, u16),
     Note(f32, u16),
@@ -33,13 +33,13 @@ pub enum Event {
     Raw(f32),
 }
 
-pub trait LightService {
-    fn event_detected(&mut self, event: Event);
+pub trait OnsetConsumer {
+    fn event_detected(&mut self, event: Onset);
     fn update(&mut self);
 }
 
-impl LightService for [Box<dyn LightService + Send>] {
-    fn event_detected(&mut self, event: Event) {
+impl OnsetConsumer for [Box<dyn OnsetConsumer + Send>] {
+    fn event_detected(&mut self, event: Onset) {
         for service in self {
             service.event_detected(event);
         }

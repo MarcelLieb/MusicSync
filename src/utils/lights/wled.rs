@@ -11,7 +11,7 @@ use crate::utils::audioprocessing::MelFilterBank;
 
 use super::{
     envelope::{DynamicDecay, Envelope, FixedDecay},
-    Event, LightService, Pollable, PollingHelper,
+    Onset, OnsetConsumer, Pollable, PollingHelper,
 };
 
 #[allow(dead_code)]
@@ -164,17 +164,17 @@ impl LEDStripOnset {
     }
 }
 
-impl LightService for LEDStripOnset {
-    fn event_detected(&mut self, event: Event) {
+impl OnsetConsumer for LEDStripOnset {
+    fn event_detected(&mut self, event: Onset) {
         let mut state = self.state.lock().unwrap();
         match event {
-            Event::Drum(strength) => {
+            Onset::Drum(strength) => {
                 state.drum_envelope.trigger(strength);
             }
-            Event::Hihat(strength) => {
+            Onset::Hihat(strength) => {
                 state.hihat_envelope.trigger(strength);
             }
-            Event::Note(strength, _) => {
+            Onset::Note(strength, _) => {
                 state.note_envelope.trigger(strength);
             }
             _ => {}
