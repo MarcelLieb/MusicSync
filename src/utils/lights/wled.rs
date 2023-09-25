@@ -216,7 +216,7 @@ impl LEDStripSpectrum {
         let socket = UdpSocket::bind("0.0.0.0:0").await?;
         socket.connect((ip, info.udpport)).await?;
 
-        let state = SpectrumState::init(info.leds.count,  1.0, 1);
+        let state = SpectrumState::init(info.leds.count,  1.0, 0.25, 1);
 
         let state = Arc::new(Mutex::new(state));
 
@@ -275,20 +275,22 @@ pub struct SpectrumState {
     colors: VecDeque<[u8; 3]>,
     prefix: Vec<u8>,
     led_count: u16,
-    brightness: f64,
+    master_brightness: f32,
+    min_brightness: f32,
     aggregate: u8,
     aggregate_count: u8,
     envelope: DynamicDecay
 }
 
 impl SpectrumState {
-    pub fn init(led_count: u16, brightness: f64, aggregate: u8) -> Self {
+    pub fn init(led_count: u16, master_brightness: f32, min_brightness: f32, aggregate: u8) -> Self {
         let prefix = vec![0x02, 0x01];
         Self { 
             colors: VecDeque::from(vec![[0, 0, 0]; led_count as usize]), 
             prefix, 
             led_count, 
-            brightness,
+            master_brightness,
+            min_brightness,
             aggregate,
             aggregate_count: 0,
             envelope: DynamicDecay::init(8.0)
@@ -311,7 +313,7 @@ impl SpectrumState {
 
         let max = low_weight.max(mid_weight.max(highs_weight));
 
-        let brightness = (((self.envelope.get_value() / 4.0 * 3.0) + 0.25) as f64 * self.brightness) as f32; // Set a minimum quarter brightness
+        let brightness = ((self.envelope.get_value() * (1.0 - self.min_brightness)) + self.min_brightness) * self.master_brightness; // Set a minimum quarter brightness
 
         let [r, g, b] = [(low_weight / max * 255.0 * brightness) as u8, (mid_weight / max * 255.0 * brightness) as u8, (highs_weight / max * 255.0 * brightness) as u8];
 
