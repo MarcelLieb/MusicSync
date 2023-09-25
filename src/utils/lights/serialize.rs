@@ -3,7 +3,7 @@ use std::{collections::HashMap, fs::File};
 use ciborium::into_writer;
 use serde::{Deserialize, Serialize};
 
-use super::{Event, LightService};
+use super::{LightService, Onset, OnsetConsumer};
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct OnsetContainer {
@@ -12,23 +12,23 @@ pub struct OnsetContainer {
     #[serde(skip_serializing, skip_deserializing)]
     time: u128,
     time_interval: u32,
-    pub data: HashMap<String, Vec<(u128, Event)>>,
+    pub data: HashMap<String, Vec<(u128, Onset)>>,
     pub raw: Vec<f32>,
 }
 
-impl LightService for OnsetContainer {
-    fn event_detected(&mut self, event: Event) {
+impl OnsetConsumer for OnsetContainer {
+    fn onset_detected(&mut self, event: Onset) {
         match event {
-            Event::Full(_) => self.data.get_mut("Full").unwrap().push((self.time, event)),
-            Event::Atmosphere(_, _) => self
+            Onset::Full(_) => self.data.get_mut("Full").unwrap().push((self.time, event)),
+            Onset::Atmosphere(_, _) => self
                 .data
                 .get_mut("Atmosphere")
                 .unwrap()
                 .push((self.time, event)),
-            Event::Note(_, _) => self.data.get_mut("Note").unwrap().push((self.time, event)),
-            Event::Drum(_) => self.data.get_mut("Drum").unwrap().push((self.time, event)),
-            Event::Hihat(_) => self.data.get_mut("Hihat").unwrap().push((self.time, event)),
-            Event::Raw(value) => self.raw.push(value),
+            Onset::Note(_, _) => self.data.get_mut("Note").unwrap().push((self.time, event)),
+            Onset::Drum(_) => self.data.get_mut("Drum").unwrap().push((self.time, event)),
+            Onset::Hihat(_) => self.data.get_mut("Hihat").unwrap().push((self.time, event)),
+            Onset::Raw(value) => self.raw.push(value),
         }
     }
 
@@ -44,8 +44,8 @@ impl OnsetContainer {
         Ok(())
     }
 
-    pub fn init(filename: String, sample_rate: usize, hop_size: usize) -> OnsetContainer {
-        let data: HashMap<String, Vec<(u128, Event)>> = HashMap::from([
+    pub fn init(filename: String, sample_rate: usize, hop_size: usize) -> LightService {
+        let data: HashMap<String, Vec<(u128, Onset)>> = HashMap::from([
             ("Full".to_string(), Vec::new()),
             ("Atmosphere".to_string(), Vec::new()),
             ("Note".to_string(), Vec::new()),
@@ -53,13 +53,13 @@ impl OnsetContainer {
             ("Hihat".to_string(), Vec::new()),
         ]);
         let raw = Vec::new();
-        OnsetContainer {
+        LightService::Onset(Box::new(OnsetContainer {
             filename,
             time: 0,
             time_interval: ((hop_size as f64 / sample_rate as f64) * 1000.0) as u32,
             data,
             raw,
-        }
+        }))
     }
 }
 

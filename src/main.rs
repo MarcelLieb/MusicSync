@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::{fs::File, sync::mpsc::channel};
 
 use crate::utils::audiodevices::create_default_output_stream;
-use crate::utils::lights::Event;
+use crate::utils::lights::Onset;
 use crate::utils::plot::plot;
 use ciborium::from_reader;
 use cpal::traits::StreamTrait;
@@ -14,7 +14,7 @@ use serde::Deserialize;
 async fn main() {
     #[derive(Debug, Deserialize)]
     struct OnsetContainer {
-        data: HashMap<String, Vec<(u128, Event)>>,
+        data: HashMap<String, Vec<(u128, Onset)>>,
         raw: Vec<f32>,
         time_interval: u32,
     }
