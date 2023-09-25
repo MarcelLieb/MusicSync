@@ -20,7 +20,7 @@ use super::{
 };
 use crate::utils::lights::{
     envelope::{Color, DynamicDecay, FixedDecay},
-    Onset, LightService,
+    LightService, Onset,
 };
 #[allow(dead_code)]
 pub struct BridgeConnection {
@@ -276,11 +276,7 @@ pub async fn connect() -> Result<LightService, ConnectionError> {
 
     let bridge = BridgeConnection::init(bridge, area).await?;
 
-    Ok(
-        LightService::Onset(
-            Box::new(bridge)
-        )
-    )
+    Ok(LightService::Onset(Box::new(bridge)))
 }
 
 async fn check_bridge(ip: &Ipv4Addr) -> bool {

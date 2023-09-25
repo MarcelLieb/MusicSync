@@ -63,17 +63,15 @@ pub trait SpectrumOnsetConsumer: SpectrumConsumer + OnsetConsumer {}
 pub enum LightService {
     Spectral(Box<dyn SpectrumConsumer + Send>),
     Onset(Box<dyn OnsetConsumer + Send>),
-    SpectralOnset(Box<dyn SpectrumOnsetConsumer + Send>)
+    SpectralOnset(Box<dyn SpectrumOnsetConsumer + Send>),
 }
-
-
 
 impl OnsetConsumer for LightService {
     fn onset_detected(&mut self, event: Onset) {
         match self {
             LightService::Onset(consumer) => consumer.onset_detected(event),
             LightService::SpectralOnset(consumer) => consumer.onset_detected(event),
-            LightService::Spectral(_) => {},
+            LightService::Spectral(_) => {}
         }
     }
 
@@ -88,9 +86,8 @@ impl SpectrumConsumer for LightService {
     fn process_spectrum(&mut self, freq_bins: &[f32]) {
         match self {
             LightService::Spectral(consumer) => consumer.process_spectrum(freq_bins),
-            LightService::SpectralOnset(consumer) => {
-                consumer.process_spectrum(freq_bins)},
-            LightService::Onset(_) => {},
+            LightService::SpectralOnset(consumer) => consumer.process_spectrum(freq_bins),
+            LightService::Onset(_) => {}
         }
     }
 }

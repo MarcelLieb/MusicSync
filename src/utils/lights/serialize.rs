@@ -3,7 +3,7 @@ use std::{collections::HashMap, fs::File};
 use ciborium::into_writer;
 use serde::{Deserialize, Serialize};
 
-use super::{Onset, OnsetConsumer, LightService};
+use super::{LightService, Onset, OnsetConsumer};
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct OnsetContainer {
@@ -53,18 +53,13 @@ impl OnsetContainer {
             ("Hihat".to_string(), Vec::new()),
         ]);
         let raw = Vec::new();
-        LightService::Onset(
-            Box::new(
-                OnsetContainer {
-                    filename,
-                    time: 0,
-                    time_interval: ((hop_size as f64 / sample_rate as f64) * 1000.0) as u32,
-                    data,
-                    raw,
-                }
-            )
-        )
-        
+        LightService::Onset(Box::new(OnsetContainer {
+            filename,
+            time: 0,
+            time_interval: ((hop_size as f64 / sample_rate as f64) * 1000.0) as u32,
+            data,
+            raw,
+        }))
     }
 }
 

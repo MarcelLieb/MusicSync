@@ -1,10 +1,10 @@
 use crate::utils::audioprocessing::hfc::Hfc;
 use crate::utils::audioprocessing::spectral_flux::SpecFlux;
 use crate::utils::audioprocessing::ProcessingSettings;
-use crate::utils::lights::console::Console;
-use crate::utils::lights::{hue, serialize, wled, LightService};
 use crate::utils::audioprocessing::{prepare_buffers, process_raw};
+use crate::utils::lights::console::Console;
 use crate::utils::lights::SpectrumConsumer;
+use crate::utils::lights::{hue, serialize, wled, LightService};
 use cpal::{
     self,
     traits::{DeviceTrait, HostTrait},

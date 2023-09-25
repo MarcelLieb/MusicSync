@@ -1,6 +1,7 @@
 use std::{
+    collections::VecDeque,
     sync::{Arc, Mutex},
-    time::Duration, collections::VecDeque,
+    time::Duration,
 };
 
 use bytes::{BufMut, Bytes, BytesMut};
@@ -9,7 +10,8 @@ use tokio::net::UdpSocket;
 
 use super::{
     envelope::{DynamicDecay, Envelope, FixedDecay},
-    Onset, OnsetConsumer, Pollable, PollingHelper, SpectrumConsumer, LightService, SpectrumOnsetConsumer,
+    LightService, Onset, OnsetConsumer, Pollable, PollingHelper, SpectrumConsumer,
+    SpectrumOnsetConsumer,
 };
 
 #[allow(dead_code)]
@@ -216,33 +218,27 @@ impl LEDStripSpectrum {
         let socket = UdpSocket::bind("0.0.0.0:0").await?;
         socket.connect((ip, info.udpport)).await?;
 
-        let state = SpectrumState::init(info.leds.count,  1.0, 0.25, 1);
+        let state = SpectrumState::init(info.leds.count, 1.0, 0.25, 1);
 
         let state = Arc::new(Mutex::new(state));
 
         let polling_helper = PollingHelper::init(socket, state.clone(), 50);
 
-        Ok(
-            LightService::SpectralOnset(
-                Box::new(
-                    LEDStripSpectrum {
-                        strip: LEDStrip {
-                            name: info.name,
-                            led_count: info.leds.count,
-                            ip: ip.to_string(),
-                            port: info.udpport,
-                            segments: vec![Segment {
-                                start: 0,
-                                stop: info.leds.count as usize,
-                            }],
-                            rgbw: info.leds.rgbw,
-                        },
-                        polling_helper,
-                        state,
-                    }
-                )
-            )
-        )
+        Ok(LightService::SpectralOnset(Box::new(LEDStripSpectrum {
+            strip: LEDStrip {
+                name: info.name,
+                led_count: info.leds.count,
+                ip: ip.to_string(),
+                port: info.udpport,
+                segments: vec![Segment {
+                    start: 0,
+                    stop: info.leds.count as usize,
+                }],
+                rgbw: info.leds.rgbw,
+            },
+            polling_helper,
+            state,
+        })))
     }
 }
 
@@ -257,9 +253,7 @@ impl OnsetConsumer for LEDStripSpectrum {
     fn onset_detected(&mut self, event: Onset) {
         let mut state = self.state.lock().unwrap();
         match event {
-            Onset::Full(strength) => {
-                state.envelope.trigger(strength)
-            },
+            Onset::Full(strength) => state.envelope.trigger(strength),
             _ => {}
         }
     }
@@ -279,43 +273,47 @@ pub struct SpectrumState {
     min_brightness: f32,
     aggregate: u8,
     aggregate_count: u8,
-    envelope: DynamicDecay
+    envelope: DynamicDecay,
 }
 
 impl SpectrumState {
-    pub fn init(led_count: u16, master_brightness: f32, min_brightness: f32, aggregate: u8) -> Self {
+    pub fn init(
+        led_count: u16,
+        master_brightness: f32,
+        min_brightness: f32,
+        aggregate: u8,
+    ) -> Self {
         let prefix = vec![0x02, 0x01];
-        Self { 
-            colors: VecDeque::from(vec![[0, 0, 0]; led_count as usize]), 
-            prefix, 
-            led_count, 
+        Self {
+            colors: VecDeque::from(vec![[0, 0, 0]; led_count as usize]),
+            prefix,
+            led_count,
             master_brightness,
             min_brightness,
             aggregate,
             aggregate_count: 0,
-            envelope: DynamicDecay::init(8.0)
+            envelope: DynamicDecay::init(8.0),
         }
     }
 
     pub fn visualize_spectrum(&mut self, freq_bins: &[f32]) {
         self.aggregate_count += 1;
 
-        let low_weight: f32 = freq_bins.iter()
-            .take(10)
-            .sum();
-        let mid_weight: f32 = freq_bins.iter()
-            .skip(10)
-            .take(90)
-            .sum();
-        let highs_weight: f32 = freq_bins.iter()
-            .skip(100)
-            .sum();
+        let low_weight: f32 = freq_bins.iter().take(10).sum();
+        let mid_weight: f32 = freq_bins.iter().skip(10).take(90).sum();
+        let highs_weight: f32 = freq_bins.iter().skip(100).sum();
 
         let max = low_weight.max(mid_weight.max(highs_weight));
 
-        let brightness = ((self.envelope.get_value() * (1.0 - self.min_brightness)) + self.min_brightness) * self.master_brightness; // Set a minimum quarter brightness
+        let brightness = ((self.envelope.get_value() * (1.0 - self.min_brightness))
+            + self.min_brightness)
+            * self.master_brightness; // Set a minimum quarter brightness
 
-        let [r, g, b] = [(low_weight / max * 255.0 * brightness) as u8, (mid_weight / max * 255.0 * brightness) as u8, (highs_weight / max * 255.0 * brightness) as u8];
+        let [r, g, b] = [
+            (low_weight / max * 255.0 * brightness) as u8,
+            (mid_weight / max * 255.0 * brightness) as u8,
+            (highs_weight / max * 255.0 * brightness) as u8,
+        ];
 
         if self.aggregate_count == self.aggregate {
             self.colors.pop_back();
@@ -324,8 +322,8 @@ impl SpectrumState {
         } else {
             let front = self.colors.front_mut().unwrap();
             *front = [
-                (front[0] * self.aggregate_count + r) / self.aggregate, 
-                (front[1] * self.aggregate_count + g) / self.aggregate, 
+                (front[0] * self.aggregate_count + r) / self.aggregate,
+                (front[1] * self.aggregate_count + g) / self.aggregate,
                 (front[2] * self.aggregate_count + b) / self.aggregate,
             ];
         }
