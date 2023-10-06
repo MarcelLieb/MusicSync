@@ -7,7 +7,6 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use tokio::{
-    runtime::Handle,
     select,
     sync::mpsc::{self, Sender},
     task::JoinHandle,
@@ -150,7 +149,7 @@ impl Stream for tokio::net::UdpSocket {}
 #[derive(Debug)]
 pub struct PollingHelper {
     pub polling_frequency: u16,
-    tx: Sender<bool>,
+    tx: Sender<()>,
     handle: JoinHandle<()>,
 }
 
@@ -193,19 +192,7 @@ impl PollingHelper {
 
 impl Drop for PollingHelper {
     fn drop(&mut self) {
-        let tx = self.tx.clone();
-
-        if Handle::try_current().is_ok() {
-            tokio::spawn(async move {
-                tx.send(true).await.unwrap();
-            });
-        } else {
-            tokio::runtime::Runtime::new()
-                .unwrap()
-                .block_on(async move {
-                    tx.send(true).await.unwrap();
-                });
-        }
+        self.tx.blocking_send(()).unwrap();
 
         while !self.handle.is_finished() {
             sleep(std::time::Duration::from_millis(10));
