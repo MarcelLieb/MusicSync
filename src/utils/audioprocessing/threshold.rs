@@ -123,7 +123,10 @@ impl Advanced {
     }
 
     pub fn with_settings(settings: AdvancedSettings) -> Self {
-        let len = settings.max_range.max(settings.mean_range).max(settings.threshold_range);
+        let len = settings
+            .max_range
+            .max(settings.mean_range)
+            .max(settings.threshold_range);
         let mut past_samples = VecDeque::with_capacity(len);
         past_samples.extend(vec![0.0; len]);
         Advanced {
