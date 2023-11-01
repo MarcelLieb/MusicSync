@@ -326,8 +326,7 @@ impl SpecFlux {
         rms: f32,
         lightservices: &mut [LightService],
     ) {
-        self.old_spectrum.clear();
-        self.old_spectrum.extend(&self.spectrum);
+        self.old_spectrum.clone_from(&self.spectrum);
 
         let lambda = 0.1;
 
@@ -337,19 +336,19 @@ impl SpecFlux {
             .iter_mut()
             .for_each(|x| *x = (*x * lambda).ln_1p());
 
-        let diff = self
+        let flux = self
             .old_spectrum
             .iter()
             .zip(&self.spectrum)
             .map(|(&a, &b)| (((b - a) + (b - a).abs()) / 2.0));
 
-        let weight: f32 = diff.clone().sum();
+        let weight: f32 = flux.clone().sum();
 
-        let drum_weight: f32 = diff.clone().zip(KICK_MASK).map(|(d, &w)| d * w).sum();
+        let drum_weight: f32 = flux.clone().zip(KICK_MASK).map(|(d, &w)| d * w).sum();
 
-        let hihat_weight: f32 = diff.clone().zip(HIHAT_MASK).map(|(d, &w)| d * w).sum();
+        let hihat_weight: f32 = flux.clone().zip(HIHAT_MASK).map(|(d, &w)| d * w).sum();
 
-        let note_weight: f32 = diff.clone().zip(SNARE_MASK).map(|(d, &w)| d * w).sum();
+        let note_weight: f32 = flux.clone().zip(SNARE_MASK).map(|(d, &w)| d * w).sum();
 
         let onset = self.threshold.full.is_above(weight);
 

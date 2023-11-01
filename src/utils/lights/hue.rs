@@ -286,8 +286,12 @@ async fn check_bridge(ip: &Ipv4Addr) -> bool {
         swversion: String,
     }
 
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(2))
+        .build()
+        .unwrap();
     let url = format!("http://{ip}/api/config");
-    let Ok(response) = reqwest::get(url).await else {
+    let Ok(response) = client.get(url).send().await else {
         return false;
     };
 

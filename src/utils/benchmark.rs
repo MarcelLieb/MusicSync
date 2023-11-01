@@ -9,7 +9,7 @@ use super::{
 };
 
 pub fn process_file(filename: &str, settings: ProcessingSettings) {
-    let file = BufReader::new(File::open(filename.clone()).unwrap());
+    let file = BufReader::new(File::open(filename).unwrap());
 
     let source = Decoder::new(file).unwrap();
 

@@ -252,10 +252,7 @@ impl SpectrumConsumer for LEDStripSpectrum {
 impl OnsetConsumer for LEDStripSpectrum {
     fn onset_detected(&mut self, event: Onset) {
         let mut state = self.state.lock().unwrap();
-        match event {
-            Onset::Full(strength) => state.envelope.trigger(strength),
-            _ => {}
-        }
+        if let Onset::Full(strength) = event { state.envelope.trigger(strength) }
     }
 
     fn update(&mut self) {
