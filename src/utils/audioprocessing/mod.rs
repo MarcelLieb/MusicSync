@@ -6,16 +6,11 @@ use std::{f32::consts::PI, sync::Arc};
 
 use cpal::Sample;
 use dasp_sample::ToSample;
-use lazy_static::lazy_static;
 use log::info;
 use realfft::{RealFftPlanner, RealToComplex};
 use rustfft::num_complex::Complex;
 
 use super::lights::LightService;
-
-lazy_static! {
-    static ref THRESHOLD_WINDOW: Vec<f32> = window(39, WindowType::Hann);
-}
 
 #[derive(Debug, Clone, Copy)]
 pub struct ProcessingSettings {
@@ -23,6 +18,7 @@ pub struct ProcessingSettings {
     pub hop_size: usize,
     pub buffer_size: usize,
     pub fft_size: usize,
+    pub window_type: WindowType,
 }
 
 impl Default for ProcessingSettings {
@@ -32,6 +28,7 @@ impl Default for ProcessingSettings {
             hop_size: 480,
             buffer_size: 1024,
             fft_size: 2048,
+            window_type: WindowType::Hann,
         }
     }
 }
@@ -48,7 +45,7 @@ pub fn prepare_buffers(channels: u16, settings: &ProcessingSettings) -> Buffer {
         .map(|_| fft_planner.make_output_vec())
         .collect();
     let freq_bins: Vec<f32> = vec![0.0; fft_output[0].capacity()];
-    let fft_window = window(settings.buffer_size, WindowType::Hann);
+    let fft_window = window(settings.buffer_size, settings.window_type);
 
     Buffer {
         f32_samples,
@@ -56,23 +53,24 @@ pub fn prepare_buffers(channels: u16, settings: &ProcessingSettings) -> Buffer {
         fft_output,
         fft_window,
         freq_bins,
+        fft_planner,
+        peak: 0.0,
+        rms: 0.0,
     }
 }
 
 pub struct Buffer {
     f32_samples: Vec<Vec<f32>>,
-    mono_samples: Vec<f32>,
+    pub mono_samples: Vec<f32>,
     fft_output: Vec<Vec<Complex<f32>>>,
     fft_window: Vec<f32>,
     pub freq_bins: Vec<f32>,
+    fft_planner: Arc<dyn RealToComplex<f32>>,
+    pub peak: f32,
+    pub rms: f32,
 }
 
-pub fn process_raw<T>(
-    data: &[T],
-    channels: u16,
-    fft_planner: &Arc<dyn RealToComplex<f32>>,
-    buffer: &mut Buffer,
-) -> (f32, f32)
+pub fn process_raw<T>(data: &[T], channels: u16, buffer: &mut Buffer)
 where
     T: Sample + ToSample<f32>,
 {
@@ -82,6 +80,9 @@ where
         fft_output,
         freq_bins,
         fft_window,
+        fft_planner,
+        peak, 
+        rms
     } = buffer;
 
     //Check for silence and abort if present
@@ -97,20 +98,22 @@ where
 
         freq_bins.clear();
         freq_bins.extend(std::iter::repeat(0.0).take(freq_bins.capacity()));
-        return (0.0, 0.0);
+        *peak = 0.0;
+        *rms = 0.0;
+        return;
     }
 
     split_channels(channels, data, f32_samples);
 
     collapse_mono(mono_samples, data, channels);
 
-    let rms: f32 = f32_samples
+    *rms = f32_samples
         .iter()
         .map(|c| (c.iter().fold(0.0, |acc, e| acc + e * e) / c.len() as f32).sqrt())
         .sum::<f32>()
         / channels as f32;
 
-    let peak = f32_samples
+    *peak = f32_samples
         .iter()
         .map(|c| {
             c.iter()
@@ -122,7 +125,6 @@ where
     info!("RMS: {:.3}, Peak: {:.3}", rms, peak);
 
     fft(f32_samples, fft_output, fft_planner, fft_window, freq_bins);
-    (peak, rms)
 }
 
 fn fft(
@@ -249,6 +251,20 @@ pub struct MelFilterBank {
     pub max_frequency: u32,
 }
 
+pub struct MelFilterBankSettings {
+    pub bands: usize,
+    pub max_frequency: u32,
+}
+
+impl Default for MelFilterBankSettings {
+    fn default() -> Self {
+        Self {
+            bands: 82,
+            max_frequency: 20_000,
+        }
+    }
+}
+
 impl MelFilterBank {
     pub fn init(
         sample_rate: u32,
@@ -294,6 +310,19 @@ impl MelFilterBank {
             sample_rate,
             max_frequency,
         }
+    }
+
+    pub fn with_settings(
+        sample_rate: u32,
+        fft_size: u32,
+        settings: &MelFilterBankSettings,
+    ) -> MelFilterBank {
+        MelFilterBank::init(
+            sample_rate,
+            fft_size,
+            settings.bands,
+            settings.max_frequency,
+        )
     }
 
     pub fn filter(&self, freq_bins: &[f32], out: &mut [f32]) {

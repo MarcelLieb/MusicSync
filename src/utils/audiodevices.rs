@@ -11,7 +11,6 @@ use cpal::{
     BuildStreamError, StreamConfig,
 };
 use log::debug;
-use realfft::RealFftPlanner;
 
 fn capture_err_fn(err: cpal::StreamError) {
     eprintln!("an error occurred on stream: {}", err);
@@ -37,7 +36,6 @@ pub async fn create_default_output_stream() -> cpal::Stream {
         buffer_size: cpal::BufferSize::Default,
     };
 
-    let fft_planner = RealFftPlanner::<f32>::new().plan_fft_forward(settings.fft_size);
     let mut detection_buffer = prepare_buffers(channels, &settings);
 
     let mut lightservices: Vec<LightService> = Vec::new();
@@ -83,17 +81,12 @@ pub async fn create_default_output_stream() -> cpal::Stream {
                     let n = (buffer.len() + hop_size).saturating_sub(buffer_size) / hop_size;
 
                     (0..n).for_each(|_| {
-                        let (peak, rms) = process_raw(
-                            &buffer[0..buffer_size],
-                            channels,
-                            &fft_planner,
-                            &mut detection_buffer,
-                        );
+                        process_raw(&buffer[0..buffer_size], channels, &mut detection_buffer);
 
                         spec_flux.detect(
                             &detection_buffer.freq_bins,
-                            peak,
-                            rms,
+                            detection_buffer.peak,
+                            detection_buffer.rms,
                             &mut lightservices,
                         );
                         lightservices.process_spectrum(&detection_buffer.freq_bins);
