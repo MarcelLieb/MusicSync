@@ -251,6 +251,7 @@ pub struct MelFilterBank {
     pub max_frequency: u32,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct MelFilterBankSettings {
     pub bands: usize,
     pub max_frequency: u32,
