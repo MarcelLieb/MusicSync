@@ -39,14 +39,14 @@ pub struct Hfc {
 #[derive(Debug, Clone, Copy)]
 pub struct HfcSettings {
     pub detection_weights: DetectionWeights,
-    pub threshold_settings: ThresholdBankSettings
+    pub threshold_settings: ThresholdBankSettings,
 }
 
 impl Default for HfcSettings {
     fn default() -> Self {
         Self {
-            detection_weights: Default::default(), 
-            threshold_settings: Default::default()
+            detection_weights: Default::default(),
+            threshold_settings: Default::default(),
         }
     }
 }
