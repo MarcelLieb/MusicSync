@@ -33,7 +33,7 @@ pub struct Dynamic {
 #[allow(dead_code)]
 impl Dynamic {
     pub fn init() -> Self {
-        Dynamic::with_settings(DynamicSettings::default())
+        Self::default()
     }
 
     pub fn with_settings(settings: DynamicSettings) -> Self {
@@ -86,6 +86,27 @@ impl Default for Dynamic {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct AdvancedSettings {
+    pub mean_range: usize,
+    pub max_range: usize,
+    pub dynamic_threshold: f32,
+    pub threshold_range: usize,
+    pub fixed_threshold: f32,
+}
+
+impl Default for AdvancedSettings {
+    fn default() -> Self {
+        AdvancedSettings {
+            mean_range: 6,
+            max_range: 3,
+            dynamic_threshold: 0.8,
+            threshold_range: 8,
+            fixed_threshold: 5.0,
+        }
+    }
+}
+
 pub struct Advanced {
     past_samples: VecDeque<f32>,
     last_onset: u32,
@@ -102,24 +123,17 @@ impl Advanced {
     }
 
     pub fn with_settings(settings: AdvancedSettings) -> Self {
-        let AdvancedSettings {
-            mean_range,
-            max_range,
-            adaptive_threshold,
-            threshold_range,
-            fixed_threshold,
-        } = settings;
-        let mut past_samples = VecDeque::with_capacity(12);
-
-        past_samples.extend(vec![0.0; 8]);
+        let len = settings.max_range.max(settings.mean_range).max(settings.threshold_range);
+        let mut past_samples = VecDeque::with_capacity(len);
+        past_samples.extend(vec![0.0; len]);
         Advanced {
             past_samples,
             last_onset: 0,
-            mean_range,
-            max_range,
-            dynamic_threshold: adaptive_threshold,
-            threshold_range,
-            fixed_threshold,
+            mean_range: settings.mean_range,
+            max_range: settings.max_range,
+            dynamic_threshold: settings.dynamic_threshold,
+            threshold_range: settings.threshold_range,
+            fixed_threshold: settings.fixed_threshold,
         }
     }
 
@@ -140,10 +154,10 @@ impl Advanced {
             / self.threshold_range as f32;
 
         if self.past_samples.len() >= self.past_samples.capacity() {
-            self.past_samples.pop_back();
-            self.past_samples.push_front(value);
+            self.past_samples.pop_front();
+            self.past_samples.push_back(value);
         } else {
-            self.past_samples.push_front(value);
+            self.past_samples.push_back(value);
         }
         if value >= max && value >= mean + norm * self.dynamic_threshold + self.fixed_threshold {
             self.last_onset = 0;
@@ -152,39 +166,8 @@ impl Advanced {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct AdvancedSettings {
-    pub mean_range: usize,
-    pub max_range: usize,
-    pub adaptive_threshold: f32,
-    pub threshold_range: usize,
-    pub fixed_threshold: f32,
-}
-
-impl Default for AdvancedSettings {
-    fn default() -> Self {
-        AdvancedSettings {
-            mean_range: 6,
-            max_range: 3,
-            adaptive_threshold: 0.8,
-            threshold_range: 8,
-            fixed_threshold: 5.0,
-        }
-    }
-}
-
 impl Default for Advanced {
     fn default() -> Self {
-        let mut past_samples = VecDeque::with_capacity(12);
-        past_samples.extend(vec![0.0; 8]);
-        Advanced {
-            past_samples,
-            last_onset: 0,
-            mean_range: 6,
-            max_range: 3,
-            dynamic_threshold: 0.8,
-            threshold_range: 8,
-            fixed_threshold: 5.0,
-        }
+        Advanced::with_settings(AdvancedSettings::default())
     }
 }

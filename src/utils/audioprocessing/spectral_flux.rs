@@ -286,19 +286,19 @@ impl Default for ThresholdBankSettings {
         Self {
             drum: AdvancedSettings {
                 fixed_threshold: 2.0,
-                adaptive_threshold: 0.4,
+                dynamic_threshold: 0.4,
                 mean_range: 5,
                 ..Default::default()
             },
             hihat: AdvancedSettings {
                 fixed_threshold: 5.0,
-                adaptive_threshold: 0.55,
+                dynamic_threshold: 0.55,
                 mean_range: 3,
                 ..Default::default()
             },
             note: AdvancedSettings {
                 fixed_threshold: 2.0,
-                adaptive_threshold: 0.4,
+                dynamic_threshold: 0.4,
                 ..Default::default()
             },
             full: AdvancedSettings::default(),
