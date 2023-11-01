@@ -48,7 +48,7 @@ impl Dynamic {
             buffer_size,
             min_intensity,
             delta_intensity,
-            window: window(buffer_size, window_type)
+            window: window(buffer_size, window_type),
         }
     }
 
