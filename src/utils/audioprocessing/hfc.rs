@@ -39,7 +39,7 @@ pub struct Hfc {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct HfcSettings {
     pub detection_weights: DetectionWeights,
-    pub threshold_settings: ThresholdBankSettings
+    pub threshold_settings: ThresholdBankSettings,
 }
 
 impl Hfc {

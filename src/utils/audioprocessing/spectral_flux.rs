@@ -2,7 +2,7 @@ use crate::utils::lights::{LightService, Onset, OnsetConsumer};
 
 use super::{
     threshold::{Advanced, AdvancedSettings},
-    MelFilterBank, OnsetDetector, MelFilterBankSettings,
+    MelFilterBank, MelFilterBankSettings, OnsetDetector,
 };
 
 static SNARE_MASK: &[f32] = &[
@@ -270,7 +270,7 @@ pub struct SpecFlux {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SpecFluxSettings {
     pub filter_bank_settings: MelFilterBankSettings,
-    pub threshold_bank_settings: ThresholdBankSettings
+    pub threshold_bank_settings: ThresholdBankSettings,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -283,7 +283,7 @@ pub struct ThresholdBankSettings {
 
 impl Default for ThresholdBankSettings {
     fn default() -> Self {
-        Self { 
+        Self {
             drum: AdvancedSettings {
                 fixed_threshold: 2.0,
                 adaptive_threshold: 0.4,
@@ -295,13 +295,13 @@ impl Default for ThresholdBankSettings {
                 adaptive_threshold: 0.55,
                 mean_range: 3,
                 ..Default::default()
-            }, 
+            },
             note: AdvancedSettings {
                 fixed_threshold: 2.0,
                 adaptive_threshold: 0.4,
                 ..Default::default()
-            }, 
-            full: AdvancedSettings::default() 
+            },
+            full: AdvancedSettings::default(),
         }
     }
 }
@@ -333,7 +333,8 @@ impl Default for ThresholdBank {
 impl SpecFlux {
     pub fn init(sample_rate: u32, fft_size: u32) -> Self {
         let bands = MelFilterBankSettings::default().bands;
-        let bank = MelFilterBank::with_settings(sample_rate, fft_size, MelFilterBankSettings::default());
+        let bank =
+            MelFilterBank::with_settings(sample_rate, fft_size, MelFilterBankSettings::default());
         let threshold = ThresholdBank::default();
         let spectrum = vec![0.0; bands];
         let old_spectrum = vec![0.0; bands];
@@ -346,15 +347,16 @@ impl SpecFlux {
     }
 
     pub fn with_settings(sample_rate: u32, fft_size: u32, settings: SpecFluxSettings) -> Self {
-        let bank = MelFilterBank::with_settings(sample_rate, fft_size, settings.filter_bank_settings);
+        let bank =
+            MelFilterBank::with_settings(sample_rate, fft_size, settings.filter_bank_settings);
         let threshold = ThresholdBank::with_settings(settings.threshold_bank_settings);
         let spectrum = vec![0.0; settings.filter_bank_settings.bands];
         let old_spectrum = vec![0.0; settings.filter_bank_settings.bands];
         Self {
-            filter_bank: bank, 
-            old_spectrum, 
-            spectrum, 
-            threshold
+            filter_bank: bank,
+            old_spectrum,
+            spectrum,
+            threshold,
         }
     }
 
