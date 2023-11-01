@@ -81,8 +81,8 @@ where
         freq_bins,
         fft_window,
         fft_planner,
-        peak, 
-        rms
+        peak,
+        rms,
     } = buffer;
 
     //Check for silence and abort if present

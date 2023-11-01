@@ -46,6 +46,11 @@ pub fn process_file(filename: &str, settings: ProcessingSettings) {
             channels,
             &mut buffer_detection,
         );
-        hfc.detect(&buffer_detection.freq_bins, buffer_detection.peak, buffer_detection.rms, &mut lightservices);
+        hfc.detect(
+            &buffer_detection.freq_bins,
+            buffer_detection.peak,
+            buffer_detection.rms,
+            &mut lightservices,
+        );
     });
 }
