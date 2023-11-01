@@ -1,6 +1,5 @@
 use std::{fs::File, io::BufReader};
 
-use realfft::RealFftPlanner;
 use rodio::{Decoder, Source};
 
 use super::{
@@ -37,18 +36,21 @@ pub fn process_file(filename: &str, settings: ProcessingSettings) {
     let mut lightservices: Vec<LightService> = vec![LightService::Onset(Box::new(serializer))];
 
     let mut buffer_detection = prepare_buffers(channels, &settings);
-    let fft_planner = RealFftPlanner::<f32>::new().plan_fft_forward(fft_size);
     let samples: Vec<f32> = source.convert_samples().collect();
 
     let n = samples.len() / hop_size;
 
     (0..n).for_each(|i| {
-        let (peak, rms) = process_raw(
+        process_raw(
             &samples[i * hop_size..buffer_size + i * hop_size],
             channels,
-            &fft_planner,
             &mut buffer_detection,
         );
-        hfc.detect(&buffer_detection.freq_bins, peak, rms, &mut lightservices);
+        hfc.detect(
+            &buffer_detection.freq_bins,
+            buffer_detection.peak,
+            buffer_detection.rms,
+            &mut lightservices,
+        );
     });
 }

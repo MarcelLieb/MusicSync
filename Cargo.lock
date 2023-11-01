@@ -1477,7 +1477,6 @@ dependencies = [
  "ctrlc",
  "dasp_sample",
  "gethostname",
- "lazy_static",
  "log",
  "plotters",
  "realfft",
