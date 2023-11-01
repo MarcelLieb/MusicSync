@@ -36,6 +36,21 @@ pub struct Hfc {
     bin_resolution: f32,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct HfcSettings {
+    pub detection_weights: DetectionWeights,
+    pub threshold_settings: ThresholdBankSettings
+}
+
+impl Default for HfcSettings {
+    fn default() -> Self {
+        Self {
+            detection_weights: Default::default(), 
+            threshold_settings: Default::default()
+        }
+    }
+}
+
 impl Hfc {
     pub fn init(sample_rate: usize, fft_size: usize) -> Self {
         let threshold = ThresholdBank::default();
@@ -44,6 +59,16 @@ impl Hfc {
         Self {
             threshold,
             detection_weights,
+            bin_resolution,
+        }
+    }
+
+    pub fn with_settings(sample_rate: usize, fft_size: usize, settings: HfcSettings) -> Self {
+        let threshold = ThresholdBank::with_settings(settings.threshold_settings);
+        let bin_resolution = sample_rate as f32 / fft_size as f32;
+        Self {
+            threshold,
+            detection_weights: settings.detection_weights,
             bin_resolution,
         }
     }
@@ -169,27 +194,12 @@ pub struct ThresholdBank {
 
 impl Default for ThresholdBank {
     fn default() -> Self {
+        let settings = ThresholdBankSettings::default();
         Self {
-            drums: Dynamic::with_settings(DynamicSettings {
-                buffer_size: 30,
-                min_intensity: 0.3,
-                delta_intensity: 0.18,
-            }),
-            hihat: Dynamic::with_settings(DynamicSettings {
-                buffer_size: 20,
-                min_intensity: 0.3,
-                delta_intensity: 0.18,
-            }),
-            notes: Dynamic::with_settings(DynamicSettings {
-                buffer_size: 20,
-                min_intensity: 0.2,
-                delta_intensity: 0.15,
-            }),
-            fullband: Dynamic::with_settings(DynamicSettings {
-                buffer_size: 20,
-                min_intensity: 0.2,
-                delta_intensity: 0.15,
-            }),
+            drums: Dynamic::with_settings(settings.drums),
+            hihat: Dynamic::with_settings(settings.hihat),
+            notes: Dynamic::with_settings(settings.notes),
+            fullband: Dynamic::with_settings(settings.fullband),
         }
     }
 }
