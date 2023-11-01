@@ -2,7 +2,7 @@ use crate::utils::lights::{LightService, Onset, OnsetConsumer};
 
 use super::{
     threshold::{Advanced, AdvancedSettings},
-    MelFilterBank, OnsetDetector,
+    MelFilterBank, OnsetDetector, MelFilterBankSettings,
 };
 
 static SNARE_MASK: &[f32] = &[
@@ -267,6 +267,45 @@ pub struct SpecFlux {
     threshold: ThresholdBank,
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SpecFluxSettings {
+    pub filter_bank_settings: MelFilterBankSettings,
+    pub threshold_bank_settings: ThresholdBankSettings
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ThresholdBankSettings {
+    pub drum: AdvancedSettings,
+    pub hihat: AdvancedSettings,
+    pub note: AdvancedSettings,
+    pub full: AdvancedSettings,
+}
+
+impl Default for ThresholdBankSettings {
+    fn default() -> Self {
+        Self { 
+            drum: AdvancedSettings {
+                fixed_threshold: 2.0,
+                adaptive_threshold: 0.4,
+                mean_range: 5,
+                ..Default::default()
+            },
+            hihat: AdvancedSettings {
+                fixed_threshold: 5.0,
+                adaptive_threshold: 0.55,
+                mean_range: 3,
+                ..Default::default()
+            }, 
+            note: AdvancedSettings {
+                fixed_threshold: 2.0,
+                adaptive_threshold: 0.4,
+                ..Default::default()
+            }, 
+            full: AdvancedSettings::default() 
+        }
+    }
+}
+
 struct ThresholdBank {
     drum: Advanced,
     hihat: Advanced,
@@ -274,48 +313,48 @@ struct ThresholdBank {
     full: Advanced,
 }
 
-impl Default for ThresholdBank {
-    fn default() -> Self {
-        let drum = Advanced::with_settings(AdvancedSettings {
-            fixed_threshold: 2.0,
-            adaptive_threshold: 0.4,
-            mean_range: 5,
-            ..Default::default()
-        });
-
-        let hihat = Advanced::with_settings(AdvancedSettings {
-            fixed_threshold: 5.0,
-            adaptive_threshold: 0.55,
-            mean_range: 3,
-            ..Default::default()
-        });
-
-        let note = Advanced::with_settings(AdvancedSettings {
-            fixed_threshold: 2.0,
-            adaptive_threshold: 0.4,
-            ..Default::default()
-        });
-
+impl ThresholdBank {
+    pub fn with_settings(settings: ThresholdBankSettings) -> Self {
         Self {
-            drum,
-            hihat,
-            note,
-            full: Advanced::default(),
+            drum: Advanced::with_settings(settings.drum),
+            hihat: Advanced::with_settings(settings.hihat),
+            note: Advanced::with_settings(settings.note),
+            full: Advanced::with_settings(settings.full),
         }
     }
 }
 
+impl Default for ThresholdBank {
+    fn default() -> Self {
+        ThresholdBank::with_settings(ThresholdBankSettings::default())
+    }
+}
+
 impl SpecFlux {
-    pub fn init(sample_rate: u32, fft_size: u32) -> SpecFlux {
-        let bank = MelFilterBank::init(sample_rate, fft_size, 82, 20_000);
+    pub fn init(sample_rate: u32, fft_size: u32) -> Self {
+        let bands = MelFilterBankSettings::default().bands;
+        let bank = MelFilterBank::with_settings(sample_rate, fft_size, MelFilterBankSettings::default());
         let threshold = ThresholdBank::default();
-        let spectrum = vec![0.0; 82];
-        let old_spectrum = vec![0.0; 82];
-        SpecFlux {
+        let spectrum = vec![0.0; bands];
+        let old_spectrum = vec![0.0; bands];
+        Self {
             filter_bank: bank,
             spectrum,
             old_spectrum,
             threshold,
+        }
+    }
+
+    pub fn with_settings(sample_rate: u32, fft_size: u32, settings: SpecFluxSettings) -> Self {
+        let bank = MelFilterBank::with_settings(sample_rate, fft_size, settings.filter_bank_settings);
+        let threshold = ThresholdBank::with_settings(settings.threshold_bank_settings);
+        let spectrum = vec![0.0; settings.filter_bank_settings.bands];
+        let old_spectrum = vec![0.0; settings.filter_bank_settings.bands];
+        Self {
+            filter_bank: bank, 
+            old_spectrum, 
+            spectrum, 
+            threshold
         }
     }
 

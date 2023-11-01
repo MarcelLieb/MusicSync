@@ -36,19 +36,10 @@ pub struct Hfc {
     bin_resolution: f32,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct HfcSettings {
     pub detection_weights: DetectionWeights,
-    pub threshold_settings: ThresholdBankSettings,
-}
-
-impl Default for HfcSettings {
-    fn default() -> Self {
-        Self {
-            detection_weights: Default::default(),
-            threshold_settings: Default::default(),
-        }
-    }
+    pub threshold_settings: ThresholdBankSettings
 }
 
 impl Hfc {

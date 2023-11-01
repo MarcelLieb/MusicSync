@@ -316,7 +316,7 @@ impl MelFilterBank {
     pub fn with_settings(
         sample_rate: u32,
         fft_size: u32,
-        settings: &MelFilterBankSettings,
+        settings: MelFilterBankSettings,
     ) -> MelFilterBank {
         MelFilterBank::init(
             sample_rate,
