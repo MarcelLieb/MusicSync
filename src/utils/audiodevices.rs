@@ -93,8 +93,8 @@ pub async fn create_default_output_stream() -> cpal::Stream {
                         /*
                         _hfc.detect(
                             &detection_buffer.freq_bins,
-                            peak,
-                            rms,
+                            detection_buffer.peak,
+                            detection_buffer.rms,
                             &mut lightservices,
                         );
                          */

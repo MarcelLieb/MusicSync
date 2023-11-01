@@ -221,21 +221,25 @@ impl Default for ThresholdBankSettings {
                 buffer_size: 30,
                 min_intensity: 0.3,
                 delta_intensity: 0.18,
+                ..Default::default()
             },
             hihat: DynamicSettings {
                 buffer_size: 20,
                 min_intensity: 0.3,
                 delta_intensity: 0.18,
+                ..Default::default()
             },
             notes: DynamicSettings {
                 buffer_size: 20,
                 min_intensity: 0.2,
                 delta_intensity: 0.15,
+                ..Default::default()
             },
             fullband: DynamicSettings {
                 buffer_size: 20,
                 min_intensity: 0.2,
                 delta_intensity: 0.15,
+                ..Default::default()
             },
         }
     }
