@@ -1,4 +1,4 @@
-use crate::utils::lights::Onset;
+use super::Onset;
 
 use super::{
     threshold::{Advanced, AdvancedSettings},

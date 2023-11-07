@@ -9,7 +9,7 @@ use plotters::{
     style::{AsRelative, Color, Palette, Palette99, BLACK, RED, WHITE},
 };
 
-use super::lights::Onset;
+use super::audioprocessing::Onset;
 
 const TIME_WINDOW: u128 = 10000;
 

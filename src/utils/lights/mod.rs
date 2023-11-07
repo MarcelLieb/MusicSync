@@ -5,13 +5,14 @@ use std::{
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use serde::{Deserialize, Serialize};
 use tokio::{
     select,
     sync::mpsc::{self, Sender},
     task::JoinHandle,
     time,
 };
+
+use super::audioprocessing::Onset;
 
 #[allow(dead_code)]
 pub mod color;
@@ -21,17 +22,6 @@ pub mod hue;
 pub mod serialize;
 #[allow(dead_code)]
 pub mod wled;
-
-#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
-#[serde(untagged)]
-pub enum Onset {
-    Full(f32),
-    Atmosphere(f32, u16),
-    Note(f32, u16),
-    Drum(f32),
-    Hihat(f32),
-    Raw(f32),
-}
 
 #[allow(unused_variables)]
 pub trait LightService {
