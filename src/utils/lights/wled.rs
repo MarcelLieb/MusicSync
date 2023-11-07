@@ -164,7 +164,7 @@ impl LEDStripOnset {
 }
 
 impl LightService for LEDStripOnset {
-    fn onset_detected(&mut self, event: Onset) {
+    fn process_onset(&mut self, event: Onset) {
         let mut state = self.state.lock().unwrap();
         match event {
             Onset::Drum(strength) => {
@@ -243,7 +243,7 @@ impl LightService for LEDStripSpectrum {
         state.visualize_spectrum(freq_bins);
     }
 
-    fn onset_detected(&mut self, event: Onset) {
+    fn process_onset(&mut self, event: Onset) {
         let mut state = self.state.lock().unwrap();
         if let Onset::Full(strength) = event {
             state.envelope.trigger(strength)

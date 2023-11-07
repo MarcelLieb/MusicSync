@@ -35,15 +35,20 @@ pub enum Onset {
 
 #[allow(unused_variables)]
 pub trait LightService {
-    fn onset_detected(&mut self, event: Onset) {}
+    fn process_onset(&mut self, event: Onset) {}
+    fn process_onsets(&mut self, onsets: &[Onset]) {
+        for onset in onsets {
+            self.process_onset(*onset)
+        }
+    }
     fn process_spectrum(&mut self, freq_bins: &[f32]) {}
     fn update(&mut self) {}
 }
 
 impl LightService for [Box<dyn LightService + Send>] {
-    fn onset_detected(&mut self, onset: Onset) {
+    fn process_onset(&mut self, onset: Onset) {
         for service in self {
-            service.onset_detected(onset);
+            service.process_onset(onset);
         }
     }
 

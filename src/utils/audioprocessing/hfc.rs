@@ -1,6 +1,6 @@
 use log::info;
 
-use crate::utils::lights::{LightService, Onset};
+use crate::utils::lights::Onset;
 
 use super::{
     threshold::{Dynamic, DynamicSettings},
@@ -69,16 +69,11 @@ impl Hfc {
         freq_bins: &[f32],
         peak: f32,
         rms: f32,
-        lightservices: &mut [Box<dyn LightService + Send>],
-    ) {
+    ) -> Vec<Onset> {
         let sound = freq_bins.iter().any(|&i| i != 0.0);
 
         if !sound {
-            lightservices
-                .iter_mut()
-                .for_each(|service| service.update());
-
-            return;
+            return vec![];
         }
 
         let DetectionWeights {
@@ -138,29 +133,30 @@ impl Hfc {
 
         info!("Loudest frequency: {}Hz", index_of_max);
 
+        let mut onsets:Vec<Onset> = Vec::new();
+
         if weight >= self.threshold.fullband.get_threshold(weight) {
-            lightservices.onset_detected(Onset::Full(rms));
+            onsets.push(Onset::Full(rms));
         } else {
-            lightservices.onset_detected(Onset::Atmosphere(rms, index_of_max as u16));
+            onsets.push(Onset::Atmosphere(rms, index_of_max as u16));
         }
 
-        lightservices.onset_detected(Onset::Raw(weight));
+        onsets.push(Onset::Raw(weight));
 
         let drums_weight = low_end_weight * drum_click_weight * high_end_weight;
         if drums_weight >= self.threshold.drums.get_threshold(drums_weight) {
-            lightservices.onset_detected(Onset::Drum(rms));
+            onsets.push(Onset::Drum(rms));
         }
 
         let notes_weight = mids_weight + note_click_weight * high_end_weight;
         if notes_weight >= self.threshold.notes.get_threshold(notes_weight) {
-            lightservices.onset_detected(Onset::Note(rms, index_of_max_mid as u16));
+            onsets.push(Onset::Note(rms, index_of_max_mid as u16));
         }
 
         if *high_end_weight >= self.threshold.hihat.get_threshold(*high_end_weight) {
-            lightservices.onset_detected(Onset::Hihat(peak));
+            onsets.push(Onset::Hihat(peak));
         }
-
-        lightservices.update();
+        onsets
     }
 }
 
@@ -170,9 +166,8 @@ impl OnsetDetector for Hfc {
         freq_bins: &[f32],
         peak: f32,
         rms: f32,
-        lightservices: &mut [Box<dyn LightService + Send>],
-    ) {
-        self.detect(freq_bins, peak, rms, lightservices);
+    ) -> Vec<Onset> {
+        self.detect(freq_bins, peak, rms)
     }
 }
 
