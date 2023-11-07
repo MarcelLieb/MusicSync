@@ -463,10 +463,6 @@ impl LightService for BridgeConnection {
             _ => {}
         }
     }
-
-    fn update(&mut self) {
-        // no update needed
-    }
 }
 
 async fn start_entertainment_mode(

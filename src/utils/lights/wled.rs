@@ -179,10 +179,6 @@ impl LightService for LEDStripOnset {
             _ => {}
         };
     }
-
-    fn update(&mut self) {
-        // self updating
-    }
 }
 
 pub struct LEDStripSpectrum {
