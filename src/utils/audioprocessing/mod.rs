@@ -9,8 +9,19 @@ use dasp_sample::ToSample;
 use log::info;
 use realfft::{RealFftPlanner, RealToComplex};
 use rustfft::num_complex::Complex;
+use serde::{Serialize, Deserialize};
 
-use super::lights::Onset;
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
+#[serde(untagged)]
+pub enum Onset {
+    Full(f32),
+    Atmosphere(f32, u16),
+    Note(f32, u16),
+    Drum(f32),
+    Hihat(f32),
+    Raw(f32),
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct ProcessingSettings {

@@ -1,6 +1,6 @@
 use log::info;
 
-use crate::utils::lights::Onset;
+use super::Onset;
 
 use super::{
     threshold::{Dynamic, DynamicSettings},

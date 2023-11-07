@@ -1,4 +1,6 @@
-use super::{Onset, LightService};
+use crate::utils::audioprocessing::Onset;
+
+use super::LightService;
 use colored::{ColoredString, Colorize};
 
 #[derive(Debug, Default)]

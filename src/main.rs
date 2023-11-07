@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::{fs::File, sync::mpsc::channel};
 
 use crate::utils::audiodevices::create_default_output_stream;
-use crate::utils::lights::Onset;
+use crate::utils::audioprocessing::Onset;
 use crate::utils::plot::plot;
 use ciborium::from_reader;
 use cpal::traits::StreamTrait;
