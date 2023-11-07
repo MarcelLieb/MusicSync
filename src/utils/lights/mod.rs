@@ -5,13 +5,14 @@ use std::{
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use serde::{Deserialize, Serialize};
 use tokio::{
     select,
     sync::mpsc::{self, Sender},
     task::JoinHandle,
     time,
 };
+
+use super::audioprocessing::Onset;
 
 #[allow(dead_code)]
 pub mod color;
@@ -22,93 +23,41 @@ pub mod serialize;
 #[allow(dead_code)]
 pub mod wled;
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
-#[serde(untagged)]
-pub enum Onset {
-    Full(f32),
-    Atmosphere(f32, u16),
-    Note(f32, u16),
-    Drum(f32),
-    Hihat(f32),
-    Raw(f32),
+#[allow(unused_variables)]
+pub trait LightService {
+    fn process_onset(&mut self, event: Onset) {}
+    fn process_onsets(&mut self, onsets: &[Onset]) {
+        for onset in onsets {
+            self.process_onset(*onset)
+        }
+    }
+    fn process_spectrum(&mut self, freq_bins: &[f32]) {}
+    fn process_samples(&mut self, samples: &[f32]) {}
+    fn update(&mut self) {}
 }
 
-pub trait OnsetConsumer {
-    fn onset_detected(&mut self, event: Onset);
-    fn update(&mut self);
-}
-
-impl OnsetConsumer for [Box<dyn OnsetConsumer + Send>] {
-    fn onset_detected(&mut self, onset: Onset) {
+impl LightService for [Box<dyn LightService + Send>] {
+    fn process_onset(&mut self, onset: Onset) {
         for service in self {
-            service.onset_detected(onset);
+            service.process_onset(onset);
+        }
+    }
+
+    fn process_spectrum(&mut self, freq_bins: &[f32]) {
+        for service in self {
+            service.process_spectrum(freq_bins);
+        }
+    }
+
+    fn process_samples(&mut self, samples: &[f32]) {
+        for service in self {
+            service.process_samples(samples);
         }
     }
 
     fn update(&mut self) {
         for service in self {
             service.update();
-        }
-    }
-}
-
-pub trait SpectrumConsumer {
-    fn process_spectrum(&mut self, freq_bins: &[f32]);
-}
-
-pub trait SpectrumOnsetConsumer: SpectrumConsumer + OnsetConsumer {}
-
-#[allow(dead_code)]
-pub enum LightService {
-    Spectral(Box<dyn SpectrumConsumer + Send>),
-    Onset(Box<dyn OnsetConsumer + Send>),
-    SpectralOnset(Box<dyn SpectrumOnsetConsumer + Send>),
-}
-
-impl OnsetConsumer for LightService {
-    fn onset_detected(&mut self, event: Onset) {
-        match self {
-            LightService::Onset(consumer) => consumer.onset_detected(event),
-            LightService::SpectralOnset(consumer) => consumer.onset_detected(event),
-            LightService::Spectral(_) => {}
-        }
-    }
-
-    fn update(&mut self) {
-        if let LightService::Onset(consumer) = self {
-            consumer.update();
-        }
-    }
-}
-
-impl SpectrumConsumer for LightService {
-    fn process_spectrum(&mut self, freq_bins: &[f32]) {
-        match self {
-            LightService::Spectral(consumer) => consumer.process_spectrum(freq_bins),
-            LightService::SpectralOnset(consumer) => consumer.process_spectrum(freq_bins),
-            LightService::Onset(_) => {}
-        }
-    }
-}
-
-impl OnsetConsumer for [LightService] {
-    fn onset_detected(&mut self, event: Onset) {
-        for service in self {
-            service.onset_detected(event);
-        }
-    }
-
-    fn update(&mut self) {
-        for service in self {
-            service.update()
-        }
-    }
-}
-
-impl SpectrumConsumer for [LightService] {
-    fn process_spectrum(&mut self, freq_bins: &[f32]) {
-        for service in self {
-            service.process_spectrum(freq_bins)
         }
     }
 }

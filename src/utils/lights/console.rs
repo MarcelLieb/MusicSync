@@ -1,4 +1,6 @@
-use super::{Onset, OnsetConsumer};
+use crate::utils::audioprocessing::Onset;
+
+use super::LightService;
 use colored::{ColoredString, Colorize};
 
 #[derive(Debug, Default)]
@@ -6,8 +8,8 @@ pub struct Console {
     output: [ColoredString; 5],
 }
 
-impl OnsetConsumer for Console {
-    fn onset_detected(&mut self, event: Onset) {
+impl LightService for Console {
+    fn process_onset(&mut self, event: Onset) {
         match event {
             Onset::Drum(s) => self.output[0] = "■".repeat((s * 9.0).ceil() as usize).bright_red(),
             Onset::Hihat(s) => self.output[1] = "■".repeat((s * 9.0).ceil() as usize).white(),

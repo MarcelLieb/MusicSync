@@ -15,12 +15,13 @@ use std::{
 use tokio::{net::UdpSocket, select};
 use webrtc_dtls::{cipher_suite::CipherSuiteId, config::Config, conn::DTLSConn};
 
-use super::{
-    envelope::Envelope, Closeable, OnsetConsumer, Pollable, PollingHelper, Stream, Writeable,
-};
-use crate::utils::lights::{
-    envelope::{Color, DynamicDecay, FixedDecay},
-    LightService, Onset,
+use super::{envelope::Envelope, Closeable, Pollable, PollingHelper, Stream, Writeable};
+use crate::utils::{
+    audioprocessing::Onset,
+    lights::{
+        envelope::{Color, DynamicDecay, FixedDecay},
+        LightService,
+    },
 };
 #[allow(dead_code)]
 pub struct BridgeConnection {
@@ -198,7 +199,7 @@ enum ApiResponse {
     Error { description: String },
 }
 
-pub async fn connect() -> Result<LightService, ConnectionError> {
+pub async fn connect() -> Result<BridgeConnection, ConnectionError> {
     #[derive(Deserialize, Debug)]
     struct _Metadata {
         #[serde(rename = "name")]
@@ -276,7 +277,7 @@ pub async fn connect() -> Result<LightService, ConnectionError> {
 
     let bridge = BridgeConnection::init(bridge, area).await?;
 
-    Ok(LightService::Onset(Box::new(bridge)))
+    Ok(bridge)
 }
 
 async fn check_bridge(ip: &Ipv4Addr) -> bool {
@@ -436,8 +437,8 @@ impl Bridge {
     }
 }
 
-impl OnsetConsumer for BridgeConnection {
-    fn onset_detected(&mut self, event: Onset) {
+impl LightService for BridgeConnection {
+    fn process_onset(&mut self, event: Onset) {
         let mut state = self.state.lock().unwrap();
         match event {
             Onset::Full(volume) => {
@@ -462,10 +463,6 @@ impl OnsetConsumer for BridgeConnection {
             }
             _ => {}
         }
-    }
-
-    fn update(&mut self) {
-        // no update needed
     }
 }
 

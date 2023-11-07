@@ -9,8 +9,18 @@ use dasp_sample::ToSample;
 use log::info;
 use realfft::{RealFftPlanner, RealToComplex};
 use rustfft::num_complex::Complex;
+use serde::{Deserialize, Serialize};
 
-use super::lights::LightService;
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
+#[serde(untagged)]
+pub enum Onset {
+    Full(f32),
+    Atmosphere(f32, u16),
+    Note(f32, u16),
+    Drum(f32),
+    Hihat(f32),
+    Raw(f32),
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct ProcessingSettings {
@@ -357,11 +367,5 @@ impl MelFilterBank {
 }
 
 trait OnsetDetector {
-    fn detect(
-        &mut self,
-        freq_bins: &[f32],
-        peak: f32,
-        rms: f32,
-        lightservices: &mut [LightService],
-    );
+    fn detect(&mut self, freq_bins: &[f32], peak: f32, rms: f32) -> Vec<Onset>;
 }
