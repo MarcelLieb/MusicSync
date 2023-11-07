@@ -3,7 +3,6 @@ use crate::utils::audioprocessing::spectral_flux::SpecFlux;
 use crate::utils::audioprocessing::ProcessingSettings;
 use crate::utils::audioprocessing::{prepare_buffers, process_raw};
 use crate::utils::lights::console::Console;
-use crate::utils::lights::SpectrumConsumer;
 use crate::utils::lights::{hue, serialize, wled, LightService};
 use cpal::{
     self,
@@ -38,9 +37,9 @@ pub async fn create_default_output_stream() -> cpal::Stream {
 
     let mut detection_buffer = prepare_buffers(channels, &settings);
 
-    let mut lightservices: Vec<LightService> = Vec::new();
+    let mut lightservices: Vec<Box<dyn LightService + Send>> = Vec::new();
     if let Ok(bridge) = hue::connect().await {
-        lightservices.push(bridge);
+        lightservices.push(Box::new(bridge));
     }
 
     /*
@@ -51,18 +50,18 @@ pub async fn create_default_output_stream() -> cpal::Stream {
      */
 
     if let Ok(strip) = wled::LEDStripSpectrum::connect("192.168.2.53").await {
-        lightservices.push(strip);
+        lightservices.push(Box::new(strip));
     }
 
     let console = Console::default();
-    lightservices.push(LightService::Onset(Box::new(console)));
+    lightservices.push(Box::new(console));
 
     let serializer = serialize::OnsetContainer::init(
         "onsets.cbor".to_string(),
         settings.sample_rate as usize,
         settings.hop_size,
     );
-    lightservices.push(serializer);
+    lightservices.push(Box::new(serializer));
 
     let mut spec_flux = SpecFlux::init(settings.sample_rate, settings.fft_size as u32);
 

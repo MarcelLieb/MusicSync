@@ -16,7 +16,7 @@ use tokio::{net::UdpSocket, select};
 use webrtc_dtls::{cipher_suite::CipherSuiteId, config::Config, conn::DTLSConn};
 
 use super::{
-    envelope::Envelope, Closeable, OnsetConsumer, Pollable, PollingHelper, Stream, Writeable,
+    envelope::Envelope, Closeable, Pollable, PollingHelper, Stream, Writeable,
 };
 use crate::utils::lights::{
     envelope::{Color, DynamicDecay, FixedDecay},
@@ -198,7 +198,7 @@ enum ApiResponse {
     Error { description: String },
 }
 
-pub async fn connect() -> Result<LightService, ConnectionError> {
+pub async fn connect() -> Result<BridgeConnection, ConnectionError> {
     #[derive(Deserialize, Debug)]
     struct _Metadata {
         #[serde(rename = "name")]
@@ -276,7 +276,7 @@ pub async fn connect() -> Result<LightService, ConnectionError> {
 
     let bridge = BridgeConnection::init(bridge, area).await?;
 
-    Ok(LightService::Onset(Box::new(bridge)))
+    Ok(bridge)
 }
 
 async fn check_bridge(ip: &Ipv4Addr) -> bool {
@@ -436,7 +436,7 @@ impl Bridge {
     }
 }
 
-impl OnsetConsumer for BridgeConnection {
+impl LightService for BridgeConnection {
     fn onset_detected(&mut self, event: Onset) {
         let mut state = self.state.lock().unwrap();
         match event {

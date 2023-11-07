@@ -1,4 +1,4 @@
-use super::{Onset, OnsetConsumer};
+use super::{Onset, LightService};
 use colored::{ColoredString, Colorize};
 
 #[derive(Debug, Default)]
@@ -6,7 +6,7 @@ pub struct Console {
     output: [ColoredString; 5],
 }
 
-impl OnsetConsumer for Console {
+impl LightService for Console {
     fn onset_detected(&mut self, event: Onset) {
         match event {
             Onset::Drum(s) => self.output[0] = "■".repeat((s * 9.0).ceil() as usize).bright_red(),

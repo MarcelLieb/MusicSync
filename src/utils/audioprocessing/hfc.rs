@@ -1,6 +1,6 @@
 use log::info;
 
-use crate::utils::lights::{LightService, Onset, OnsetConsumer};
+use crate::utils::lights::{LightService, Onset};
 
 use super::{
     threshold::{Dynamic, DynamicSettings},
@@ -69,7 +69,7 @@ impl Hfc {
         freq_bins: &[f32],
         peak: f32,
         rms: f32,
-        lightservices: &mut [LightService],
+        lightservices: &mut [Box<dyn LightService + Send>],
     ) {
         let sound = freq_bins.iter().any(|&i| i != 0.0);
 
@@ -170,7 +170,7 @@ impl OnsetDetector for Hfc {
         freq_bins: &[f32],
         peak: f32,
         rms: f32,
-        lightservices: &mut [LightService],
+        lightservices: &mut [Box<dyn LightService + Send>],
     ) {
         self.detect(freq_bins, peak, rms, lightservices);
     }

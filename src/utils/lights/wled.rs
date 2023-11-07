@@ -10,8 +10,7 @@ use tokio::net::UdpSocket;
 
 use super::{
     envelope::{DynamicDecay, Envelope, FixedDecay},
-    LightService, Onset, OnsetConsumer, Pollable, PollingHelper, SpectrumConsumer,
-    SpectrumOnsetConsumer,
+    LightService, Onset, Pollable, PollingHelper,
 };
 
 #[allow(dead_code)]
@@ -164,7 +163,7 @@ impl LEDStripOnset {
     }
 }
 
-impl OnsetConsumer for LEDStripOnset {
+impl LightService for LEDStripOnset {
     fn onset_detected(&mut self, event: Onset) {
         let mut state = self.state.lock().unwrap();
         match event {
@@ -193,7 +192,7 @@ pub struct LEDStripSpectrum {
 }
 
 impl LEDStripSpectrum {
-    pub async fn connect(ip: &str) -> Result<LightService, Box<dyn std::error::Error>> {
+    pub async fn connect(ip: &str) -> Result<LEDStripSpectrum, Box<dyn std::error::Error>> {
         #[derive(Debug, Serialize, Deserialize)]
         struct Leds {
             count: u16,
@@ -224,7 +223,7 @@ impl LEDStripSpectrum {
 
         let polling_helper = PollingHelper::init(socket, state.clone(), 50);
 
-        Ok(LightService::SpectralOnset(Box::new(LEDStripSpectrum {
+        Ok(LEDStripSpectrum {
             strip: LEDStrip {
                 name: info.name,
                 led_count: info.leds.count,
@@ -238,31 +237,23 @@ impl LEDStripSpectrum {
             },
             polling_helper,
             state,
-        })))
+        })
     }
 }
 
-impl SpectrumConsumer for LEDStripSpectrum {
+impl LightService for LEDStripSpectrum {
     fn process_spectrum(&mut self, freq_bins: &[f32]) {
         let mut state = self.state.lock().unwrap();
         state.visualize_spectrum(freq_bins);
     }
-}
 
-impl OnsetConsumer for LEDStripSpectrum {
     fn onset_detected(&mut self, event: Onset) {
         let mut state = self.state.lock().unwrap();
         if let Onset::Full(strength) = event {
             state.envelope.trigger(strength)
         }
     }
-
-    fn update(&mut self) {
-        // self updating
-    }
 }
-
-impl SpectrumOnsetConsumer for LEDStripSpectrum {}
 
 pub struct SpectrumState {
     colors: VecDeque<[u8; 3]>,

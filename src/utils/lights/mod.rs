@@ -33,82 +33,29 @@ pub enum Onset {
     Raw(f32),
 }
 
-pub trait OnsetConsumer {
-    fn onset_detected(&mut self, event: Onset);
-    fn update(&mut self);
+#[allow(unused_variables)]
+pub trait LightService {
+    fn onset_detected(&mut self, event: Onset) {}
+    fn process_spectrum(&mut self, freq_bins: &[f32]) {}
+    fn update(&mut self) {}
 }
 
-impl OnsetConsumer for [Box<dyn OnsetConsumer + Send>] {
+impl LightService for [Box<dyn LightService + Send>] {
     fn onset_detected(&mut self, onset: Onset) {
         for service in self {
             service.onset_detected(onset);
         }
     }
 
+    fn process_spectrum(&mut self, freq_bins: &[f32]) {
+        for service in self {
+            service.process_spectrum(freq_bins);
+        }
+    }
+
     fn update(&mut self) {
         for service in self {
             service.update();
-        }
-    }
-}
-
-pub trait SpectrumConsumer {
-    fn process_spectrum(&mut self, freq_bins: &[f32]);
-}
-
-pub trait SpectrumOnsetConsumer: SpectrumConsumer + OnsetConsumer {}
-
-#[allow(dead_code)]
-pub enum LightService {
-    Spectral(Box<dyn SpectrumConsumer + Send>),
-    Onset(Box<dyn OnsetConsumer + Send>),
-    SpectralOnset(Box<dyn SpectrumOnsetConsumer + Send>),
-}
-
-impl OnsetConsumer for LightService {
-    fn onset_detected(&mut self, event: Onset) {
-        match self {
-            LightService::Onset(consumer) => consumer.onset_detected(event),
-            LightService::SpectralOnset(consumer) => consumer.onset_detected(event),
-            LightService::Spectral(_) => {}
-        }
-    }
-
-    fn update(&mut self) {
-        if let LightService::Onset(consumer) = self {
-            consumer.update();
-        }
-    }
-}
-
-impl SpectrumConsumer for LightService {
-    fn process_spectrum(&mut self, freq_bins: &[f32]) {
-        match self {
-            LightService::Spectral(consumer) => consumer.process_spectrum(freq_bins),
-            LightService::SpectralOnset(consumer) => consumer.process_spectrum(freq_bins),
-            LightService::Onset(_) => {}
-        }
-    }
-}
-
-impl OnsetConsumer for [LightService] {
-    fn onset_detected(&mut self, event: Onset) {
-        for service in self {
-            service.onset_detected(event);
-        }
-    }
-
-    fn update(&mut self) {
-        for service in self {
-            service.update()
-        }
-    }
-}
-
-impl SpectrumConsumer for [LightService] {
-    fn process_spectrum(&mut self, freq_bins: &[f32]) {
-        for service in self {
-            service.process_spectrum(freq_bins)
         }
     }
 }
