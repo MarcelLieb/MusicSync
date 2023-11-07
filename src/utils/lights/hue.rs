@@ -15,13 +15,14 @@ use std::{
 use tokio::{net::UdpSocket, select};
 use webrtc_dtls::{cipher_suite::CipherSuiteId, config::Config, conn::DTLSConn};
 
-use super::{
-    envelope::Envelope, Closeable, Pollable, PollingHelper, Stream, Writeable,
+use super::{envelope::Envelope, Closeable, Pollable, PollingHelper, Stream, Writeable};
+use crate::utils::{
+    audioprocessing::Onset,
+    lights::{
+        envelope::{Color, DynamicDecay, FixedDecay},
+        LightService,
+    },
 };
-use crate::utils::{lights::{
-    envelope::{Color, DynamicDecay, FixedDecay},
-    LightService,
-}, audioprocessing::Onset};
 #[allow(dead_code)]
 pub struct BridgeConnection {
     id: String,
