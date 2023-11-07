@@ -9,8 +9,7 @@ use dasp_sample::ToSample;
 use log::info;
 use realfft::{RealFftPlanner, RealToComplex};
 use rustfft::num_complex::Complex;
-use serde::{Serialize, Deserialize};
-
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 #[serde(untagged)]
@@ -368,10 +367,5 @@ impl MelFilterBank {
 }
 
 trait OnsetDetector {
-    fn detect(
-        &mut self,
-        freq_bins: &[f32],
-        peak: f32,
-        rms: f32
-    ) -> Vec<Onset>;
+    fn detect(&mut self, freq_bins: &[f32], peak: f32, rms: f32) -> Vec<Onset>;
 }

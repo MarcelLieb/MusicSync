@@ -360,12 +360,7 @@ impl SpecFlux {
         }
     }
 
-    pub fn detect(
-        &mut self,
-        freq_bins: &[f32],
-        peak: f32,
-        rms: f32,
-    ) -> Vec<Onset> {
+    pub fn detect(&mut self, freq_bins: &[f32], peak: f32, rms: f32) -> Vec<Onset> {
         self.old_spectrum.clone_from(&self.spectrum);
 
         let lambda = 0.1;
@@ -400,7 +395,7 @@ impl SpecFlux {
             .0;
 
         let mut onsets = Vec::new();
-        
+
         onsets.push(Onset::Raw(hihat_weight));
 
         if onset {
@@ -424,12 +419,7 @@ impl SpecFlux {
 }
 
 impl OnsetDetector for SpecFlux {
-    fn detect(
-        &mut self,
-        freq_bins: &[f32],
-        peak: f32,
-        rms: f32,
-    ) -> Vec<Onset> {
+    fn detect(&mut self, freq_bins: &[f32], peak: f32, rms: f32) -> Vec<Onset> {
         self.detect(freq_bins, peak, rms)
     }
 }

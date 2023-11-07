@@ -64,12 +64,7 @@ impl Hfc {
         }
     }
 
-    pub fn detect(
-        &mut self,
-        freq_bins: &[f32],
-        peak: f32,
-        rms: f32,
-    ) -> Vec<Onset> {
+    pub fn detect(&mut self, freq_bins: &[f32], peak: f32, rms: f32) -> Vec<Onset> {
         let sound = freq_bins.iter().any(|&i| i != 0.0);
 
         if !sound {
@@ -133,7 +128,7 @@ impl Hfc {
 
         info!("Loudest frequency: {}Hz", index_of_max);
 
-        let mut onsets:Vec<Onset> = Vec::new();
+        let mut onsets: Vec<Onset> = Vec::new();
 
         if weight >= self.threshold.fullband.get_threshold(weight) {
             onsets.push(Onset::Full(rms));
@@ -161,12 +156,7 @@ impl Hfc {
 }
 
 impl OnsetDetector for Hfc {
-    fn detect(
-        &mut self,
-        freq_bins: &[f32],
-        peak: f32,
-        rms: f32,
-    ) -> Vec<Onset> {
+    fn detect(&mut self, freq_bins: &[f32], peak: f32, rms: f32) -> Vec<Onset> {
         self.detect(freq_bins, peak, rms)
     }
 }
