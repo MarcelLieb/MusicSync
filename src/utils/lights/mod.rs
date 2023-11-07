@@ -32,6 +32,7 @@ pub trait LightService {
         }
     }
     fn process_spectrum(&mut self, freq_bins: &[f32]) {}
+    fn process_samples(&mut self, samples: &[f32]) {}
     fn update(&mut self) {}
 }
 
@@ -45,6 +46,12 @@ impl LightService for [Box<dyn LightService + Send>] {
     fn process_spectrum(&mut self, freq_bins: &[f32]) {
         for service in self {
             service.process_spectrum(freq_bins);
+        }
+    }
+
+    fn process_samples(&mut self, samples: &[f32]) {
+        for service in self {
+            service.process_samples(samples);
         }
     }
 

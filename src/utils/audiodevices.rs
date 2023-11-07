@@ -89,6 +89,7 @@ pub async fn create_default_output_stream() -> cpal::Stream {
                         );
                         lightservices.process_onsets(&onsets);
                         lightservices.process_spectrum(&detection_buffer.freq_bins);
+                        lightservices.process_samples(&detection_buffer.mono_samples);
                         lightservices.update();
                         /*
                         let onsets = _hfc.detect(
