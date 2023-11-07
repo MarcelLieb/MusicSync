@@ -1,4 +1,4 @@
-use crate::utils::lights::{LightService, Onset};
+use crate::utils::lights::Onset;
 
 use super::{
     threshold::{Advanced, AdvancedSettings},
@@ -365,8 +365,7 @@ impl SpecFlux {
         freq_bins: &[f32],
         peak: f32,
         rms: f32,
-        lightservices: &mut [Box<dyn LightService + Send>],
-    ) {
+    ) -> Vec<Onset> {
         self.old_spectrum.clone_from(&self.spectrum);
 
         let lambda = 0.1;
@@ -400,25 +399,27 @@ impl SpecFlux {
             .unwrap()
             .0;
 
-        lightservices.onset_detected(Onset::Raw(hihat_weight));
+        let mut onsets = Vec::new();
+        
+        onsets.push(Onset::Raw(hihat_weight));
 
         if onset {
-            lightservices.onset_detected(Onset::Full(rms));
+            onsets.push(Onset::Full(rms));
         }
 
         if self.threshold.drum.is_above(drum_weight) {
-            lightservices.onset_detected(Onset::Drum(rms));
+            onsets.push(Onset::Drum(rms));
         }
 
         if self.threshold.hihat.is_above(hihat_weight) {
-            lightservices.onset_detected(Onset::Hihat(peak));
+            onsets.push(Onset::Hihat(peak));
         }
 
         if self.threshold.note.is_above(note_weight) {
-            lightservices.onset_detected(Onset::Note(rms, index_of_max as u16));
+            onsets.push(Onset::Note(rms, index_of_max as u16));
         }
 
-        lightservices.update();
+        onsets
     }
 }
 
@@ -428,8 +429,7 @@ impl OnsetDetector for SpecFlux {
         freq_bins: &[f32],
         peak: f32,
         rms: f32,
-        lightservices: &mut [Box<dyn LightService + Send>],
-    ) {
-        self.detect(freq_bins, peak, rms, lightservices);
+    ) -> Vec<Onset> {
+        self.detect(freq_bins, peak, rms)
     }
 }

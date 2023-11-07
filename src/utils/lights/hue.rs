@@ -437,7 +437,7 @@ impl Bridge {
 }
 
 impl LightService for BridgeConnection {
-    fn onset_detected(&mut self, event: Onset) {
+    fn process_onset(&mut self, event: Onset) {
         let mut state = self.state.lock().unwrap();
         match event {
             Onset::Full(volume) => {

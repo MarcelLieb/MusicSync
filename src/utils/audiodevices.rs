@@ -82,19 +82,19 @@ pub async fn create_default_output_stream() -> cpal::Stream {
                     (0..n).for_each(|_| {
                         process_raw(&buffer[0..buffer_size], channels, &mut detection_buffer);
 
-                        spec_flux.detect(
+                        let onsets = spec_flux.detect(
                             &detection_buffer.freq_bins,
                             detection_buffer.peak,
                             detection_buffer.rms,
-                            &mut lightservices,
                         );
+                        lightservices.process_onsets(&onsets);
                         lightservices.process_spectrum(&detection_buffer.freq_bins);
+                        lightservices.update();
                         /*
-                        _hfc.detect(
+                        let onsets = _hfc.detect(
                             &detection_buffer.freq_bins,
                             detection_buffer.peak,
-                            detection_buffer.rms,
-                            &mut lightservices,
+                            detection_buffer.rms
                         );
                          */
 

@@ -10,7 +10,7 @@ use log::info;
 use realfft::{RealFftPlanner, RealToComplex};
 use rustfft::num_complex::Complex;
 
-use super::lights::LightService;
+use super::lights::Onset;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ProcessingSettings {
@@ -361,7 +361,6 @@ trait OnsetDetector {
         &mut self,
         freq_bins: &[f32],
         peak: f32,
-        rms: f32,
-        lightservices: &mut [Box<dyn LightService + Send>],
-    );
+        rms: f32
+    ) -> Vec<Onset>;
 }
