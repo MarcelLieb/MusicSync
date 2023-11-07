@@ -33,7 +33,7 @@ pub fn process_file(filename: &str, settings: ProcessingSettings) {
 
     let mut hfc = Hfc::init(sample_rate as usize, fft_size);
 
-    let mut lightservices: Vec<LightService> = vec![LightService::Onset(Box::new(serializer))];
+    let mut lightservices: Vec<Box<dyn LightService + Send>> = vec![Box::new(serializer)];
 
     let mut buffer_detection = prepare_buffers(channels, &settings);
     let samples: Vec<f32> = source.convert_samples().collect();

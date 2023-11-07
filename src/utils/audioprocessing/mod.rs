@@ -362,6 +362,6 @@ trait OnsetDetector {
         freq_bins: &[f32],
         peak: f32,
         rms: f32,
-        lightservices: &mut [LightService],
+        lightservices: &mut [Box<dyn LightService + Send>],
     );
 }

@@ -1,4 +1,4 @@
-use crate::utils::lights::{LightService, Onset, OnsetConsumer};
+use crate::utils::lights::{LightService, Onset};
 
 use super::{
     threshold::{Advanced, AdvancedSettings},
@@ -365,7 +365,7 @@ impl SpecFlux {
         freq_bins: &[f32],
         peak: f32,
         rms: f32,
-        lightservices: &mut [LightService],
+        lightservices: &mut [Box<dyn LightService + Send>],
     ) {
         self.old_spectrum.clone_from(&self.spectrum);
 
@@ -428,7 +428,7 @@ impl OnsetDetector for SpecFlux {
         freq_bins: &[f32],
         peak: f32,
         rms: f32,
-        lightservices: &mut [LightService],
+        lightservices: &mut [Box<dyn LightService + Send>],
     ) {
         self.detect(freq_bins, peak, rms, lightservices);
     }
