@@ -130,7 +130,7 @@ impl Hfc {
 
         let mut onsets: Vec<Onset> = Vec::new();
 
-        if weight >= self.threshold.fullband.get_threshold(weight) {
+        if self.threshold.fullband.is_above(weight) {
             onsets.push(Onset::Full(rms));
         } else {
             onsets.push(Onset::Atmosphere(rms, index_of_max as u16));
@@ -139,16 +139,16 @@ impl Hfc {
         onsets.push(Onset::Raw(weight));
 
         let drums_weight = low_end_weight * drum_click_weight * high_end_weight;
-        if drums_weight >= self.threshold.drums.get_threshold(drums_weight) {
+        if self.threshold.drums.is_above(drums_weight) {
             onsets.push(Onset::Drum(rms));
         }
 
         let notes_weight = mids_weight + note_click_weight * high_end_weight;
-        if notes_weight >= self.threshold.notes.get_threshold(notes_weight) {
+        if self.threshold.notes.is_above(notes_weight) {
             onsets.push(Onset::Note(rms, index_of_max_mid as u16));
         }
 
-        if *high_end_weight >= self.threshold.hihat.get_threshold(*high_end_weight) {
+        if self.threshold.hihat.is_above(*high_end_weight) {
             onsets.push(Onset::Hihat(peak));
         }
         onsets

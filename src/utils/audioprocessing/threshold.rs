@@ -78,6 +78,10 @@ impl Dynamic {
         let sum = normalized.iter().sum::<f32>();
         (self.min_intensity + self.delta_intensity * sum) * max
     }
+
+    pub fn is_above(&mut self, value: f32) -> bool {
+        value > self.get_threshold(value)
+    }
 }
 
 impl Default for Dynamic {
