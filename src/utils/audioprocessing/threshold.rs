@@ -108,7 +108,7 @@ impl Default for AdvancedSettings {
             dynamic_threshold: 0.8,
             threshold_range: 8,
             fixed_threshold: 5.0,
-            delay: 2
+            delay: 2,
         }
     }
 }
@@ -163,8 +163,10 @@ impl Advanced {
 
         self.past_samples.pop_front();
         self.past_samples.push_back(value);
-        
-        let onset =  value >= max && value >= mean + norm * self.dynamic_threshold + self.fixed_threshold && !self.delay_slots[0];
+
+        let onset = value >= max
+            && value >= mean + norm * self.dynamic_threshold + self.fixed_threshold
+            && !self.delay_slots[0];
         self.delay_slots.pop_back();
         self.delay_slots.push_front(onset);
 
