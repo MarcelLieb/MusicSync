@@ -78,6 +78,10 @@ impl Dynamic {
         let sum = normalized.iter().sum::<f32>();
         (self.min_intensity + self.delta_intensity * sum) * max
     }
+
+    pub fn is_above(&mut self, value: f32) -> bool {
+        value > self.get_threshold(value)
+    }
 }
 
 impl Default for Dynamic {
@@ -93,6 +97,7 @@ pub struct AdvancedSettings {
     pub dynamic_threshold: f32,
     pub threshold_range: usize,
     pub fixed_threshold: f32,
+    pub delay: usize,
 }
 
 impl Default for AdvancedSettings {
@@ -103,18 +108,20 @@ impl Default for AdvancedSettings {
             dynamic_threshold: 0.8,
             threshold_range: 8,
             fixed_threshold: 5.0,
+            delay: 2,
         }
     }
 }
 
 pub struct Advanced {
     past_samples: VecDeque<f32>,
-    last_onset: u32,
     mean_range: usize,
     max_range: usize,
     dynamic_threshold: f32,
     threshold_range: usize,
     fixed_threshold: f32,
+    delay: usize,
+    delay_slots: VecDeque<bool>,
 }
 
 impl Advanced {
@@ -127,21 +134,19 @@ impl Advanced {
             .max_range
             .max(settings.mean_range)
             .max(settings.threshold_range);
-        let mut past_samples = VecDeque::with_capacity(len);
-        past_samples.extend(vec![0.0; len]);
         Advanced {
-            past_samples,
-            last_onset: 0,
+            past_samples: VecDeque::from(vec![0.0; len]),
             mean_range: settings.mean_range,
             max_range: settings.max_range,
             dynamic_threshold: settings.dynamic_threshold,
             threshold_range: settings.threshold_range,
             fixed_threshold: settings.fixed_threshold,
+            delay: settings.delay,
+            delay_slots: VecDeque::from(vec![false; settings.delay + 1]),
         }
     }
 
     pub fn is_above(&mut self, value: f32) -> bool {
-        self.last_onset += 1;
         let max = self
             .past_samples
             .iter()
@@ -156,16 +161,16 @@ impl Advanced {
             .sum::<f32>()
             / self.threshold_range as f32;
 
-        if self.past_samples.len() >= self.past_samples.capacity() {
-            self.past_samples.pop_front();
-            self.past_samples.push_back(value);
-        } else {
-            self.past_samples.push_back(value);
-        }
-        if value >= max && value >= mean + norm * self.dynamic_threshold + self.fixed_threshold {
-            self.last_onset = 0;
-        }
-        self.last_onset == 2
+        self.past_samples.pop_front();
+        self.past_samples.push_back(value);
+
+        let onset = value >= max
+            && value >= mean + norm * self.dynamic_threshold + self.fixed_threshold
+            && !self.delay_slots[0];
+        self.delay_slots.pop_back();
+        self.delay_slots.push_front(onset);
+
+        self.delay_slots[self.delay]
     }
 }
 
