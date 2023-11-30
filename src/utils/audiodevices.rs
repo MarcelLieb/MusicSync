@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use crate::utils::audioprocessing::spectral_flux::SpecFlux;
 use crate::utils::audioprocessing::ProcessingSettings;
 use crate::utils::audioprocessing::{prepare_buffers, process_raw};
@@ -46,7 +48,7 @@ pub fn create_monitor_stream(device_name: &str, processing_settings: ProcessingS
     let hop_size = processing_settings.hop_size * channels as usize;
     macro_rules! build_buffered_onset_stream {
         ($t:ty) => {{
-            let mut buffer: Vec<$t> = Vec::new();
+            let mut buffer: VecDeque<$t> = VecDeque::new();
 
             out.build_input_stream(
                 &config,
@@ -55,7 +57,7 @@ pub fn create_monitor_stream(device_name: &str, processing_settings: ProcessingS
                     let n = (buffer.len() + hop_size).saturating_sub(buffer_size) / hop_size;
 
                     (0..n).for_each(|_| {
-                        process_raw(&buffer[0..buffer_size], channels, &mut detection_buffer);
+                        process_raw(&buffer.make_contiguous()[0..buffer_size], channels, &mut detection_buffer);
 
                         let onsets = spec_flux.detect(
                             &detection_buffer.freq_bins,
