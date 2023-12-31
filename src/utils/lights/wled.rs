@@ -4,11 +4,13 @@ use std::{
     time::Duration,
 };
 
+use biquad::{Biquad, Coefficients, DirectForm2Transposed, ToHertz, Type, Q_BUTTERWORTH_F32};
 use bytes::{BufMut, Bytes, BytesMut};
 use serde::{Deserialize, Serialize};
 use tokio::net::UdpSocket;
 
 use super::{
+    color::{color_downsample, color_upsample, hsv_to_rgb, rgb_to_hsv},
     envelope::{DynamicDecay, Envelope, FixedDecay},
     LightService, Onset, Pollable, PollingHelper,
 };
@@ -143,7 +145,7 @@ impl LEDStripOnset {
 
         let state = Arc::new(Mutex::new(state));
 
-        let polling_helper = PollingHelper::init(socket, state.clone(), 30);
+        let polling_helper = PollingHelper::init(socket, state.clone(), 30.0);
 
         Ok(LEDStripOnset {
             strip: LEDStrip {
@@ -188,7 +190,12 @@ pub struct LEDStripSpectrum {
 }
 
 impl LEDStripSpectrum {
-    pub async fn connect(ip: &str) -> Result<LEDStripSpectrum, Box<dyn std::error::Error>> {
+    pub async fn connect(
+        ip: &str,
+        sampling_rate: f32,
+        leds_per_second: f64,
+        center: bool,
+    ) -> Result<LEDStripSpectrum, Box<dyn std::error::Error>> {
         #[derive(Debug, Serialize, Deserialize)]
         struct Leds {
             count: u16,
@@ -213,11 +220,20 @@ impl LEDStripSpectrum {
         let socket = UdpSocket::bind("0.0.0.0:0").await?;
         socket.connect((ip, info.udpport)).await?;
 
-        let state = SpectrumState::init(info.leds.count, 1.0, 0.25, 1);
+        let samples_per_led = (sampling_rate as f64 / leds_per_second).round() as u32;
+
+        let state = SpectrumState::init(
+            sampling_rate,
+            info.leds.count,
+            1.0,
+            0.25,
+            samples_per_led,
+            center,
+        );
 
         let state = Arc::new(Mutex::new(state));
 
-        let polling_helper = PollingHelper::init(socket, state.clone(), 50);
+        let polling_helper = PollingHelper::init(socket, state.clone(), 50.0);
 
         Ok(LEDStripSpectrum {
             strip: LEDStrip {
@@ -238,9 +254,9 @@ impl LEDStripSpectrum {
 }
 
 impl LightService for LEDStripSpectrum {
-    fn process_spectrum(&mut self, freq_bins: &[f32]) {
+    fn process_samples(&mut self, samples: &[f32]) {
         let mut state = self.state.lock().unwrap();
-        state.visualize_spectrum(freq_bins);
+        state.visualize_spectrum(samples);
     }
 
     fn process_onset(&mut self, event: Onset) {
@@ -252,66 +268,111 @@ impl LightService for LEDStripSpectrum {
 }
 
 pub struct SpectrumState {
+    sample_buffer: VecDeque<f32>,
     colors: VecDeque<[u8; 3]>,
     prefix: Vec<u8>,
     led_count: u16,
+    center: bool,
     master_brightness: f32,
     min_brightness: f32,
-    aggregate: u8,
-    aggregate_count: u8,
+    samples_per_led: u32,
+    low_pass_filter: DirectForm2Transposed<f32>,
+    high_pass_filter: DirectForm2Transposed<f32>,
     envelope: DynamicDecay,
 }
 
 impl SpectrumState {
     pub fn init(
+        sampling_frequency: f32,
         led_count: u16,
         master_brightness: f32,
         min_brightness: f32,
-        aggregate: u8,
+        samples_per_led: u32,
+        center: bool,
     ) -> Self {
         let prefix = vec![0x02, 0x01];
+        let low_pass = DirectForm2Transposed::<f32>::new(
+            Coefficients::<f32>::from_params(
+                Type::LowPass,
+                sampling_frequency.hz(),
+                240.hz(),
+                Q_BUTTERWORTH_F32,
+            )
+            .unwrap(),
+        );
+        let high_pass = DirectForm2Transposed::<f32>::new(
+            Coefficients::<f32>::from_params(
+                Type::HighPass,
+                sampling_frequency.hz(),
+                2.4.khz(),
+                Q_BUTTERWORTH_F32,
+            )
+            .unwrap(),
+        );
         Self {
+            sample_buffer: VecDeque::new(),
             colors: VecDeque::from(vec![[0, 0, 0]; led_count as usize]),
             prefix,
             led_count,
+            center,
             master_brightness,
             min_brightness,
-            aggregate,
-            aggregate_count: 0,
+            samples_per_led,
+            low_pass_filter: low_pass,
+            high_pass_filter: high_pass,
             envelope: DynamicDecay::init(8.0),
         }
     }
 
-    pub fn visualize_spectrum(&mut self, freq_bins: &[f32]) {
-        self.aggregate_count += 1;
+    pub fn visualize_spectrum(&mut self, samples: &[f32]) {
+        self.sample_buffer.extend(samples);
+        let n = self.sample_buffer.len() / self.samples_per_led as usize;
+        self.sample_buffer.make_contiguous();
+        for _ in 0..n {
+            let samples = self.sample_buffer.as_slices().0;
 
-        let low_weight: f32 = freq_bins.iter().take(10).sum();
-        let mid_weight: f32 = freq_bins.iter().skip(10).take(90).sum();
-        let highs_weight: f32 = freq_bins.iter().skip(100).sum();
+            let (low_weight, mid_weight, highs_weight) = samples
+                .iter()
+                .map(|s| {
+                    (
+                        self.low_pass_filter.run(*s),
+                        *s,
+                        self.high_pass_filter.run(*s),
+                    )
+                })
+                .map(|(low, s, high)| (low, (s - low - high), high))
+                .map(|(low, mid, high)| (low * low, mid * mid, high * high))
+                .fold((0.0_f32, 0.0_f32, 0.0_f32), |acc, (low, mid, high)| {
+                    (acc.0 + low, acc.1 + mid, acc.2 + high)
+                });
 
-        let max = low_weight.max(mid_weight.max(highs_weight));
+            let (low_weight, mid_weight, highs_weight) = (
+                (low_weight / self.samples_per_led as f32).sqrt(),
+                (mid_weight / self.samples_per_led as f32).sqrt(),
+                (highs_weight / self.samples_per_led as f32).sqrt(),
+            );
 
-        let brightness = ((self.envelope.get_value() * (1.0 - self.min_brightness))
-            + self.min_brightness)
-            * self.master_brightness; // Set a minimum quarter brightness
+            let max = low_weight.max(mid_weight.max(highs_weight));
 
-        let [r, g, b] = [
-            (low_weight / max * 255.0 * brightness) as u8,
-            (mid_weight / max * 255.0 * brightness) as u8,
-            (highs_weight / max * 255.0 * brightness) as u8,
-        ];
+            let brightness = ((self.envelope.get_value() * (1.0 - self.min_brightness))
+                + self.min_brightness)
+                * self.master_brightness; // Set a minimum quarter brightness
 
-        if self.aggregate_count == self.aggregate {
-            self.colors.pop_back();
-            self.colors.push_front([r, g, b]);
-            self.aggregate_count = 0;
-        } else {
-            let front = self.colors.front_mut().unwrap();
-            *front = [
-                (front[0] * self.aggregate_count + r) / self.aggregate,
-                (front[1] * self.aggregate_count + g) / self.aggregate,
-                (front[2] * self.aggregate_count + b) / self.aggregate,
+            let rgb = [
+                (low_weight / max * 255.0 * brightness) as u8,
+                (mid_weight / max * 255.0 * brightness) as u8,
+                (highs_weight / max * 255.0 * brightness) as u8,
             ];
+
+            let rgb = color_upsample(rgb);
+            let [h, _, v] = rgb_to_hsv(rgb);
+            let rgb = hsv_to_rgb(&[h, 1.0, v]);
+            let rgb = color_downsample(rgb);
+
+            self.colors.pop_front();
+            self.colors.push_back(rgb);
+
+            self.sample_buffer.drain(0..self.samples_per_led as usize);
         }
     }
 }
@@ -321,8 +382,27 @@ impl Pollable for SpectrumState {
         let mut bytes = BytesMut::with_capacity(2 + self.led_count as usize * 3);
         bytes.put_slice(&self.prefix);
 
-        for color in &self.colors {
-            bytes.put_slice(color);
+        if !self.center {
+            for color in self.colors.iter().rev() {
+                bytes.put_slice(color);
+            }
+        } else {
+            for color in self
+                .colors
+                .iter()
+                .rev()
+                .take((self.led_count / 2 + self.led_count % 2) as usize)
+                .rev()
+                .chain(
+                    self.colors
+                        .iter()
+                        .rev()
+                        .skip((self.led_count % 2) as usize)
+                        .take((self.led_count / 2) as usize),
+                )
+            {
+                bytes.put_slice(color);
+            }
         }
 
         bytes.into()

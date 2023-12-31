@@ -97,7 +97,7 @@ impl Stream for tokio::net::UdpSocket {}
 
 #[derive(Debug)]
 pub struct PollingHelper {
-    pub polling_frequency: u16,
+    pub polling_frequency: f64,
     tx: Sender<()>,
     handle: JoinHandle<()>,
 }
@@ -108,7 +108,7 @@ impl PollingHelper {
     pub fn init(
         mut stream: impl Stream + Send + Sync + 'static,
         pollable: Poll,
-        polling_frequency: u16,
+        polling_frequency: f64,
     ) -> PollingHelper {
         let (tx, mut rx) = mpsc::channel(1);
 
@@ -120,7 +120,7 @@ impl PollingHelper {
                         stream.write_data(&bytes).await.unwrap();
 
                         time::sleep(std::time::Duration::from_secs_f64(
-                            1.0 / polling_frequency as f64,
+                            1.0 / polling_frequency,
                         ))
                         .await;
                     }
