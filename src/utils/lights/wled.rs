@@ -143,7 +143,7 @@ impl LEDStripOnset {
 
         let state = Arc::new(Mutex::new(state));
 
-        let polling_helper = PollingHelper::init(socket, state.clone(), 30);
+        let polling_helper = PollingHelper::init(socket, state.clone(), 30.0);
 
         Ok(LEDStripOnset {
             strip: LEDStrip {

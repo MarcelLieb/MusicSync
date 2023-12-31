@@ -121,7 +121,7 @@ impl BridgeConnection {
 
         let state = Arc::new(Mutex::new(State::init(&area_id)));
 
-        let polling_helper = PollingHelper::init(connection, state.clone(), 55);
+        let polling_helper = PollingHelper::init(connection, state.clone(), 55.0);
 
         let bridge = BridgeConnection {
             id,
