@@ -20,7 +20,9 @@ async fn main() {
     }
 
     {
-        let stream = create_default_output_stream().await;
+        let stream = create_default_output_stream()
+            .await
+            .expect("Error occurred while building stream");
         stream.play().unwrap();
         let (tx, rx) = channel();
 

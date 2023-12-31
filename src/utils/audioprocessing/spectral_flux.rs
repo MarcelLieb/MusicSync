@@ -375,7 +375,7 @@ impl SpecFlux {
             .old_spectrum
             .iter()
             .zip(&self.spectrum)
-            .map(|(&a, &b)| (((b - a) + (b - a).abs()) / 2.0));
+            .map(|(&a, &b)| ((b - a).max(0.0)));
 
         let weight: f32 = flux.clone().sum();
 
