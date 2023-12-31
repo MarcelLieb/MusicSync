@@ -18,7 +18,12 @@ fn capture_err_fn(err: cpal::StreamError) {
     eprintln!("an error occurred on stream: {}", err);
 }
 
-pub fn create_monitor_stream(device_name: &str, processing_settings: ProcessingSettings, detection_settings: SpecFluxSettings, lightservices: Vec<Box<dyn LightService + Send>>) -> Result<cpal::Stream, BuildStreamError> {
+pub fn create_monitor_stream(
+    device_name: &str,
+    processing_settings: ProcessingSettings,
+    detection_settings: SpecFluxSettings,
+    lightservices: Vec<Box<dyn LightService + Send>>,
+) -> Result<cpal::Stream, BuildStreamError> {
     let out = cpal::default_host()
         .devices()
         .map_err(|_| BuildStreamError::DeviceNotAvailable)?
@@ -42,7 +47,11 @@ pub fn create_monitor_stream(device_name: &str, processing_settings: ProcessingS
 
     let mut detection_buffer = prepare_buffers(channels, &processing_settings);
 
-    let mut spec_flux = SpecFlux::with_settings(processing_settings.sample_rate, processing_settings.fft_size as u32, detection_settings);
+    let mut spec_flux = SpecFlux::with_settings(
+        processing_settings.sample_rate,
+        processing_settings.fft_size as u32,
+        detection_settings,
+    );
 
     let buffer_size = processing_settings.buffer_size * channels as usize;
     let hop_size = processing_settings.hop_size * channels as usize;
@@ -57,7 +66,11 @@ pub fn create_monitor_stream(device_name: &str, processing_settings: ProcessingS
                     let n = (buffer.len() + hop_size).saturating_sub(buffer_size) / hop_size;
 
                     (0..n).for_each(|_| {
-                        process_raw(&buffer.make_contiguous()[0..buffer_size], channels, &mut detection_buffer);
+                        process_raw(
+                            &buffer.make_contiguous()[0..buffer_size],
+                            channels,
+                            &mut detection_buffer,
+                        );
 
                         let onsets = spec_flux.detect(
                             &detection_buffer.freq_bins,
@@ -95,7 +108,9 @@ pub fn create_monitor_stream(device_name: &str, processing_settings: ProcessingS
 }
 
 pub async fn create_default_output_stream() -> Result<cpal::Stream, BuildStreamError> {
-    let device = cpal::default_host().default_output_device().ok_or_else(|| BuildStreamError::DeviceNotAvailable)?;
+    let device = cpal::default_host()
+        .default_output_device()
+        .ok_or_else(|| BuildStreamError::DeviceNotAvailable)?;
 
     let settings = ProcessingSettings::default();
 
@@ -125,5 +140,10 @@ pub async fn create_default_output_stream() -> Result<cpal::Stream, BuildStreamE
     );
     lightservices.push(Box::new(serializer));
     let detection_settings = SpecFluxSettings::default();
-    create_monitor_stream(&device.name().unwrap_or_default(), settings, detection_settings, lightservices)
+    create_monitor_stream(
+        &device.name().unwrap_or_default(),
+        settings,
+        detection_settings,
+        lightservices,
+    )
 }

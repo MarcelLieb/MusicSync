@@ -20,14 +20,13 @@ async fn main() {
     }
 
     {
-        let stream = create_default_output_stream().await
+        let stream = create_default_output_stream()
+            .await
             .expect("Error occurred while building stream");
         stream.play().unwrap();
         let (tx, rx) = channel();
 
-        ctrlc::set_handler(move || tx.send(())
-                .expect("Could not send signal on channel.")
-            )
+        ctrlc::set_handler(move || tx.send(()).expect("Could not send signal on channel."))
             .expect("Error setting Ctrl-C handler");
 
         println!("Stop sync with CTRL-C");
