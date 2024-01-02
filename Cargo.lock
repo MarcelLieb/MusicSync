@@ -1483,7 +1483,6 @@ dependencies = [
 name = "music_sync"
 version = "0.1.0"
 dependencies = [
- "async-trait",
  "biquad",
  "bytes",
  "ciborium",

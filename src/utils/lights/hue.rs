@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use bytes::{BufMut, Bytes, BytesMut};
 use ciborium::{from_reader, into_writer};
 use log::{info, warn};
@@ -70,7 +69,6 @@ impl From<webrtc_dtls::Error> for ConnectionError {
     }
 }
 
-#[async_trait]
 impl Writeable for DTLSConn {
     async fn write_data(&mut self, data: &Bytes) -> std::io::Result<()> {
         match self.write(data, None).await {
@@ -83,7 +81,6 @@ impl Writeable for DTLSConn {
     }
 }
 
-#[async_trait]
 impl Closeable for DTLSConn {
     async fn close_connection(&mut self) {
         self.close().await.unwrap();

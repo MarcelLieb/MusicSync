@@ -3,7 +3,6 @@ use std::{
     thread::sleep,
 };
 
-use async_trait::async_trait;
 use bytes::Bytes;
 use tokio::{
     select,
@@ -66,12 +65,10 @@ pub trait Pollable {
     fn poll(&self) -> Bytes;
 }
 
-#[async_trait]
 pub trait Writeable {
-    async fn write_data(&mut self, data: &Bytes) -> std::io::Result<()>;
+    fn write_data(&mut self, data: &Bytes) -> impl std::future::Future<Output = std::io::Result<()>> + Send;
 }
 
-#[async_trait]
 impl Writeable for tokio::net::UdpSocket {
     async fn write_data(&mut self, data: &Bytes) -> std::io::Result<()> {
         self.send(data).await?;
@@ -79,12 +76,10 @@ impl Writeable for tokio::net::UdpSocket {
     }
 }
 
-#[async_trait]
 pub trait Closeable {
-    async fn close_connection(&mut self);
+    fn close_connection(&mut self) -> impl std::future::Future<Output = ()> + Send;
 }
 
-#[async_trait]
 impl Closeable for tokio::net::UdpSocket {
     async fn close_connection(&mut self) {
         // UDP socket does not need to be closed
@@ -141,10 +136,13 @@ impl PollingHelper {
 
 impl Drop for PollingHelper {
     fn drop(&mut self) {
-        self.tx.blocking_send(()).unwrap();
-
-        while !self.handle.is_finished() {
-            sleep(std::time::Duration::from_millis(10));
+        if let Ok(_) = self.tx.blocking_send(()) {
+            while !self.handle.is_finished() {
+                sleep(std::time::Duration::from_millis(10));
+            }
+        }
+        else {
+            eprintln!("This should never happen")
         }
     }
 }
