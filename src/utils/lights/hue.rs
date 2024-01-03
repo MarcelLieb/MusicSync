@@ -570,6 +570,7 @@ struct State {
     prefix: Vec<u8>,
     channels: Vec<u8>,
     color_envelope: bool,
+    buffer: BytesMut,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -605,21 +606,25 @@ impl State {
         prefix.extend([2, 0, 0, 0, 0, 0, 0]); // Api Version, empty sequence id, color space = RGB and reserved bytes. See also https://developers.meethue.com/develop/hue-entertainment/hue-entertainment-api/#getting-started-with-streaming-api
         prefix.put(area.id.as_bytes());
 
+        let channels: Vec<_> = area.channels.iter().map(|chan| chan.channel_id).collect();
+        let buffer_size = &prefix.len() + 7 * channels.clone().len();
         State {
             drum: DynamicDecay::init(settings.drum_decay_rate),
             hihat: FixedDecay::init(settings.hihat_decay),
             note: FixedDecay::init(settings.note_decay),
             fullband: Color::init(settings.fullband_color.0, settings.fullband_color.1, settings.fullband_decay),
             prefix: prefix.into(),
-            channels: area.channels.iter().map(|chan| chan.channel_id).collect(),
+            channels,
             color_envelope: settings.color_envelope,
+            buffer: BytesMut::with_capacity(buffer_size),
         }
     }
 }
 
 impl Pollable for State {
     fn poll(&self) -> Bytes {
-        let mut bytes = BytesMut::with_capacity(self.prefix.len() + 7 * self.channels.len());
+        let mut bytes = self.buffer.clone();
+        bytes.clear();
         bytes.extend(self.prefix.clone());
         if self.color_envelope {
             for id in self.channels.iter() {
