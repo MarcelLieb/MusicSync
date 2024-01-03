@@ -569,38 +569,77 @@ struct State {
     fullband: Color,
     prefix: Vec<u8>,
     channels: Vec<u8>,
+    color_envelope: bool,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct LightSettings {
+    drum_decay_rate: f32,
+    note_decay: Duration,
+    hihat_decay: Duration,
+    fullband_decay: Duration,
+    fullband_color: ([u16; 3], [u16; 3]),
+    color_envelope: bool,
+}
+
+impl Default for LightSettings {
+    fn default() -> Self {
+        Self { 
+            drum_decay_rate: 8.0, 
+            note_decay: Duration::from_millis(100), 
+            hihat_decay: Duration::from_millis(80), 
+            fullband_decay: Duration::from_millis(250), 
+            fullband_color: ([u16::MAX, 0, 0], [2, 0, 1]),
+            color_envelope: false,
+        }
+    }
 }
 
 impl State {
-    fn init(area: &EntertainmentArea) -> State {
+    fn init(area: &EntertainmentArea) -> Self {
+        Self::with_settings(area, LightSettings::default())
+    }
+
+    fn with_settings(area: &EntertainmentArea, settings: LightSettings) -> Self {
         let mut prefix = BytesMut::from("HueStream");
         prefix.extend([2, 0, 0, 0, 0, 0, 0]); // Api Version, empty sequence id, color space = RGB and reserved bytes. See also https://developers.meethue.com/develop/hue-entertainment/hue-entertainment-api/#getting-started-with-streaming-api
         prefix.put(area.id.as_bytes());
 
         State {
-            drum: DynamicDecay::init(8.0),
-            hihat: FixedDecay::init(Duration::from_millis(80)),
-            note: FixedDecay::init(Duration::from_millis(100)),
-            fullband: Color::init([u16::MAX, 0, 0], [2, 0, 1], Duration::from_millis(250)),
+            drum: DynamicDecay::init(settings.drum_decay_rate),
+            hihat: FixedDecay::init(settings.hihat_decay),
+            note: FixedDecay::init(settings.note_decay),
+            fullband: Color::init(settings.fullband_color.0, settings.fullband_color.1, settings.fullband_decay),
             prefix: prefix.into(),
             channels: area.channels.iter().map(|chan| chan.channel_id).collect(),
+            color_envelope: settings.color_envelope,
         }
     }
 }
 
 impl Pollable for State {
     fn poll(&self) -> Bytes {
-        let r = (self.drum.get_value() * u16::MAX as f32) as u16;
-        let white = (self.hihat.get_value() * u16::MAX as f32) as u16 >> 3;
-        let b = (self.note.get_value() * u16::MAX as f32) as u16 >> 1;
-
         let mut bytes = BytesMut::with_capacity(self.prefix.len() + 7 * self.channels.len());
         bytes.extend(self.prefix.clone());
-        for id in self.channels.iter() {
-            bytes.put_u8(*id);
-            bytes.put_u16(r.saturating_add(white));
-            bytes.put_u16(white);
-            bytes.put_u16(b.saturating_add(white));
+        if self.color_envelope {
+            for id in self.channels.iter() {
+                bytes.put_u8(*id);
+                let color = self.fullband.get_color();
+                bytes.put_u16(color[0]);
+                bytes.put_u16(color[1]);
+                bytes.put_u16(color[2]);
+            }
+        }
+        else {
+            let r = (self.drum.get_value() * u16::MAX as f32) as u16;
+            let white = (self.hihat.get_value() * u16::MAX as f32) as u16 >> 3;
+        let b = (self.note.get_value() * u16::MAX as f32) as u16 >> 1;
+            for id in self.channels.iter() {
+                bytes.put_u8(*id);
+                bytes.put_u16(r.saturating_add(white));
+                bytes.put_u16(white);
+                bytes.put_u16(b.saturating_add(white));
+            }
         }
 
         bytes.into()
