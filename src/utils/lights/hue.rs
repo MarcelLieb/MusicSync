@@ -21,7 +21,7 @@ use crate::utils::{
 };
 
 #[derive(Debug)]
-pub enum ConnectionError {
+pub enum HueError {
     Http(reqwest::Error),
     Handshake(webrtc_dtls::Error),
     VersionError(u32),
@@ -31,9 +31,9 @@ pub enum ConnectionError {
     EntertainmentAreaNotFound,
 }
 
-impl std::error::Error for ConnectionError {}
+impl std::error::Error for HueError {}
 
-impl Display for ConnectionError {
+impl Display for HueError {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
             Self::Http(e) => write!(f, "Http request failed: {e}"),
@@ -50,22 +50,22 @@ impl Display for ConnectionError {
     }
 }
 
-impl From<reqwest::Error> for ConnectionError {
+impl From<reqwest::Error> for HueError {
     fn from(err: reqwest::Error) -> Self {
-        ConnectionError::Http(err)
+        HueError::Http(err)
     }
 }
 
-impl From<webrtc_dtls::Error> for ConnectionError {
+impl From<webrtc_dtls::Error> for HueError {
     fn from(err: webrtc_dtls::Error) -> Self {
-        ConnectionError::Handshake(err)
+        HueError::Handshake(err)
     }
 }
 
-impl From<ciborium::ser::Error<std::io::Error>> for ConnectionError {
+impl From<ciborium::ser::Error<std::io::Error>> for HueError {
     fn from(err: ciborium::ser::Error<std::io::Error>) -> Self {
         match err {
-            ciborium::ser::Error::Io(err) => ConnectionError::SaveBridgeError(err),
+            ciborium::ser::Error::Io(err) => HueError::SaveBridgeError(err),
             ciborium::ser::Error::Value(_) => {
                 panic!("Serialization failed, this should be impossible, please report")
             }
@@ -73,9 +73,9 @@ impl From<ciborium::ser::Error<std::io::Error>> for ConnectionError {
     }
 }
 
-impl From<std::io::Error> for ConnectionError {
+impl From<std::io::Error> for HueError {
     fn from(err: std::io::Error) -> Self {
-        ConnectionError::SaveBridgeError(err)
+        HueError::SaveBridgeError(err)
     }
 }
 
@@ -234,7 +234,7 @@ impl BridgeManager {
         !(config.swversion.parse::<u32>().unwrap() < 1948086000)
     }
 
-    async fn search_bridges(&self) -> Result<Vec<UnauthenticatedBridge>, ConnectionError> {
+    async fn search_bridges(&self) -> Result<Vec<UnauthenticatedBridge>, HueError> {
         #[derive(Deserialize, Debug)]
         struct BridgeJson {
             id: String,
@@ -266,7 +266,7 @@ impl BridgeManager {
         Ok(bridges)
     }
 
-    async fn locate_bridge(&self, ip: Option<Ipv4Addr>, timeout: Option<Duration>) -> Result<BridgeData, ConnectionError> {
+    async fn locate_bridge(&self, ip: Option<Ipv4Addr>, timeout: Option<Duration>) -> Result<BridgeData, HueError> {
         let mut saved_bridges = BridgeManager::load_saved_bridges(CONFIG_PATH);
         let mut found_bridges = self.filter_reachable(&saved_bridges).await;
 
@@ -300,7 +300,7 @@ impl BridgeManager {
             warn!("If you want to use a different bridge, please specify it with the given IP");
         }
 
-        let bridge = new_bridges.pop().ok_or(ConnectionError::NoBridgeFound)?;
+        let bridge = new_bridges.pop().ok_or(HueError::NoBridgeFound)?;
 
         let bridge = self.authenticate_bridge(bridge.ip, timeout).await?;
 
@@ -311,7 +311,7 @@ impl BridgeManager {
         Ok(bridge)
     }
 
-    async fn authenticate_bridge(&self, ip: Ipv4Addr, timeout: Option<Duration>) -> Result<BridgeData, ConnectionError> {
+    async fn authenticate_bridge(&self, ip: Ipv4Addr, timeout: Option<Duration>) -> Result<BridgeData, HueError> {
         #[derive(Serialize, Debug)]
         struct Body {
             devicetype: String,
@@ -321,7 +321,7 @@ impl BridgeManager {
         let config = self.get_bridge_config(ip).await?;
 
         if config.swversion.parse::<u32>().unwrap() < 1948086000 {
-            return Err(ConnectionError::VersionError(
+            return Err(HueError::VersionError(
                 config.swversion.parse::<u32>().unwrap(),
             ));
         }
@@ -374,7 +374,7 @@ impl BridgeManager {
                 Ok::<_, reqwest::Error>(())
             } => {}
             _ = tokio::time::sleep(timeout) => {
-                return Err(ConnectionError::TimeOut);
+                return Err(HueError::TimeOut);
             }
         }
 
@@ -386,13 +386,13 @@ impl BridgeManager {
             .await?;
         match response.headers().get("hue-application-id") {
             Some(h) => saved_bridge.app_id = h.to_str().unwrap().to_string(),
-            None => return Err(ConnectionError::TimeOut),
+            None => return Err(HueError::TimeOut),
         }
 
         Ok(saved_bridge)
     }
 
-    fn save_bridges(bridges: &[BridgeData], path: &str) -> Result<(), ConnectionError> {
+    fn save_bridges(bridges: &[BridgeData], path: &str) -> Result<(), HueError> {
         let f = File::create(path)?;
         into_writer(&bridges, f)?;
         Ok(())
@@ -401,7 +401,7 @@ impl BridgeManager {
     async fn get_entertainment_areas(
         &self,
         bridge: &BridgeData,
-    ) -> Result<Vec<EntertainmentArea>, ConnectionError> {
+    ) -> Result<Vec<EntertainmentArea>, HueError> {
         #[derive(Deserialize, Debug)]
         struct _EntResponse {
             data: Vec<EntertainmentArea>,
@@ -421,7 +421,7 @@ impl BridgeManager {
         Ok(response.data)
     }
 
-    async fn get_bridge_config(&self, ip: Ipv4Addr) -> Result<BridgeConfig, ConnectionError> {
+    async fn get_bridge_config(&self, ip: Ipv4Addr) -> Result<BridgeConfig, HueError> {
         let response = self
             .client
             .get(format!("https://{}/api/0/config", ip))
@@ -430,13 +430,13 @@ impl BridgeManager {
 
         Ok(response.json::<BridgeConfig>().await?)
     }
-    async fn start_connection(&self, bridge: BridgeData, area: Option<String>) -> Result<BridgeConnection, ConnectionError> {
+    async fn start_connection(&self, bridge: BridgeData, area: Option<String>) -> Result<BridgeConnection, HueError> {
         let settings = LightSettings::default();
 
         self.start_connection_with_settings(bridge, area, settings).await
     }
 
-    async fn start_connection_with_settings(&self, bridge: BridgeData, area: Option<String>, settings: LightSettings) -> Result<BridgeConnection, ConnectionError> {
+    async fn start_connection_with_settings(&self, bridge: BridgeData, area: Option<String>, settings: LightSettings) -> Result<BridgeConnection, HueError> {
         let mut areas = self.get_entertainment_areas(&bridge).await?;
 
         if let Some(area) = area {
@@ -449,13 +449,13 @@ impl BridgeManager {
             warn!("The first area will be selected");
             warn!("If you want to use a different area, please specify it with the given ID");
         }
-        let area = areas.pop().ok_or(ConnectionError::EntertainmentAreaNotFound)?;
+        let area = areas.pop().ok_or(HueError::EntertainmentAreaNotFound)?;
         
         BridgeConnection::with_settings(bridge, area, settings).await
     }
 }
 
-pub async fn connect() -> Result<BridgeConnection, ConnectionError> {
+pub async fn connect() -> Result<BridgeConnection, HueError> {
     let manager = BridgeManager::new();
 
     let bridge = manager.locate_bridge(None, None).await?;
@@ -464,7 +464,7 @@ pub async fn connect() -> Result<BridgeConnection, ConnectionError> {
     manager.start_connection(bridge, None).await
 }
 
-pub async fn connect_by_ip(ip: Ipv4Addr) -> Result<BridgeConnection, ConnectionError> {
+pub async fn connect_by_ip(ip: Ipv4Addr) -> Result<BridgeConnection, HueError> {
     let manager = BridgeManager::new();
 
     let bridge = manager.locate_bridge(Some(ip), None).await?;
@@ -472,7 +472,7 @@ pub async fn connect_by_ip(ip: Ipv4Addr) -> Result<BridgeConnection, ConnectionE
     manager.start_connection(bridge, None).await
 }
 
-pub async fn connect_with_settings(settings: HueSettings) -> Result<BridgeConnection, ConnectionError> {
+pub async fn connect_with_settings(settings: HueSettings) -> Result<BridgeConnection, HueError> {
     let manager = BridgeManager::new();
     match settings.mode {
         ConnectionMode::Auto => {
@@ -513,7 +513,7 @@ impl BridgeConnection {
     async fn init(
         bridge: BridgeData,
         area: EntertainmentArea,
-    ) -> Result<Self, ConnectionError> {
+    ) -> Result<Self, HueError> {
         let settings = LightSettings::default();
         Self::with_settings(bridge, area, settings).await
     }
@@ -522,7 +522,7 @@ impl BridgeConnection {
         bridge: BridgeData,
         area: EntertainmentArea,
         settings: LightSettings,
-    ) -> Result<Self, ConnectionError> {
+    ) -> Result<Self, HueError> {
         let BridgeData {
             id,
             ip,
@@ -559,7 +559,7 @@ impl BridgeConnection {
         bridge_ip: &Ipv4Addr,
         area_id: &str,
         app_key: &str,
-    ) -> Result<reqwest::Response, ConnectionError> {
+    ) -> Result<reqwest::Response, HueError> {
         let client = reqwest::Client::builder()
             .danger_accept_invalid_certs(true)
             .timeout(Duration::from_secs(5))
@@ -579,7 +579,7 @@ impl BridgeConnection {
         psk: String,
         dest_ip: IpAddr,
         dest_port: u16,
-    ) -> Result<DTLSConn, ConnectionError> {
+    ) -> Result<DTLSConn, HueError> {
         let config = Config {
             cipher_suites: vec![CipherSuiteId::Tls_Psk_With_Aes_128_Gcm_Sha256],
             psk: Some(Arc::new(move |_| Ok(decode_hex(psk.as_str()).unwrap()))),
