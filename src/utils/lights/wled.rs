@@ -50,6 +50,7 @@ struct OnsetState {
     note_envelope: DynamicDecay,
     hihat_envelope: FixedDecay,
     prefix: Vec<u8>,
+    buffer: BytesMut,
 }
 
 impl OnsetState {
@@ -59,6 +60,8 @@ impl OnsetState {
         } else {
             vec![0x02, 0x01]
         };
+        let channels = 3 + usize::from(rgbw);
+        let buffer = BytesMut::with_capacity(prefix.len() + led_count as usize * channels);
         OnsetState {
             led_count,
             rgbw,
@@ -67,14 +70,15 @@ impl OnsetState {
             hihat_envelope: FixedDecay::init(Duration::from_millis(200)),
             prefix,
             brightness,
+            buffer,
         }
     }
 }
 
 impl Pollable for OnsetState {
     fn poll(&self) -> Bytes {
-        let channels = 3 + usize::from(self.rgbw);
-        let mut bytes = BytesMut::with_capacity(2 + self.led_count as usize * channels);
+        let mut bytes = self.buffer.clone();
+        bytes.clear();
 
         bytes.put_slice(&self.prefix);
 
@@ -279,6 +283,7 @@ pub struct SpectrumState {
     low_pass_filter: DirectForm2Transposed<f32>,
     high_pass_filter: DirectForm2Transposed<f32>,
     envelope: DynamicDecay,
+    buffer: BytesMut,
 }
 
 impl SpectrumState {
@@ -309,6 +314,7 @@ impl SpectrumState {
             )
             .unwrap(),
         );
+        let bytes = BytesMut::with_capacity(prefix.len() + led_count as usize * 3);
         Self {
             sample_buffer: VecDeque::new(),
             colors: VecDeque::from(vec![[0, 0, 0]; led_count as usize]),
@@ -321,6 +327,7 @@ impl SpectrumState {
             low_pass_filter: low_pass,
             high_pass_filter: high_pass,
             envelope: DynamicDecay::init(8.0),
+            buffer: bytes,
         }
     }
 
@@ -379,7 +386,8 @@ impl SpectrumState {
 
 impl Pollable for SpectrumState {
     fn poll(&self) -> Bytes {
-        let mut bytes = BytesMut::with_capacity(2 + self.led_count as usize * 3);
+        let mut bytes = self.buffer.clone();
+        bytes.clear();
         bytes.put_slice(&self.prefix);
 
         if !self.center {
