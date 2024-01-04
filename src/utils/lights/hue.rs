@@ -231,7 +231,7 @@ impl BridgeManager {
 
         info!("Found Bridge {}", &config.name);
 
-        !(config.swversion.parse::<u32>().unwrap() < 1948086000)
+        true
     }
 
     async fn search_bridges(&self) -> Result<Vec<UnauthenticatedBridge>, HueError> {
@@ -255,7 +255,7 @@ impl BridgeManager {
 
         for bridge in local_bridges.into_iter() {
             if !self.check_bridge_reachable(&bridge.ip_address.parse().unwrap()).await {
-                break;
+                continue;
             }
 
             bridges.push(UnauthenticatedBridge {
