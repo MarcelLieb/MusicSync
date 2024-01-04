@@ -115,8 +115,9 @@ pub async fn create_default_output_stream() -> Result<cpal::Stream, BuildStreamE
     let settings = ProcessingSettings::default();
 
     let mut lightservices: Vec<Box<dyn LightService + Send>> = Vec::new();
-    if let Ok(bridge) = hue::connect().await {
-        lightservices.push(Box::new(bridge));
+    match hue::connect().await {
+        Ok(bridge) => lightservices.push(Box::new(bridge)),
+        Err(e) => println!("{e}"),
     }
 
     /*
