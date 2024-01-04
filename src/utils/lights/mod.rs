@@ -17,6 +17,7 @@ use super::audioprocessing::Onset;
 pub mod color;
 pub mod console;
 pub mod envelope;
+#[allow(dead_code)]
 pub mod hue;
 pub mod serialize;
 #[allow(dead_code)]
@@ -66,7 +67,10 @@ pub trait Pollable {
 }
 
 pub trait Writeable {
-    fn write_data(&mut self, data: &Bytes) -> impl std::future::Future<Output = std::io::Result<()>> + Send;
+    fn write_data(
+        &mut self,
+        data: &Bytes,
+    ) -> impl std::future::Future<Output = std::io::Result<()>> + Send;
 }
 
 impl Writeable for tokio::net::UdpSocket {
@@ -140,8 +144,7 @@ impl Drop for PollingHelper {
             while !self.handle.is_finished() {
                 sleep(std::time::Duration::from_millis(10));
             }
-        }
-        else {
+        } else {
             eprintln!("This should never happen")
         }
     }

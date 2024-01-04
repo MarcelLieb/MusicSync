@@ -459,7 +459,6 @@ pub async fn connect() -> Result<BridgeConnection, HueError> {
     let manager = BridgeManager::new();
 
     let bridge = manager.locate_bridge(None, None).await?;
-    println!("Bridge: {:?}", bridge);
 
     manager.start_connection(bridge, None).await
 }
