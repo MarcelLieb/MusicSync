@@ -14,11 +14,11 @@ use std::{
 use tokio::{net::UdpSocket, select};
 use webrtc_dtls::{cipher_suite::CipherSuiteId, config::Config, conn::DTLSConn};
 
-use super::{envelope::{Envelope, self}, Closeable, Pollable, PollingHelper, Stream, Writeable};
-use crate::utils::{
-    audioprocessing::Onset,
-    lights::LightService,
+use super::{
+    envelope::{self, Envelope},
+    Closeable, Pollable, PollingHelper, Stream, Writeable,
 };
+use crate::utils::{audioprocessing::Onset, lights::LightService};
 
 #[derive(Debug)]
 pub enum HueError {
@@ -178,17 +178,28 @@ pub struct HueSettings {
 
 impl Default for HueSettings {
     fn default() -> Self {
-        Self { mode: Default::default(), light_settings: Default::default(), timeout: Duration::from_secs(30) }
+        Self {
+            mode: Default::default(),
+            light_settings: Default::default(),
+            timeout: Duration::from_secs(30),
+        }
     }
 }
 
 #[derive(Debug, Clone, Default)]
 pub enum ConnectionMode {
-    #[default] 
+    #[default]
     Auto,
-    AutoAreaSpecified { area: String },
-    ByIP { ip: Ipv4Addr },
-    ByIPAreaSpecified { ip: Ipv4Addr, area: String },
+    AutoAreaSpecified {
+        area: String,
+    },
+    ByIP {
+        ip: Ipv4Addr,
+    },
+    ByIPAreaSpecified {
+        ip: Ipv4Addr,
+        area: String,
+    },
 }
 
 impl BridgeManager {
@@ -226,7 +237,7 @@ impl BridgeManager {
 
     async fn check_bridge_reachable(&self, ip: &Ipv4Addr) -> bool {
         let Ok(config) = self.get_bridge_config(*ip).await else {
-            return false;          
+            return false;
         };
 
         info!("Found Bridge {}", &config.name);
@@ -254,7 +265,10 @@ impl BridgeManager {
         let mut bridges: Vec<UnauthenticatedBridge> = Vec::new();
 
         for bridge in local_bridges.into_iter() {
-            if !self.check_bridge_reachable(&bridge.ip_address.parse().unwrap()).await {
+            if !self
+                .check_bridge_reachable(&bridge.ip_address.parse().unwrap())
+                .await
+            {
                 continue;
             }
 
@@ -266,12 +280,19 @@ impl BridgeManager {
         Ok(bridges)
     }
 
-    async fn locate_bridge(&self, ip: Option<Ipv4Addr>, timeout: Option<Duration>) -> Result<BridgeData, HueError> {
+    async fn locate_bridge(
+        &self,
+        ip: Option<Ipv4Addr>,
+        timeout: Option<Duration>,
+    ) -> Result<BridgeData, HueError> {
         let mut saved_bridges = BridgeManager::load_saved_bridges(CONFIG_PATH);
         let mut found_bridges = self.filter_reachable(&saved_bridges).await;
 
         if let Some(ip) = ip {
-            found_bridges = found_bridges.into_iter().filter(|bridge| bridge.ip == ip).collect();
+            found_bridges = found_bridges
+                .into_iter()
+                .filter(|bridge| bridge.ip == ip)
+                .collect();
         } else if found_bridges.len() > 1 {
             warn!("Multiple bridges found");
             for bridge in found_bridges.iter().rev() {
@@ -280,7 +301,6 @@ impl BridgeManager {
             }
             warn!("The first bridge will be selected");
             warn!("If you want to use a different bridge, please specify it with the given IP");
-
         }
 
         if !found_bridges.is_empty() {
@@ -289,7 +309,10 @@ impl BridgeManager {
 
         let mut new_bridges = self.search_bridges().await?;
         if let Some(ip) = ip {
-            new_bridges = new_bridges.into_iter().filter(|bridge| bridge.ip == ip).collect();
+            new_bridges = new_bridges
+                .into_iter()
+                .filter(|bridge| bridge.ip == ip)
+                .collect();
         } else if new_bridges.len() > 1 {
             warn!("Multiple bridges found");
             for bridge in new_bridges.iter().rev() {
@@ -311,13 +334,17 @@ impl BridgeManager {
         Ok(bridge)
     }
 
-    async fn authenticate_bridge(&self, ip: Ipv4Addr, timeout: Option<Duration>) -> Result<BridgeData, HueError> {
+    async fn authenticate_bridge(
+        &self,
+        ip: Ipv4Addr,
+        timeout: Option<Duration>,
+    ) -> Result<BridgeData, HueError> {
         #[derive(Serialize, Debug)]
         struct Body {
             devicetype: String,
             generateclientkey: bool,
         }
-        let timeout = timeout.unwrap_or( HueSettings::default().timeout );
+        let timeout = timeout.unwrap_or(HueSettings::default().timeout);
         let config = self.get_bridge_config(ip).await?;
 
         if config.swversion.parse::<u32>().unwrap() < 1948086000 {
@@ -430,17 +457,30 @@ impl BridgeManager {
 
         Ok(response.json::<BridgeConfig>().await?)
     }
-    async fn start_connection(&self, bridge: BridgeData, area: Option<String>) -> Result<BridgeConnection, HueError> {
+    async fn start_connection(
+        &self,
+        bridge: BridgeData,
+        area: Option<String>,
+    ) -> Result<BridgeConnection, HueError> {
         let settings = LightSettings::default();
 
-        self.start_connection_with_settings(bridge, area, settings).await
+        self.start_connection_with_settings(bridge, area, settings)
+            .await
     }
 
-    async fn start_connection_with_settings(&self, bridge: BridgeData, area: Option<String>, settings: LightSettings) -> Result<BridgeConnection, HueError> {
+    async fn start_connection_with_settings(
+        &self,
+        bridge: BridgeData,
+        area: Option<String>,
+        settings: LightSettings,
+    ) -> Result<BridgeConnection, HueError> {
         let mut areas = self.get_entertainment_areas(&bridge).await?;
 
         if let Some(area) = area {
-            areas = areas.into_iter().filter(|ent_area| ent_area.id == area).collect();
+            areas = areas
+                .into_iter()
+                .filter(|ent_area| ent_area.id == area)
+                .collect();
         } else if areas.len() > 1 {
             warn!("Multiple areas found");
             for area in areas.iter().rev() {
@@ -450,7 +490,7 @@ impl BridgeManager {
             warn!("If you want to use a different area, please specify it with the given ID");
         }
         let area = areas.pop().ok_or(HueError::EntertainmentAreaNotFound)?;
-        
+
         BridgeConnection::with_settings(bridge, area, settings).await
     }
 }
@@ -477,23 +517,35 @@ pub async fn connect_with_settings(settings: HueSettings) -> Result<BridgeConnec
         ConnectionMode::Auto => {
             let bridge = manager.locate_bridge(None, Some(settings.timeout)).await?;
 
-            manager.start_connection_with_settings(bridge, None, settings.light_settings).await
-        },
+            manager
+                .start_connection_with_settings(bridge, None, settings.light_settings)
+                .await
+        }
         ConnectionMode::AutoAreaSpecified { area } => {
             let bridge = manager.locate_bridge(None, Some(settings.timeout)).await?;
 
-            manager.start_connection_with_settings(bridge, Some(area), settings.light_settings).await
-        },
+            manager
+                .start_connection_with_settings(bridge, Some(area), settings.light_settings)
+                .await
+        }
         ConnectionMode::ByIP { ip } => {
-            let bridge = manager.locate_bridge(Some(ip), Some(settings.timeout)).await?;
+            let bridge = manager
+                .locate_bridge(Some(ip), Some(settings.timeout))
+                .await?;
 
-            manager.start_connection_with_settings(bridge, None, settings.light_settings).await
-        },
+            manager
+                .start_connection_with_settings(bridge, None, settings.light_settings)
+                .await
+        }
         ConnectionMode::ByIPAreaSpecified { ip, area } => {
-            let bridge = manager.locate_bridge(Some(ip), Some(settings.timeout)).await?;
+            let bridge = manager
+                .locate_bridge(Some(ip), Some(settings.timeout))
+                .await?;
 
-            manager.start_connection_with_settings(bridge, Some(area), settings.light_settings).await
-        },
+            manager
+                .start_connection_with_settings(bridge, Some(area), settings.light_settings)
+                .await
+        }
     }
 }
 
@@ -509,10 +561,7 @@ pub struct BridgeConnection {
 }
 
 impl BridgeConnection {
-    async fn init(
-        bridge: BridgeData,
-        area: EntertainmentArea,
-    ) -> Result<Self, HueError> {
+    async fn init(bridge: BridgeData, area: EntertainmentArea) -> Result<Self, HueError> {
         let settings = LightSettings::default();
         Self::with_settings(bridge, area, settings).await
     }

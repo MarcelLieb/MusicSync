@@ -127,13 +127,13 @@ pub async fn create_default_output_stream() -> Result<cpal::Stream, BuildStreamE
      */
 
     if let Ok(strip) =
-        wled::LEDStripSpectrum::connect("192.168.2.57", settings.sample_rate as f32, 60.0, true)
+        wled::LEDStripSpectrum::connect("192.168.2.57", settings.sample_rate as f32)
             .await
     {
         lightservices.push(Box::new(strip));
     }
     if let Ok(strip) =
-        wled::LEDStripSpectrum::connect("192.168.2.58", settings.sample_rate as f32, 60.0, true)
+        wled::LEDStripSpectrum::connect("192.168.2.58", settings.sample_rate as f32)
             .await
     {
         lightservices.push(Box::new(strip));
