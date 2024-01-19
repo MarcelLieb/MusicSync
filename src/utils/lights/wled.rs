@@ -193,12 +193,43 @@ pub struct LEDStripSpectrum {
     state: Arc<Mutex<SpectrumState>>,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct SpectrumSettings {
+    leds_per_second: f64,
+    center: bool,
+    master_brightness: f32,
+    min_brightness: f32,
+    low_end_crossover: f32,
+    high_end_crossover: f32,
+    polling_rate: f64,
+}
+
+impl Default for SpectrumSettings {
+    fn default() -> Self {
+        Self {
+            leds_per_second: 100.0,
+            center: true,
+            master_brightness: 1.2,
+            min_brightness: 0.25,
+            low_end_crossover: 240.0,
+            high_end_crossover: 2400.0,
+            polling_rate: 50.0,
+        }
+    }
+}
+
 impl LEDStripSpectrum {
     pub async fn connect(
         ip: &str,
         sampling_rate: f32,
-        leds_per_second: f64,
-        center: bool,
+    ) -> Result<LEDStripSpectrum, Box<dyn std::error::Error>> {
+        Self::connect_with_settings(ip, sampling_rate, SpectrumSettings::default()).await
+    }
+
+    pub async fn connect_with_settings(
+        ip: &str,
+        sampling_rate: f32,
+        settings: SpectrumSettings,
     ) -> Result<LEDStripSpectrum, Box<dyn std::error::Error>> {
         #[derive(Debug, Serialize, Deserialize)]
         struct Leds {
@@ -224,15 +255,15 @@ impl LEDStripSpectrum {
         let socket = UdpSocket::bind("0.0.0.0:0").await?;
         socket.connect((ip, info.udpport)).await?;
 
-        let samples_per_led = (sampling_rate as f64 / leds_per_second).round() as u32;
+        let samples_per_led = (sampling_rate as f64 / settings.leds_per_second).round() as u32;
 
         let state = SpectrumState::init(
             sampling_rate,
             info.leds.count,
-            1.0,
-            0.25,
+            settings.master_brightness,
+            settings.min_brightness,
             samples_per_led,
-            center,
+            settings.center,
         );
 
         let state = Arc::new(Mutex::new(state));
