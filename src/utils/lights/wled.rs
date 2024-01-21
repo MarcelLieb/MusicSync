@@ -44,7 +44,7 @@ struct Segment {
 #[derive(Debug)]
 struct OnsetState {
     led_count: u16,
-    brightness: f64,
+    brightness: f32,
     rgbw: bool,
     drum_envelope: DynamicDecay,
     note_envelope: DynamicDecay,
@@ -53,12 +53,35 @@ struct OnsetState {
     buffer: BytesMut,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct OnsetSettings {
+    white_led: bool,
+    drum_decay_rate: f32,
+    note_decay_rate: f32,
+    hihat_decay: Duration,
+    brightness: f32,
+    timeout: u8,
+}
+
+impl Default for OnsetSettings {
+    fn default() -> Self {
+        Self {
+            white_led: true,
+            drum_decay_rate: 2.0,
+            note_decay_rate: 4.0,
+            hihat_decay: Duration::from_millis(200),
+            brightness: 1.0,
+            timeout: 2,
+        }
+    }
+}
+
 impl OnsetState {
-    pub fn init(led_count: u16, rgbw: bool, brightness: f64) -> Self {
+    pub fn init(led_count: u16, rgbw: bool, brightness: f32, timeout: u8) -> Self {
         let prefix = if rgbw {
-            vec![0x03, 0x01]
+            vec![0x03, timeout]
         } else {
-            vec![0x02, 0x01]
+            vec![0x02, timeout]
         };
         let channels = 3 + usize::from(rgbw);
         let buffer = BytesMut::with_capacity(prefix.len() + led_count as usize * channels);
@@ -82,9 +105,9 @@ impl Pollable for OnsetState {
 
         bytes.put_slice(&self.prefix);
 
-        let red = self.drum_envelope.get_value() as f64 * self.led_count as f64 * 0.5;
-        let blue = self.note_envelope.get_value() as f64 * self.led_count as f64 * 0.5;
-        let white = self.hihat_envelope.get_value() as f64 * self.led_count as f64 * 0.2;
+        let red = self.drum_envelope.get_value() as f32 * self.led_count as f32 * 0.5;
+        let blue = self.note_envelope.get_value() as f32 * self.led_count as f32 * 0.5;
+        let white = self.hihat_envelope.get_value() as f32 * self.led_count as f32 * 0.2;
 
         let mut colors: Vec<Vec<u8>> = if self.rgbw {
             vec![vec![0, 0, 0, 0]; self.led_count as usize / 2]
@@ -94,11 +117,11 @@ impl Pollable for OnsetState {
 
         for (i, color) in &mut colors.iter_mut().enumerate() {
             let r =
-                ((red - i as f64).clamp(0.0, 1.0) * u8::MAX as f64 * self.brightness).round() as u8;
-            let b = ((blue - i as f64).clamp(0.0, 1.0) * u8::MAX as f64 * self.brightness).round()
+                ((red - i as f32).clamp(0.0, 1.0) * u8::MAX as f32 * self.brightness).round() as u8;
+            let b = ((blue - i as f32).clamp(0.0, 1.0) * u8::MAX as f32 * self.brightness).round()
                 as u8;
-            let w = ((white - (self.led_count / 2 - i as u16) as f64).clamp(0.0, 1.0)
-                * u8::MAX as f64
+            let w = ((white - (self.led_count / 2 - i as u16) as f32).clamp(0.0, 1.0)
+                * u8::MAX as f32
                 * self.brightness)
                 .round() as u8;
 
@@ -121,6 +144,10 @@ impl Pollable for OnsetState {
 
 impl LEDStripOnset {
     pub async fn connect(ip: &str) -> Result<LEDStripOnset, Box<dyn std::error::Error>> {
+        Self::connect_with_settings(ip, OnsetSettings::default()).await
+    }
+
+    pub async fn connect_with_settings(ip: &str, settings: OnsetSettings) -> Result<LEDStripOnset, Box<dyn std::error::Error>> {
         #[derive(Debug, Serialize, Deserialize)]
         struct Leds {
             count: u16,
@@ -135,7 +162,7 @@ impl LEDStripOnset {
             ver: String,
         }
         let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(2))
+            .timeout(Duration::from_secs(settings.timeout as u64))
             .build()?;
         let url = format!("http://{}/json/info", ip);
         let resp = client.get(&url).send().await?;
@@ -145,7 +172,7 @@ impl LEDStripOnset {
         let socket = UdpSocket::bind("0.0.0.0:0").await?;
         socket.connect((ip, info.udpport)).await?;
 
-        let state = OnsetState::init(info.leds.count, info.leds.rgbw, 1.0);
+        let state = OnsetState::init(info.leds.count, info.leds.rgbw && settings.white_led, 1.0, settings.timeout);
 
         let state = Arc::new(Mutex::new(state));
 
@@ -202,6 +229,7 @@ pub struct SpectrumSettings {
     pub low_end_crossover: f32,
     pub high_end_crossover: f32,
     pub polling_rate: f64,
+    pub timeout: u8,
 }
 
 impl Default for SpectrumSettings {
@@ -214,6 +242,7 @@ impl Default for SpectrumSettings {
             low_end_crossover: 240.0,
             high_end_crossover: 2400.0,
             polling_rate: 50.0,
+            timeout: 2,
         }
     }
 }
@@ -245,7 +274,7 @@ impl LEDStripSpectrum {
             ver: String,
         }
         let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(2))
+            .timeout(Duration::from_secs(settings.timeout as u64))
             .build()?;
         let url = format!("http://{}/json/info", ip);
         let resp = client.get(&url).send().await?;
@@ -264,6 +293,7 @@ impl LEDStripSpectrum {
             settings.min_brightness,
             samples_per_led,
             settings.center,
+            settings.timeout,
         );
 
         let state = Arc::new(Mutex::new(state));
@@ -325,8 +355,9 @@ impl SpectrumState {
         min_brightness: f32,
         samples_per_led: u32,
         center: bool,
+        timeout: u8,
     ) -> Self {
-        let prefix = vec![0x02, 0x01];
+        let prefix = vec![0x02, timeout];
         let low_pass = DirectForm2Transposed::<f32>::new(
             Coefficients::<f32>::from_params(
                 Type::LowPass,
