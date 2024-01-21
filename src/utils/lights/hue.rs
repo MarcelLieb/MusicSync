@@ -171,9 +171,9 @@ struct EntertainmentArea {
 
 #[derive(Debug, Clone)]
 pub struct HueSettings {
-    mode: ConnectionMode,
-    light_settings: LightSettings,
-    timeout: Duration,
+    pub mode: ConnectionMode,
+    pub light_settings: LightSettings,
+    pub timeout: Duration,
 }
 
 impl Default for HueSettings {
@@ -694,13 +694,13 @@ struct State {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct LightSettings {
-    drum_decay_rate: f32,
-    note_decay: Duration,
-    hihat_decay: Duration,
-    fullband_decay: Duration,
-    fullband_color: ([u16; 3], [u16; 3]),
-    color_envelope: bool,
+pub struct LightSettings {
+    pub drum_decay_rate: f32,
+    pub note_decay: Duration,
+    pub hihat_decay: Duration,
+    pub fullband_decay: Duration,
+    pub fullband_color: ([u16; 3], [u16; 3]),
+    pub color_envelope: bool,
 }
 
 impl Default for LightSettings {

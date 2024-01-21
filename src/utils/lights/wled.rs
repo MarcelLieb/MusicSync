@@ -195,13 +195,13 @@ pub struct LEDStripSpectrum {
 
 #[derive(Debug, Clone, Copy)]
 pub struct SpectrumSettings {
-    leds_per_second: f64,
-    center: bool,
-    master_brightness: f32,
-    min_brightness: f32,
-    low_end_crossover: f32,
-    high_end_crossover: f32,
-    polling_rate: f64,
+    pub leds_per_second: f64,
+    pub center: bool,
+    pub master_brightness: f32,
+    pub min_brightness: f32,
+    pub low_end_crossover: f32,
+    pub high_end_crossover: f32,
+    pub polling_rate: f64,
 }
 
 impl Default for SpectrumSettings {
