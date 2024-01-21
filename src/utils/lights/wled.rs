@@ -1,7 +1,9 @@
 use std::{
     collections::VecDeque,
+    io,
     sync::{Arc, Mutex},
     time::Duration,
+    fmt::Display,
 };
 
 use biquad::{Biquad, Coefficients, DirectForm2Transposed, ToHertz, Type, Q_BUTTERWORTH_F32};
@@ -24,6 +26,35 @@ pub struct LEDStrip {
     port: u16,
     segments: Vec<Segment>,
     rgbw: bool,
+}
+
+#[derive(Debug)]
+pub enum WLEDError {
+    Http(reqwest::Error),
+    Socket(io::Error),
+}
+
+impl From<reqwest::Error> for WLEDError {
+    fn from(value: reqwest::Error) -> Self {
+        Self::Http(value)
+    }
+}
+
+impl From<std::io::Error> for WLEDError {
+    fn from(value: std::io::Error) -> Self {
+        Self::Socket(value)
+    }
+}
+
+impl std::error::Error for WLEDError {}
+
+impl Display for WLEDError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            WLEDError::Http(e) => write!(f, "Http request failed: {e}"),
+            WLEDError::Socket(e) => write!(f, "Socket error: {e}"),
+        }
+    }
 }
 
 #[allow(dead_code)]
@@ -55,12 +86,12 @@ struct OnsetState {
 
 #[derive(Debug, Clone, Copy)]
 pub struct OnsetSettings {
-    white_led: bool,
-    drum_decay_rate: f32,
-    note_decay_rate: f32,
-    hihat_decay: Duration,
-    brightness: f32,
-    timeout: u8,
+    pub white_led: bool,
+    pub drum_decay_rate: f32,
+    pub note_decay_rate: f32,
+    pub hihat_decay: Duration,
+    pub brightness: f32,
+    pub timeout: u8,
 }
 
 impl Default for OnsetSettings {
@@ -143,11 +174,14 @@ impl Pollable for OnsetState {
 }
 
 impl LEDStripOnset {
-    pub async fn connect(ip: &str) -> Result<LEDStripOnset, Box<dyn std::error::Error>> {
+    pub async fn connect(ip: &str) -> Result<LEDStripOnset, WLEDError> {
         Self::connect_with_settings(ip, OnsetSettings::default()).await
     }
 
-    pub async fn connect_with_settings(ip: &str, settings: OnsetSettings) -> Result<LEDStripOnset, Box<dyn std::error::Error>> {
+    pub async fn connect_with_settings(
+        ip: &str,
+        settings: OnsetSettings,
+    ) -> Result<LEDStripOnset, WLEDError> {
         #[derive(Debug, Serialize, Deserialize)]
         struct Leds {
             count: u16,
@@ -172,7 +206,12 @@ impl LEDStripOnset {
         let socket = UdpSocket::bind("0.0.0.0:0").await?;
         socket.connect((ip, info.udpport)).await?;
 
-        let state = OnsetState::init(info.leds.count, info.leds.rgbw && settings.white_led, 1.0, settings.timeout);
+        let state = OnsetState::init(
+            info.leds.count,
+            info.leds.rgbw && settings.white_led,
+            1.0,
+            settings.timeout,
+        );
 
         let state = Arc::new(Mutex::new(state));
 
@@ -248,10 +287,7 @@ impl Default for SpectrumSettings {
 }
 
 impl LEDStripSpectrum {
-    pub async fn connect(
-        ip: &str,
-        sampling_rate: f32,
-    ) -> Result<LEDStripSpectrum, Box<dyn std::error::Error>> {
+    pub async fn connect(ip: &str, sampling_rate: f32) -> Result<LEDStripSpectrum, WLEDError> {
         Self::connect_with_settings(ip, sampling_rate, SpectrumSettings::default()).await
     }
 
@@ -259,7 +295,7 @@ impl LEDStripSpectrum {
         ip: &str,
         sampling_rate: f32,
         settings: SpectrumSettings,
-    ) -> Result<LEDStripSpectrum, Box<dyn std::error::Error>> {
+    ) -> Result<LEDStripSpectrum, WLEDError> {
         #[derive(Debug, Serialize, Deserialize)]
         struct Leds {
             count: u16,
