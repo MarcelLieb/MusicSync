@@ -173,6 +173,7 @@ struct EntertainmentArea {
 pub struct HueSettings {
     pub mode: ConnectionMode,
     pub light_settings: LightSettings,
+    pub push_link_timeout: Duration,
     pub timeout: Duration,
 }
 
@@ -181,7 +182,8 @@ impl Default for HueSettings {
         Self {
             mode: Default::default(),
             light_settings: Default::default(),
-            timeout: Duration::from_secs(30),
+            push_link_timeout: Duration::from_secs(30),
+            timeout: Duration::from_secs(2),
         }
     }
 }
@@ -203,9 +205,10 @@ pub enum ConnectionMode {
 }
 
 impl BridgeManager {
-    fn new() -> Self {
+    fn new(timeout: Duration) -> Self {
         let client = ClientBuilder::new()
             .danger_accept_invalid_certs(true)
+            .timeout(timeout)
             .build()
             .unwrap();
         BridgeManager { client }
@@ -344,7 +347,7 @@ impl BridgeManager {
             devicetype: String,
             generateclientkey: bool,
         }
-        let timeout = timeout.unwrap_or(HueSettings::default().timeout);
+        let timeout = timeout.unwrap_or(HueSettings::default().push_link_timeout);
         let config = self.get_bridge_config(ip).await?;
 
         if config.swversion.parse::<u32>().unwrap() < 1948086000 {
@@ -496,7 +499,7 @@ impl BridgeManager {
 }
 
 pub async fn connect() -> Result<BridgeConnection, HueError> {
-    let manager = BridgeManager::new();
+    let manager = BridgeManager::new(HueSettings::default().timeout);
 
     let bridge = manager.locate_bridge(None, None).await?;
 
@@ -504,7 +507,7 @@ pub async fn connect() -> Result<BridgeConnection, HueError> {
 }
 
 pub async fn connect_by_ip(ip: Ipv4Addr) -> Result<BridgeConnection, HueError> {
-    let manager = BridgeManager::new();
+    let manager = BridgeManager::new(HueSettings::default().timeout);
 
     let bridge = manager.locate_bridge(Some(ip), None).await?;
 
@@ -512,17 +515,17 @@ pub async fn connect_by_ip(ip: Ipv4Addr) -> Result<BridgeConnection, HueError> {
 }
 
 pub async fn connect_with_settings(settings: HueSettings) -> Result<BridgeConnection, HueError> {
-    let manager = BridgeManager::new();
+    let manager = BridgeManager::new(settings.timeout);
     match settings.mode {
         ConnectionMode::Auto => {
-            let bridge = manager.locate_bridge(None, Some(settings.timeout)).await?;
+            let bridge = manager.locate_bridge(None, Some(settings.push_link_timeout)).await?;
 
             manager
                 .start_connection_with_settings(bridge, None, settings.light_settings)
                 .await
         }
         ConnectionMode::AutoAreaSpecified { area } => {
-            let bridge = manager.locate_bridge(None, Some(settings.timeout)).await?;
+            let bridge = manager.locate_bridge(None, Some(settings.push_link_timeout)).await?;
 
             manager
                 .start_connection_with_settings(bridge, Some(area), settings.light_settings)
@@ -530,7 +533,7 @@ pub async fn connect_with_settings(settings: HueSettings) -> Result<BridgeConnec
         }
         ConnectionMode::ByIP { ip } => {
             let bridge = manager
-                .locate_bridge(Some(ip), Some(settings.timeout))
+                .locate_bridge(Some(ip), Some(settings.push_link_timeout))
                 .await?;
 
             manager
@@ -539,7 +542,7 @@ pub async fn connect_with_settings(settings: HueSettings) -> Result<BridgeConnec
         }
         ConnectionMode::ByIPAreaSpecified { ip, area } => {
             let bridge = manager
-                .locate_bridge(Some(ip), Some(settings.timeout))
+                .locate_bridge(Some(ip), Some(settings.push_link_timeout))
                 .await?;
 
             manager
