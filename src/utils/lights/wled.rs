@@ -46,13 +46,20 @@ impl From<std::io::Error> for WLEDError {
     }
 }
 
-impl std::error::Error for WLEDError {}
+impl std::error::Error for WLEDError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            WLEDError::Http(e) => Some(e),
+            WLEDError::Socket(e) => Some(e),
+        }
+    }
+}
 
 impl Display for WLEDError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            WLEDError::Http(e) => write!(f, "LED strip is not reachable: {e}"),
-            WLEDError::Socket(e) => write!(f, "Socket error: {e}"),
+            WLEDError::Http(_) => write!(f, "LED strip is not reachable"),
+            WLEDError::Socket(_) => write!(f, "Binding socket failed"),
         }
     }
 }

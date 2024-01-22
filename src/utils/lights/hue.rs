@@ -31,20 +31,29 @@ pub enum HueError {
     EntertainmentAreaNotFound,
 }
 
-impl std::error::Error for HueError {}
+impl std::error::Error for HueError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            HueError::Http(e) => Some(e),
+            HueError::Handshake(e) => Some(e),
+            HueError::SaveBridgeError(e) => Some(e),
+            _ => None,
+        }
+    }
+}
 
 impl Display for HueError {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
-            Self::Http(e) => write!(f, "Http request failed: {e}"),
-            Self::Handshake(e) => write!(f, "Dtls Handshake failed: {e}"),
+            Self::Http(_) => write!(f, "Http request failed"),
+            Self::Handshake(_) => write!(f, "Dtls Handshake failed"),
             Self::VersionError(version) => write!(
                 f,
                 "Software version too low: {version}\nMust be at least 1948086000"
             ),
             Self::TimeOut => write!(f, "Timed out"),
             Self::NoBridgeFound => write!(f, "No Bridges could be found"),
-            Self::SaveBridgeError(e) => write!(f, "Error saving bridges to file: {e}"),
+            Self::SaveBridgeError(_) => write!(f, "Error saving bridges to file"),
             Self::EntertainmentAreaNotFound => write!(f, "Entertainment area could not be found"),
         }
     }
