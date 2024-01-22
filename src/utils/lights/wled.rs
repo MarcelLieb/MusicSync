@@ -1,9 +1,9 @@
 use std::{
     collections::VecDeque,
+    fmt::Display,
     io,
     sync::{Arc, Mutex},
     time::Duration,
-    fmt::Display,
 };
 
 use biquad::{Biquad, Coefficients, DirectForm2Transposed, ToHertz, Type, Q_BUTTERWORTH_F32};
@@ -51,7 +51,7 @@ impl std::error::Error for WLEDError {}
 impl Display for WLEDError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            WLEDError::Http(e) => write!(f, "Http request failed: {e}"),
+            WLEDError::Http(e) => write!(f, "LED strip is not reachable: {e}"),
             WLEDError::Socket(e) => write!(f, "Socket error: {e}"),
         }
     }

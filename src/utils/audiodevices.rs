@@ -125,18 +125,14 @@ pub async fn create_default_output_stream() -> Result<cpal::Stream, BuildStreamE
         lightservices.push(Box::new(strip));
     }
      */
-
-    if let Ok(strip) =
-        wled::LEDStripSpectrum::connect("192.168.2.57", settings.sample_rate as f32)
-            .await
-    {
-        lightservices.push(Box::new(strip));
+    match wled::LEDStripSpectrum::connect("192.168.2.57", settings.sample_rate as f32).await {
+        Ok(strip) => lightservices.push(Box::new(strip)),
+        Err(e) => println!("{e}"),
     }
-    if let Ok(strip) =
-        wled::LEDStripSpectrum::connect("192.168.2.58", settings.sample_rate as f32)
-            .await
-    {
-        lightservices.push(Box::new(strip));
+
+    match wled::LEDStripSpectrum::connect("192.168.2.58", settings.sample_rate as f32).await {
+        Ok(strip) => lightservices.push(Box::new(strip)),
+        Err(e) => println!("{e}"),
     }
 
     let console = Console::default();

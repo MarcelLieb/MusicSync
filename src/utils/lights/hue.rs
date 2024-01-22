@@ -518,14 +518,18 @@ pub async fn connect_with_settings(settings: HueSettings) -> Result<BridgeConnec
     let manager = BridgeManager::new(settings.timeout);
     match settings.mode {
         ConnectionMode::Auto => {
-            let bridge = manager.locate_bridge(None, Some(settings.push_link_timeout)).await?;
+            let bridge = manager
+                .locate_bridge(None, Some(settings.push_link_timeout))
+                .await?;
 
             manager
                 .start_connection_with_settings(bridge, None, settings.light_settings)
                 .await
         }
         ConnectionMode::AutoAreaSpecified { area } => {
-            let bridge = manager.locate_bridge(None, Some(settings.push_link_timeout)).await?;
+            let bridge = manager
+                .locate_bridge(None, Some(settings.push_link_timeout))
+                .await?;
 
             manager
                 .start_connection_with_settings(bridge, Some(area), settings.light_settings)
