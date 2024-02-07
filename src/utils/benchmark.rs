@@ -13,7 +13,7 @@ pub fn process_file(filename: &str, settings: ProcessingSettings) {
     let source = Decoder::new(file).unwrap();
 
     let serializer = serialize::OnsetContainer::init(
-        filename.split('.').next().unwrap().to_owned() + ".cbor",
+        &(filename.split('.').next().unwrap().to_owned() + ".cbor"),
         settings.sample_rate as usize,
         settings.hop_size,
     );

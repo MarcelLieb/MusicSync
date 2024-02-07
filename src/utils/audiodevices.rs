@@ -139,7 +139,7 @@ pub async fn create_default_output_stream() -> Result<cpal::Stream, BuildStreamE
     lightservices.push(Box::new(console));
 
     let serializer = serialize::OnsetContainer::init(
-        "onsets.cbor".to_string(),
+        "onsets.cbor",
         settings.sample_rate as usize,
         settings.hop_size,
     );
