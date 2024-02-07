@@ -123,7 +123,9 @@ impl PollingHelper {
                         ))
                         .await;
                     }
-                } => {}
+                } => {
+                    eprintln!("Never ending loop returned");
+                }
                 _ = rx.recv() => {
                     stream.close_connection().await;
                 }
@@ -145,7 +147,7 @@ impl Drop for PollingHelper {
                 sleep(std::time::Duration::from_millis(10));
             }
         } else {
-            eprintln!("This should never happen")
+            eprintln!("This should never happen");
         }
     }
 }
