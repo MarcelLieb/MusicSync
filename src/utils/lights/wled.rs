@@ -91,7 +91,8 @@ struct OnsetState {
     buffer: BytesMut,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[serde(default)]
 pub struct OnsetSettings {
     pub white_led: bool,
     pub drum_decay_rate: f32,
@@ -266,7 +267,8 @@ pub struct LEDStripSpectrum {
     state: Arc<Mutex<SpectrumState>>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[serde(default)]
 pub struct SpectrumSettings {
     pub leds_per_second: f64,
     pub center: bool,

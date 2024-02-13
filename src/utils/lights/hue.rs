@@ -178,7 +178,8 @@ struct EntertainmentArea {
     channels: Vec<EntertainmentChannels>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default)]
 pub struct HueSettings {
     pub mode: ConnectionMode,
     pub light_settings: LightSettings,
@@ -197,7 +198,7 @@ impl Default for HueSettings {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub enum ConnectionMode {
     #[default]
     Auto,
@@ -709,7 +710,7 @@ struct State {
     buffer: BytesMut,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
 pub struct LightSettings {
     pub drum_decay_rate: f32,
     pub note_decay: Duration,
