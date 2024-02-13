@@ -276,6 +276,7 @@ pub struct SpectrumSettings {
     pub high_end_crossover: f32,
     pub polling_rate: f64,
     pub timeout: u8,
+    pub onset_decay_rate: f32,
 }
 
 impl Default for SpectrumSettings {
@@ -289,6 +290,7 @@ impl Default for SpectrumSettings {
             high_end_crossover: 2400.0,
             polling_rate: 50.0,
             timeout: 2,
+            onset_decay_rate: 6.0,
         }
     }
 }
@@ -335,6 +337,7 @@ impl LEDStripSpectrum {
             settings.master_brightness,
             settings.min_brightness,
             samples_per_led,
+            settings.onset_decay_rate,
             settings.center,
             settings.timeout,
         );
@@ -397,6 +400,7 @@ impl SpectrumState {
         master_brightness: f32,
         min_brightness: f32,
         samples_per_led: u32,
+        onset_decay_rate: f32,
         center: bool,
         timeout: u8,
     ) -> Self {
@@ -431,7 +435,7 @@ impl SpectrumState {
             samples_per_led,
             low_pass_filter: low_pass,
             high_pass_filter: high_pass,
-            envelope: DynamicDecay::init(8.0),
+            envelope: DynamicDecay::init(onset_decay_rate),
             buffer: bytes,
         }
     }
