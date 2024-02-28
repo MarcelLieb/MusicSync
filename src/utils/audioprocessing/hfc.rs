@@ -38,7 +38,8 @@ pub struct Hfc {
     bin_resolution: f32,
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize)]
+#[serde(default)]
 pub struct HfcSettings {
     pub detection_weights: DetectionWeights,
     pub threshold_settings: ThresholdBankSettings,
@@ -193,7 +194,8 @@ impl ThresholdBank {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[serde(default)]
 pub struct ThresholdBankSettings {
     pub drums: DynamicSettings,
     pub hihat: DynamicSettings,
