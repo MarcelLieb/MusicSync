@@ -63,8 +63,8 @@ pub fn rgb_to_hsv(rgb: [u16; 3]) -> [f32; 3] {
         rgb[1] as f32 / u16::MAX as f32,
         rgb[2] as f32 / u16::MAX as f32,
     ];
-    let c_max = out.iter().reduce(|a, b| if a > b { a } else { b }).unwrap();
-    let c_min = out.iter().reduce(|a, b| if a < b { a } else { b }).unwrap();
+    let c_max = out.iter().copied().reduce(f32::max).unwrap();
+    let c_min = out.iter().copied().reduce(f32::min).unwrap();
     let delta = c_max - c_min;
 
     let h: f32;
@@ -72,20 +72,20 @@ pub fn rgb_to_hsv(rgb: [u16; 3]) -> [f32; 3] {
         h = 0.0;
     } else {
         match c_max {
-            i if out[0] == *i => {
+            i if out[0] == i => {
                 let check = 60.0 * (((out[1] - out[2]) / delta) % 6.0);
                 h = if check >= 0.0 { check } else { 360.0 + check };
             }
-            i if out[1] == *i => h = 60.0 * (((out[2] - out[0]) / delta) + 2.0),
+            i if out[1] == i => h = 60.0 * (((out[2] - out[0]) / delta) + 2.0),
 
-            i if out[2] == *i => h = 60.0 * (((out[0] - out[1]) / delta) + 4.0),
+            i if out[2] == i => h = 60.0 * (((out[0] - out[1]) / delta) + 4.0),
             _ => h = 0.0,
         }
     }
 
-    let s = if *c_max == 0.0 { 0.0 } else { delta / c_max };
+    let s = if c_max == 0.0 { 0.0 } else { delta / c_max };
 
-    [h, s, *c_max]
+    [h, s, c_max]
 }
 
 pub fn hsv_to_rgb(hsv: &[f32; 3]) -> [u16; 3] {
@@ -154,12 +154,12 @@ pub fn hex_to_color(hex: &str) -> [u16; 3] {
     [r, g, b]
 }
 
-pub fn color_to_hue(color: &[u16; 3]) -> u16 {
+pub fn color_to_hue(color: &[u16; 3]) -> f32 {
     let hsv = rgb_to_hsv(*color);
-    hsv[0] as u16
+    hsv[0]
 }
 
-pub fn hue_to_color(hue: u16) -> [u16; 3] {
-    let hsv = [hue as f32, 1.0, 1.0];
+pub fn hue_to_color(hue: f32) -> [u16; 3] {
+    let hsv = [hue, 1.0, 1.0];
     hsv_to_rgb(&hsv)
 }

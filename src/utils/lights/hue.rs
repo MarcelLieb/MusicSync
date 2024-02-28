@@ -1,8 +1,7 @@
-use async_trait::async_trait;
 use bytes::{BufMut, Bytes, BytesMut};
 use ciborium::{from_reader, into_writer};
-use log::{info, warn};
-use reqwest::ClientBuilder;
+use log::{debug, info, warn};
+use reqwest::{Client, ClientBuilder};
 use serde::{Deserialize, Serialize};
 use std::{
     fmt::{self, Display, Formatter},
@@ -15,62 +14,80 @@ use std::{
 use tokio::{net::UdpSocket, select};
 use webrtc_dtls::{cipher_suite::CipherSuiteId, config::Config, conn::DTLSConn};
 
-use super::{envelope::Envelope, Closeable, Pollable, PollingHelper, Stream, Writeable};
-use crate::utils::{
-    audioprocessing::Onset,
-    lights::{
-        envelope::{Color, DynamicDecay, FixedDecay},
-        LightService,
-    },
+use super::{
+    envelope::{self, Envelope},
+    Closeable, Pollable, PollingHelper, Stream, Writeable,
 };
-#[allow(dead_code)]
-pub struct BridgeConnection {
-    id: String,
-    ip: Ipv4Addr,
-    app_key: String,
-    app_id: String,
-    area: String,
-    polling_helper: PollingHelper,
-    state: Arc<Mutex<State>>,
-}
+use crate::utils::{audioprocessing::Onset, lights::LightService};
 
 #[derive(Debug)]
-pub enum ConnectionError {
+pub enum HueError {
     Http(reqwest::Error),
     Handshake(webrtc_dtls::Error),
     VersionError(u32),
     TimeOut,
+    NoBridgeFound,
+    SaveBridgeError(std::io::Error),
+    EntertainmentAreaNotFound,
 }
 
-impl std::error::Error for ConnectionError {}
+impl std::error::Error for HueError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            HueError::Http(e) => Some(e),
+            HueError::Handshake(e) => Some(e),
+            HueError::SaveBridgeError(e) => Some(e),
+            _ => None,
+        }
+    }
+}
 
-impl Display for ConnectionError {
+impl Display for HueError {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
-            Self::Http(e) => write!(f, "Http request failed: {e}"),
-            Self::Handshake(e) => write!(f, "Dtls Handshake failed: {e}"),
+            Self::Http(_) => write!(f, "Http request failed"),
+            Self::Handshake(_) => write!(f, "Dtls Handshake failed"),
             Self::VersionError(version) => write!(
                 f,
                 "Software version too low: {version}\nMust be at least 1948086000"
             ),
             Self::TimeOut => write!(f, "Timed out"),
+            Self::NoBridgeFound => write!(f, "No Bridges could be found"),
+            Self::SaveBridgeError(_) => write!(f, "Error saving bridges to file"),
+            Self::EntertainmentAreaNotFound => write!(f, "Entertainment area could not be found"),
         }
     }
 }
 
-impl From<reqwest::Error> for ConnectionError {
+impl From<reqwest::Error> for HueError {
     fn from(err: reqwest::Error) -> Self {
-        ConnectionError::Http(err)
+        HueError::Http(err)
     }
 }
 
-impl From<webrtc_dtls::Error> for ConnectionError {
+impl From<webrtc_dtls::Error> for HueError {
     fn from(err: webrtc_dtls::Error) -> Self {
-        ConnectionError::Handshake(err)
+        HueError::Handshake(err)
     }
 }
 
-#[async_trait]
+impl From<ciborium::ser::Error<std::io::Error>> for HueError {
+    fn from(err: ciborium::ser::Error<std::io::Error>) -> Self {
+        match err {
+            ciborium::ser::Error::Io(err) => HueError::SaveBridgeError(err),
+            ciborium::ser::Error::Value(_) => {
+                panic!("Serialization failed, this should be impossible, please report")
+            }
+        }
+    }
+}
+
+impl From<std::io::Error> for HueError {
+    fn from(err: std::io::Error) -> Self {
+        HueError::SaveBridgeError(err)
+    }
+}
+
 impl Writeable for DTLSConn {
     async fn write_data(&mut self, data: &Bytes) -> std::io::Result<()> {
         match self.write(data, None).await {
@@ -83,7 +100,6 @@ impl Writeable for DTLSConn {
     }
 }
 
-#[async_trait]
 impl Closeable for DTLSConn {
     async fn close_connection(&mut self) {
         self.close().await.unwrap();
@@ -92,93 +108,11 @@ impl Closeable for DTLSConn {
 
 impl Stream for DTLSConn {}
 
-impl BridgeConnection {
-    pub async fn init(
-        bridge: SavedBridge,
-        area: String,
-    ) -> Result<BridgeConnection, ConnectionError> {
-        let SavedBridge {
-            id,
-            ip,
-            app_key,
-            app_id,
-            psk,
-        } = bridge;
-
-        info!("Start Entertainment mode");
-        start_entertainment_mode(&ip, &area, &app_key).await?;
-        info!("Building DTLS Connection");
-        let connection = dtls_connection(
-            app_id.as_bytes().to_vec(),
-            psk.clone(),
-            IpAddr::V4(ip),
-            2100,
-        )
-        .await?;
-        info!("Connection established");
-
-        let area_id = area.clone();
-
-        let state = Arc::new(Mutex::new(State::init(&area_id)));
-
-        let polling_helper = PollingHelper::init(connection, state.clone(), 55.0);
-
-        let bridge = BridgeConnection {
-            id,
-            ip,
-            app_key,
-            app_id,
-            area,
-            polling_helper,
-            state,
-        };
-        Ok(bridge)
-    }
-}
-
-struct State {
-    pub drum: DynamicDecay,
-    pub hihat: FixedDecay,
-    pub note: FixedDecay,
-    pub fullband: Color,
-    prefix: Vec<u8>,
-}
-
-impl State {
-    fn init(area_id: &str) -> State {
-        let mut prefix = BytesMut::from("HueStream");
-        prefix.extend([2, 0, 0, 0, 0, 0, 0]);
-        prefix.put(area_id.as_bytes());
-
-        State {
-            drum: DynamicDecay::init(8.0),
-            hihat: FixedDecay::init(Duration::from_millis(80)),
-            note: FixedDecay::init(Duration::from_millis(100)),
-            fullband: Color::init([u16::MAX, 0, 0], [2, 0, 1], Duration::from_millis(250)),
-            prefix: prefix.into(),
-        }
-    }
-}
-
-impl Pollable for State {
-    fn poll(&self) -> Bytes {
-        let r = (self.drum.get_value() * u16::MAX as f32) as u16;
-        let white = (self.hihat.get_value() * u16::MAX as f32) as u16 >> 3;
-        let b = (self.note.get_value() * u16::MAX as f32) as u16 >> 1;
-
-        let mut bytes = BytesMut::with_capacity(32);
-        bytes.extend(self.prefix.clone());
-        bytes.put_u8(0);
-        bytes.put_u16(r.saturating_add(white));
-        bytes.put_u16(white);
-        bytes.put_u16(b.saturating_add(white));
-
-        bytes.into()
-    }
-}
+// TODO: Move save file to a proper permanent location
+static CONFIG_PATH: &str = "hue.cbor";
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct SavedBridge {
+pub struct BridgeData {
     pub id: String,
     pub ip: Ipv4Addr,
     pub app_key: String,
@@ -186,8 +120,11 @@ pub struct SavedBridge {
     pub psk: String,
 }
 
-pub struct Bridge {
-    id: String,
+#[derive(Debug, Deserialize, Clone)]
+struct UnauthenticatedBridge {
+    #[serde(rename = "id")]
+    _id: String,
+    #[serde(rename = "internalipaddress")]
     ip: Ipv4Addr,
 }
 
@@ -199,177 +136,235 @@ enum ApiResponse {
     Error { description: String },
 }
 
-pub async fn connect() -> Result<BridgeConnection, ConnectionError> {
-    #[derive(Deserialize, Debug)]
-    struct _Metadata {
-        #[serde(rename = "name")]
-        _name: String,
+struct BridgeManager {
+    client: Client,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Deserialize, Clone)]
+struct BridgeConfig {
+    name: String,
+    swversion: String,
+    #[serde(rename = "bridgeid")]
+    id: String,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+struct _Metadata {
+    #[serde(rename = "name")]
+    _name: String,
+}
+
+#[derive(Deserialize, Debug, Clone, Copy)]
+struct EntertainmentChannels {
+    channel_id: u8,
+    #[serde(rename = "position")]
+    _position: Point,
+}
+
+#[allow(dead_code)]
+#[derive(Deserialize, Debug, Clone, Copy)]
+struct Point {
+    x: f32,
+    y: f32,
+    z: f32,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+struct EntertainmentArea {
+    id: String,
+    #[serde(rename = "metadata")]
+    _metadata: _Metadata,
+    channels: Vec<EntertainmentChannels>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default)]
+pub struct HueSettings {
+    pub mode: ConnectionMode,
+    pub light_settings: LightSettings,
+    pub push_link_timeout: Duration,
+    pub timeout: Duration,
+}
+
+impl Default for HueSettings {
+    fn default() -> Self {
+        Self {
+            mode: Default::default(),
+            light_settings: Default::default(),
+            push_link_timeout: Duration::from_secs(30),
+            timeout: Duration::from_secs(2),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub enum ConnectionMode {
+    #[default]
+    Auto,
+    AutoAreaSpecified {
+        area: String,
+    },
+    ByIP {
+        ip: Ipv4Addr,
+    },
+    ByIPAreaSpecified {
+        ip: Ipv4Addr,
+        area: String,
+    },
+}
+
+impl BridgeManager {
+    fn new(timeout: Duration) -> Self {
+        let client = ClientBuilder::new()
+            .danger_accept_invalid_certs(true)
+            .timeout(timeout)
+            .build()
+            .unwrap();
+        BridgeManager { client }
     }
 
-    #[derive(Deserialize, Debug)]
-    struct _EntertainmentArea {
-        id: String,
-        #[serde(rename = "metadata")]
-        _metadata: _Metadata,
-    }
+    fn load_saved_bridges(path: &str) -> Vec<BridgeData> {
+        let mut saved_bridges: Vec<BridgeData> = Vec::new();
 
-    #[derive(Deserialize, Debug)]
-    struct _EntResponse {
-        data: Vec<_EntertainmentArea>,
-    }
-
-    let mut saved_bridges: Vec<SavedBridge> = Vec::new();
-    let mut candidates: Vec<SavedBridge> = Vec::new();
-    if let Ok(file) = File::open("hue.cbor") {
-        let data: Vec<SavedBridge> = from_reader(file).unwrap();
-        for bridge in data {
-            saved_bridges.push(bridge.clone());
-            if check_bridge(&bridge.ip).await {
-                candidates.push(bridge);
+        if let Ok(file) = File::open(path) {
+            let data: Vec<BridgeData> = from_reader(file).unwrap();
+            for bridge in data {
+                saved_bridges.push(bridge.clone());
             }
         }
+
+        saved_bridges
     }
-    if candidates.is_empty() {
-        let mut local_bridges = find_bridges().await?;
-        local_bridges.retain(|b| {
-            !saved_bridges
-                .iter()
-                .map(|save| save.ip.to_string())
-                .any(|ip| b.ip.to_string() == *ip)
-        });
-        for bridge in local_bridges {
-            if let Ok(authenticated) = bridge.authenticate().await {
-                saved_bridges.push(authenticated.clone());
-                candidates.push(authenticated.clone());
+
+    async fn filter_reachable(&self, bridges: &[BridgeData]) -> Vec<BridgeData> {
+        let mut candidates: Vec<BridgeData> = Vec::new();
+        for bridge in bridges {
+            if self.check_bridge_reachable(&bridge.ip).await {
+                candidates.push(bridge.clone());
             }
         }
+
+        candidates
     }
 
-    if candidates.is_empty() {
-        warn!("Couldn't find compatible bridge");
-        return Err(ConnectionError::TimeOut);
+    async fn check_bridge_reachable(&self, ip: &Ipv4Addr) -> bool {
+        let Ok(config) = self.get_bridge_config(*ip).await else {
+            return false;
+        };
+
+        info!("Found Bridge {}", &config.name);
+
+        true
     }
 
-    let f = File::create("hue.cbor").unwrap();
-    into_writer(&saved_bridges, f).unwrap();
-
-    // TODO: Add ability to select bridge
-    let bridge = candidates[0].clone();
-
-    let client = ClientBuilder::new()
-        .danger_accept_invalid_certs(true)
-        .build()
-        .unwrap();
-
-    let response = client
-        .get(format!(
-            "https://{}/clip/v2/resource/entertainment_configuration",
-            &bridge.ip
-        ))
-        .header("hue-application-key", &bridge.app_key)
-        .send()
-        .await?;
-
-    let response = response.json::<_EntResponse>().await?;
-
-    // TODO: Allow selection of entertainment area
-    let area = response.data[0].id.to_string();
-
-    let bridge = BridgeConnection::init(bridge, area).await?;
-
-    Ok(bridge)
-}
-
-async fn check_bridge(ip: &Ipv4Addr) -> bool {
-    #[derive(Deserialize, Debug)]
-    struct BridgeConfig {
-        name: String,
-        swversion: String,
-    }
-
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(2))
-        .build()
-        .unwrap();
-    let url = format!("http://{ip}/api/config");
-    let Ok(response) = client.get(url).send().await else {
-        return false;
-    };
-
-    let config = response.json::<BridgeConfig>().await;
-
-    if config.is_err() {
-        return false;
-    }
-
-    let config = config.unwrap();
-
-    println!("Found Bridge {}", &config.name);
-
-    if config.swversion.parse::<u32>().unwrap() < 1948086000 {
-        return false;
-    }
-    true
-}
-
-pub async fn find_bridges() -> Result<Vec<Bridge>, ConnectionError> {
-    #[derive(Deserialize, Debug)]
-    struct BridgeJson {
-        id: String,
-        #[serde(rename = "internalipaddress")]
-        ip_address: String,
-    }
-
-    let response = reqwest::get("https://discovery.meethue.com/")
-        .await?
-        .error_for_status()?;
-
-    let local_bridges = response.json::<Vec<BridgeJson>>().await?;
-
-    let mut bridges: Vec<Bridge> = Vec::new();
-
-    for bridge in &local_bridges {
-        if !check_bridge(&bridge.ip_address.parse().unwrap()).await {
-            break;
+    async fn search_bridges(&self) -> Result<Vec<UnauthenticatedBridge>, HueError> {
+        #[derive(Deserialize, Debug)]
+        struct BridgeJson {
+            id: String,
+            #[serde(rename = "internalipaddress")]
+            ip_address: String,
         }
 
-        bridges.push(Bridge {
-            id: bridge.id.clone(),
-            ip: bridge.ip_address.parse().unwrap(),
-        });
-    }
-    Ok(bridges)
-}
+        let response = self
+            .client
+            .get("https://discovery.meethue.com/")
+            .send()
+            .await?
+            .error_for_status()?;
 
-impl Bridge {
-    pub async fn authenticate(&self) -> Result<SavedBridge, ConnectionError> {
-        #[derive(Deserialize)]
-        struct BridgeConfig {
-            #[serde(rename = "name")]
-            _name: String,
-            swversion: String,
+        let local_bridges = response.json::<Vec<BridgeJson>>().await?;
+
+        let mut bridges: Vec<UnauthenticatedBridge> = Vec::new();
+
+        for bridge in local_bridges.into_iter() {
+            if !self
+                .check_bridge_reachable(&bridge.ip_address.parse().unwrap())
+                .await
+            {
+                continue;
+            }
+
+            bridges.push(UnauthenticatedBridge {
+                _id: bridge.id,
+                ip: bridge.ip_address.parse().unwrap(),
+            });
+        }
+        Ok(bridges)
+    }
+
+    async fn locate_bridge(
+        &self,
+        ip: Option<Ipv4Addr>,
+        timeout: Option<Duration>,
+    ) -> Result<BridgeData, HueError> {
+        let mut saved_bridges = BridgeManager::load_saved_bridges(CONFIG_PATH);
+        let mut found_bridges = self.filter_reachable(&saved_bridges).await;
+
+        if let Some(ip) = ip {
+            found_bridges = found_bridges
+                .into_iter()
+                .filter(|bridge| bridge.ip == ip)
+                .collect();
+        } else if found_bridges.len() > 1 {
+            warn!("Multiple bridges found");
+            for bridge in found_bridges.iter().rev() {
+                let config = self.get_bridge_config(bridge.ip).await?;
+                warn!("Name: {}, IP: {}", config.name, bridge.ip);
+            }
+            warn!("The first bridge will be selected");
+            warn!("If you want to use a different bridge, please specify it with the given IP");
         }
 
+        if !found_bridges.is_empty() {
+            return Ok(found_bridges.pop().unwrap());
+        }
+
+        let mut new_bridges = self.search_bridges().await?;
+        if let Some(ip) = ip {
+            new_bridges = new_bridges
+                .into_iter()
+                .filter(|bridge| bridge.ip == ip)
+                .collect();
+        } else if new_bridges.len() > 1 {
+            warn!("Multiple bridges found");
+            for bridge in new_bridges.iter().rev() {
+                let config = self.get_bridge_config(bridge.ip).await?;
+                warn!("Name: {}, IP: {}", config.name, bridge.ip);
+            }
+            warn!("The first bridge will be selected");
+            warn!("If you want to use a different bridge, please specify it with the given IP");
+        }
+
+        let bridge = new_bridges.pop().ok_or(HueError::NoBridgeFound)?;
+
+        let bridge = self.authenticate_bridge(bridge.ip, timeout).await?;
+
+        saved_bridges.push(bridge.clone());
+
+        BridgeManager::save_bridges(&saved_bridges, CONFIG_PATH)?;
+
+        Ok(bridge)
+    }
+
+    async fn authenticate_bridge(
+        &self,
+        ip: Ipv4Addr,
+        timeout: Option<Duration>,
+    ) -> Result<BridgeData, HueError> {
         #[derive(Serialize, Debug)]
         struct Body {
             devicetype: String,
             generateclientkey: bool,
         }
-
-        let response = reqwest::get(format!("http://{}/api/config", self.ip)).await?;
-
-        let config = response.json::<BridgeConfig>().await?;
+        let timeout = timeout.unwrap_or(HueSettings::default().push_link_timeout);
+        let config = self.get_bridge_config(ip).await?;
 
         if config.swversion.parse::<u32>().unwrap() < 1948086000 {
-            return Err(ConnectionError::VersionError(
+            return Err(HueError::VersionError(
                 config.swversion.parse::<u32>().unwrap(),
             ));
         }
-
-        let client = reqwest::ClientBuilder::new()
-            .danger_accept_invalid_certs(true)
-            .build()
-            .unwrap();
 
         let mut hostname = gethostname::gethostname().into_string().unwrap();
         hostname.retain(|a| a != '\"');
@@ -382,9 +377,9 @@ impl Bridge {
 
         println!("Please press push link button");
 
-        let mut saved_bridge = SavedBridge {
-            id: self.id.to_string(),
-            ip: self.ip,
+        let mut saved_bridge = BridgeData {
+            id: config.id,
+            ip: ip,
             app_key: String::new(),
             app_id: String::new(),
             psk: String::new(),
@@ -393,8 +388,8 @@ impl Bridge {
         select! {
             _ = async {
                 loop {
-                    let response = client
-                        .post(format!("https://{}/api", self.ip))
+                    let response = self.client
+                        .post(format!("https://{}/api", ip))
                         .json(&params)
                         .send()
                         .await?;
@@ -418,22 +413,253 @@ impl Bridge {
                 }
                 Ok::<_, reqwest::Error>(())
             } => {}
-            _ = tokio::time::sleep(Duration::from_secs(30)) => {
-                return Err(ConnectionError::TimeOut);
+            _ = tokio::time::sleep(timeout) => {
+                return Err(HueError::TimeOut);
             }
         }
 
-        let response = client
-            .get(format!("https://{}/auth/v1", self.ip))
+        let response = self
+            .client
+            .get(format!("https://{}/auth/v1", ip))
             .header("hue-application-key", &saved_bridge.app_key)
             .send()
             .await?;
         match response.headers().get("hue-application-id") {
             Some(h) => saved_bridge.app_id = h.to_str().unwrap().to_string(),
-            None => return Err(ConnectionError::TimeOut),
+            None => return Err(HueError::TimeOut),
         }
 
         Ok(saved_bridge)
+    }
+
+    fn save_bridges(bridges: &[BridgeData], path: &str) -> Result<(), HueError> {
+        let f = File::create(path)?;
+        into_writer(&bridges, f)?;
+        Ok(())
+    }
+
+    async fn get_entertainment_areas(
+        &self,
+        bridge: &BridgeData,
+    ) -> Result<Vec<EntertainmentArea>, HueError> {
+        #[derive(Deserialize, Debug)]
+        struct _EntResponse {
+            data: Vec<EntertainmentArea>,
+        }
+
+        let response = self
+            .client
+            .get(format!(
+                "https://{}/clip/v2/resource/entertainment_configuration",
+                &bridge.ip
+            ))
+            .header("hue-application-key", &bridge.app_key)
+            .send()
+            .await?;
+
+        let response = response.json::<_EntResponse>().await?;
+        Ok(response.data)
+    }
+
+    async fn get_bridge_config(&self, ip: Ipv4Addr) -> Result<BridgeConfig, HueError> {
+        let response = self
+            .client
+            .get(format!("https://{}/api/0/config", ip))
+            .send()
+            .await?;
+
+        Ok(response.json::<BridgeConfig>().await?)
+    }
+    async fn start_connection(
+        &self,
+        bridge: BridgeData,
+        area: Option<String>,
+    ) -> Result<BridgeConnection, HueError> {
+        let settings = LightSettings::default();
+
+        self.start_connection_with_settings(bridge, area, settings)
+            .await
+    }
+
+    async fn start_connection_with_settings(
+        &self,
+        bridge: BridgeData,
+        area: Option<String>,
+        settings: LightSettings,
+    ) -> Result<BridgeConnection, HueError> {
+        let mut areas = self.get_entertainment_areas(&bridge).await?;
+
+        if let Some(area) = area {
+            areas = areas
+                .into_iter()
+                .filter(|ent_area| ent_area.id == area)
+                .collect();
+        } else if areas.len() > 1 {
+            warn!("Multiple areas found");
+            for area in areas.iter().rev() {
+                warn!("Name: {}, ID: {}", area._metadata._name, area.id);
+            }
+            warn!("The first area will be selected");
+            warn!("If you want to use a different area, please specify it with the given ID");
+        }
+        let area = areas.pop().ok_or(HueError::EntertainmentAreaNotFound)?;
+
+        BridgeConnection::with_settings(bridge, area, settings).await
+    }
+}
+
+pub async fn connect() -> Result<BridgeConnection, HueError> {
+    let manager = BridgeManager::new(HueSettings::default().timeout);
+
+    let bridge = manager.locate_bridge(None, None).await?;
+
+    manager.start_connection(bridge, None).await
+}
+
+pub async fn connect_by_ip(ip: Ipv4Addr) -> Result<BridgeConnection, HueError> {
+    let manager = BridgeManager::new(HueSettings::default().timeout);
+
+    let bridge = manager.locate_bridge(Some(ip), None).await?;
+
+    manager.start_connection(bridge, None).await
+}
+
+pub async fn connect_with_settings(settings: HueSettings) -> Result<BridgeConnection, HueError> {
+    let manager = BridgeManager::new(settings.timeout);
+    match settings.mode {
+        ConnectionMode::Auto => {
+            let bridge = manager
+                .locate_bridge(None, Some(settings.push_link_timeout))
+                .await?;
+
+            manager
+                .start_connection_with_settings(bridge, None, settings.light_settings)
+                .await
+        }
+        ConnectionMode::AutoAreaSpecified { area } => {
+            let bridge = manager
+                .locate_bridge(None, Some(settings.push_link_timeout))
+                .await?;
+
+            manager
+                .start_connection_with_settings(bridge, Some(area), settings.light_settings)
+                .await
+        }
+        ConnectionMode::ByIP { ip } => {
+            let bridge = manager
+                .locate_bridge(Some(ip), Some(settings.push_link_timeout))
+                .await?;
+
+            manager
+                .start_connection_with_settings(bridge, None, settings.light_settings)
+                .await
+        }
+        ConnectionMode::ByIPAreaSpecified { ip, area } => {
+            let bridge = manager
+                .locate_bridge(Some(ip), Some(settings.push_link_timeout))
+                .await?;
+
+            manager
+                .start_connection_with_settings(bridge, Some(area), settings.light_settings)
+                .await
+        }
+    }
+}
+
+#[allow(dead_code)]
+pub struct BridgeConnection {
+    id: String,
+    ip: Ipv4Addr,
+    app_key: String,
+    app_id: String,
+    area: EntertainmentArea,
+    polling_helper: PollingHelper,
+    state: Arc<Mutex<State>>,
+}
+
+impl BridgeConnection {
+    async fn init(bridge: BridgeData, area: EntertainmentArea) -> Result<Self, HueError> {
+        let settings = LightSettings::default();
+        Self::with_settings(bridge, area, settings).await
+    }
+
+    async fn with_settings(
+        bridge: BridgeData,
+        area: EntertainmentArea,
+        settings: LightSettings,
+    ) -> Result<Self, HueError> {
+        let BridgeData {
+            id,
+            ip,
+            app_key,
+            app_id,
+            psk,
+        } = bridge;
+
+        info!("Starting entertainment mode");
+        Self::start_entertainment_mode(&ip, &area.id, &app_key).await?;
+
+        info!("Building DTLS connection");
+        let connection =
+            Self::dtls_connection(app_id.as_bytes(), psk.clone(), IpAddr::V4(ip), 2100).await?;
+        info!("Connection established");
+
+        let state = Arc::new(Mutex::new(State::with_settings(&area, settings)));
+
+        let polling_helper = PollingHelper::init(connection, state.clone(), 55.0);
+
+        let bridge = BridgeConnection {
+            id,
+            ip,
+            app_key,
+            app_id,
+            area,
+            polling_helper,
+            state,
+        };
+        Ok(bridge)
+    }
+
+    async fn start_entertainment_mode(
+        bridge_ip: &Ipv4Addr,
+        area_id: &str,
+        app_key: &str,
+    ) -> Result<reqwest::Response, HueError> {
+        let client = reqwest::Client::builder()
+            .danger_accept_invalid_certs(true)
+            .timeout(Duration::from_secs(5))
+            .build()?;
+        let url =
+            format!("https://{bridge_ip}/clip/v2/resource/entertainment_configuration/{area_id}");
+        Ok(client
+            .put(url)
+            .header("hue-application-key", app_key)
+            .body("{\"action\":\"start\"}")
+            .send()
+            .await?)
+    }
+
+    async fn dtls_connection(
+        identity: &[u8],
+        psk: String,
+        dest_ip: IpAddr,
+        dest_port: u16,
+    ) -> Result<DTLSConn, HueError> {
+        let config = Config {
+            cipher_suites: vec![CipherSuiteId::Tls_Psk_With_Aes_128_Gcm_Sha256],
+            psk: Some(Arc::new(move |_| Ok(decode_hex(psk.as_str()).unwrap()))),
+            psk_identity_hint: Some(identity.to_vec()),
+            ..Default::default()
+        };
+
+        info!("Binding Socket");
+        let socket = Arc::new(UdpSocket::bind("0.0.0.0:0").await.unwrap());
+        socket
+            .connect(SocketAddr::new(dest_ip, dest_port))
+            .await
+            .unwrap();
+        debug!("Bound: {}", socket.local_addr().unwrap());
+        Ok(DTLSConn::new(socket, config, true, None).await?)
     }
 }
 
@@ -466,50 +692,101 @@ impl LightService for BridgeConnection {
     }
 }
 
-async fn start_entertainment_mode(
-    bridge_ip: &Ipv4Addr,
-    area_id: &str,
-    app_key: &str,
-) -> Result<reqwest::Response, ConnectionError> {
-    let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
-        .timeout(Duration::from_secs(5))
-        .build()?;
-    let url = format!("https://{bridge_ip}/clip/v2/resource/entertainment_configuration/{area_id}");
-    Ok(client
-        .put(url)
-        .header("hue-application-key", app_key)
-        .body("{\"action\":\"start\"}")
-        .send()
-        .await?)
-}
-
-async fn dtls_connection(
-    identity: Vec<u8>,
-    psk: String,
-    dest_ip: IpAddr,
-    dest_port: u16,
-) -> Result<DTLSConn, ConnectionError> {
-    let config = Config {
-        cipher_suites: vec![CipherSuiteId::Tls_Psk_With_Aes_128_Gcm_Sha256],
-        psk: Some(Arc::new(move |_| Ok(decode_hex(psk.as_str()).unwrap()))),
-        psk_identity_hint: Some(identity),
-        ..Default::default()
-    };
-
-    info!("Binding Socket");
-    let socket = Arc::new(UdpSocket::bind("0.0.0.0:0").await.unwrap());
-    socket
-        .connect(SocketAddr::new(dest_ip, dest_port))
-        .await
-        .unwrap();
-    info!("Bound: {}", socket.local_addr().unwrap());
-    Ok(DTLSConn::new(socket, config, true, None).await?)
-}
-
 fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
     (0..s.len())
         .step_by(2)
         .map(|i| u8::from_str_radix(&s[i..i + 2], 16))
         .collect()
+}
+
+struct State {
+    drum: envelope::DynamicDecay,
+    hihat: envelope::FixedDecay,
+    note: envelope::FixedDecay,
+    fullband: envelope::Color,
+    prefix: Vec<u8>,
+    channels: Vec<u8>,
+    color_envelope: bool,
+    buffer: BytesMut,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+pub struct LightSettings {
+    pub drum_decay_rate: f32,
+    pub note_decay: Duration,
+    pub hihat_decay: Duration,
+    pub fullband_decay: Duration,
+    pub fullband_color: ([u16; 3], [u16; 3]),
+    pub color_envelope: bool,
+}
+
+impl Default for LightSettings {
+    fn default() -> Self {
+        Self {
+            drum_decay_rate: 8.0,
+            note_decay: Duration::from_millis(100),
+            hihat_decay: Duration::from_millis(80),
+            fullband_decay: Duration::from_millis(250),
+            fullband_color: ([u16::MAX, 0, 0], [2, 0, 1]),
+            color_envelope: false,
+        }
+    }
+}
+
+impl State {
+    fn init(area: &EntertainmentArea) -> Self {
+        Self::with_settings(area, LightSettings::default())
+    }
+
+    fn with_settings(area: &EntertainmentArea, settings: LightSettings) -> Self {
+        let mut prefix = BytesMut::from("HueStream");
+        prefix.extend([2, 0, 0, 0, 0, 0, 0]); // Api Version, empty sequence id, color space = RGB and reserved bytes. See also https://developers.meethue.com/develop/hue-entertainment/hue-entertainment-api/#getting-started-with-streaming-api
+        prefix.put(area.id.as_bytes());
+
+        let channels: Vec<_> = area.channels.iter().map(|chan| chan.channel_id).collect();
+        let buffer_size = &prefix.len() + 7 * channels.clone().len();
+        State {
+            drum: envelope::DynamicDecay::init(settings.drum_decay_rate),
+            hihat: envelope::FixedDecay::init(settings.hihat_decay),
+            note: envelope::FixedDecay::init(settings.note_decay),
+            fullband: envelope::Color::init(
+                settings.fullband_color.0,
+                settings.fullband_color.1,
+                settings.fullband_decay,
+            ),
+            prefix: prefix.into(),
+            channels,
+            color_envelope: settings.color_envelope,
+            buffer: BytesMut::with_capacity(buffer_size),
+        }
+    }
+}
+
+impl Pollable for State {
+    fn poll(&self) -> Bytes {
+        let mut bytes = self.buffer.clone();
+        bytes.clear();
+        bytes.extend(self.prefix.clone());
+        if self.color_envelope {
+            for id in self.channels.iter() {
+                bytes.put_u8(*id);
+                let color = self.fullband.get_color();
+                bytes.put_u16(color[0]);
+                bytes.put_u16(color[1]);
+                bytes.put_u16(color[2]);
+            }
+        } else {
+            let r = (self.drum.get_value() * u16::MAX as f32) as u16;
+            let white = (self.hihat.get_value() * u16::MAX as f32) as u16 >> 3;
+            let b = (self.note.get_value() * u16::MAX as f32) as u16 >> 1;
+            for id in self.channels.iter() {
+                bytes.put_u8(*id);
+                bytes.put_u16(r.saturating_add(white));
+                bytes.put_u16(white);
+                bytes.put_u16(b.saturating_add(white));
+            }
+        }
+
+        bytes.into()
+    }
 }

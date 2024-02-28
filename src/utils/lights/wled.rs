@@ -1,5 +1,7 @@
 use std::{
     collections::VecDeque,
+    fmt::Display,
+    io,
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -26,6 +28,42 @@ pub struct LEDStrip {
     rgbw: bool,
 }
 
+#[derive(Debug)]
+pub enum WLEDError {
+    Http(reqwest::Error),
+    Socket(io::Error),
+}
+
+impl From<reqwest::Error> for WLEDError {
+    fn from(value: reqwest::Error) -> Self {
+        Self::Http(value)
+    }
+}
+
+impl From<std::io::Error> for WLEDError {
+    fn from(value: std::io::Error) -> Self {
+        Self::Socket(value)
+    }
+}
+
+impl std::error::Error for WLEDError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            WLEDError::Http(e) => Some(e),
+            WLEDError::Socket(e) => Some(e),
+        }
+    }
+}
+
+impl Display for WLEDError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            WLEDError::Http(_) => write!(f, "LED strip is not reachable"),
+            WLEDError::Socket(_) => write!(f, "Binding socket failed"),
+        }
+    }
+}
+
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct LEDStripOnset {
@@ -44,21 +82,48 @@ struct Segment {
 #[derive(Debug)]
 struct OnsetState {
     led_count: u16,
-    brightness: f64,
+    brightness: f32,
     rgbw: bool,
     drum_envelope: DynamicDecay,
     note_envelope: DynamicDecay,
     hihat_envelope: FixedDecay,
     prefix: Vec<u8>,
+    buffer: BytesMut,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[serde(default)]
+pub struct OnsetSettings {
+    pub white_led: bool,
+    pub drum_decay_rate: f32,
+    pub note_decay_rate: f32,
+    pub hihat_decay: Duration,
+    pub brightness: f32,
+    pub timeout: u8,
+}
+
+impl Default for OnsetSettings {
+    fn default() -> Self {
+        Self {
+            white_led: true,
+            drum_decay_rate: 2.0,
+            note_decay_rate: 4.0,
+            hihat_decay: Duration::from_millis(200),
+            brightness: 1.0,
+            timeout: 2,
+        }
+    }
 }
 
 impl OnsetState {
-    pub fn init(led_count: u16, rgbw: bool, brightness: f64) -> Self {
+    pub fn init(led_count: u16, rgbw: bool, brightness: f32, timeout: u8) -> Self {
         let prefix = if rgbw {
-            vec![0x03, 0x01]
+            vec![0x03, timeout]
         } else {
-            vec![0x02, 0x01]
+            vec![0x02, timeout]
         };
+        let channels = 3 + usize::from(rgbw);
+        let buffer = BytesMut::with_capacity(prefix.len() + led_count as usize * channels);
         OnsetState {
             led_count,
             rgbw,
@@ -67,20 +132,21 @@ impl OnsetState {
             hihat_envelope: FixedDecay::init(Duration::from_millis(200)),
             prefix,
             brightness,
+            buffer,
         }
     }
 }
 
 impl Pollable for OnsetState {
     fn poll(&self) -> Bytes {
-        let channels = 3 + usize::from(self.rgbw);
-        let mut bytes = BytesMut::with_capacity(2 + self.led_count as usize * channels);
+        let mut bytes = self.buffer.clone();
+        bytes.clear();
 
         bytes.put_slice(&self.prefix);
 
-        let red = self.drum_envelope.get_value() as f64 * self.led_count as f64 * 0.5;
-        let blue = self.note_envelope.get_value() as f64 * self.led_count as f64 * 0.5;
-        let white = self.hihat_envelope.get_value() as f64 * self.led_count as f64 * 0.2;
+        let red = self.drum_envelope.get_value() as f32 * self.led_count as f32 * 0.5;
+        let blue = self.note_envelope.get_value() as f32 * self.led_count as f32 * 0.5;
+        let white = self.hihat_envelope.get_value() as f32 * self.led_count as f32 * 0.2;
 
         let mut colors: Vec<Vec<u8>> = if self.rgbw {
             vec![vec![0, 0, 0, 0]; self.led_count as usize / 2]
@@ -90,11 +156,11 @@ impl Pollable for OnsetState {
 
         for (i, color) in &mut colors.iter_mut().enumerate() {
             let r =
-                ((red - i as f64).clamp(0.0, 1.0) * u8::MAX as f64 * self.brightness).round() as u8;
-            let b = ((blue - i as f64).clamp(0.0, 1.0) * u8::MAX as f64 * self.brightness).round()
+                ((red - i as f32).clamp(0.0, 1.0) * u8::MAX as f32 * self.brightness).round() as u8;
+            let b = ((blue - i as f32).clamp(0.0, 1.0) * u8::MAX as f32 * self.brightness).round()
                 as u8;
-            let w = ((white - (self.led_count / 2 - i as u16) as f64).clamp(0.0, 1.0)
-                * u8::MAX as f64
+            let w = ((white - (self.led_count / 2 - i as u16) as f32).clamp(0.0, 1.0)
+                * u8::MAX as f32
                 * self.brightness)
                 .round() as u8;
 
@@ -116,7 +182,14 @@ impl Pollable for OnsetState {
 }
 
 impl LEDStripOnset {
-    pub async fn connect(ip: &str) -> Result<LEDStripOnset, Box<dyn std::error::Error>> {
+    pub async fn connect(ip: &str) -> Result<LEDStripOnset, WLEDError> {
+        Self::connect_with_settings(ip, OnsetSettings::default()).await
+    }
+
+    pub async fn connect_with_settings(
+        ip: &str,
+        settings: OnsetSettings,
+    ) -> Result<LEDStripOnset, WLEDError> {
         #[derive(Debug, Serialize, Deserialize)]
         struct Leds {
             count: u16,
@@ -131,7 +204,7 @@ impl LEDStripOnset {
             ver: String,
         }
         let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(2))
+            .timeout(Duration::from_secs(settings.timeout as u64))
             .build()?;
         let url = format!("http://{}/json/info", ip);
         let resp = client.get(&url).send().await?;
@@ -141,7 +214,12 @@ impl LEDStripOnset {
         let socket = UdpSocket::bind("0.0.0.0:0").await?;
         socket.connect((ip, info.udpport)).await?;
 
-        let state = OnsetState::init(info.leds.count, info.leds.rgbw, 1.0);
+        let state = OnsetState::init(
+            info.leds.count,
+            info.leds.rgbw && settings.white_led,
+            1.0,
+            settings.timeout,
+        );
 
         let state = Arc::new(Mutex::new(state));
 
@@ -189,13 +267,46 @@ pub struct LEDStripSpectrum {
     state: Arc<Mutex<SpectrumState>>,
 }
 
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[serde(default)]
+pub struct SpectrumSettings {
+    pub leds_per_second: f64,
+    pub center: bool,
+    pub master_brightness: f32,
+    pub min_brightness: f32,
+    pub low_end_crossover: f32,
+    pub high_end_crossover: f32,
+    pub polling_rate: f64,
+    pub timeout: u8,
+    pub onset_decay_rate: f32,
+}
+
+impl Default for SpectrumSettings {
+    fn default() -> Self {
+        Self {
+            leds_per_second: 100.0,
+            center: true,
+            master_brightness: 1.2,
+            min_brightness: 0.25,
+            low_end_crossover: 240.0,
+            high_end_crossover: 2400.0,
+            polling_rate: 50.0,
+            timeout: 2,
+            onset_decay_rate: 6.0,
+        }
+    }
+}
+
 impl LEDStripSpectrum {
-    pub async fn connect(
+    pub async fn connect(ip: &str, sampling_rate: f32) -> Result<LEDStripSpectrum, WLEDError> {
+        Self::connect_with_settings(ip, sampling_rate, SpectrumSettings::default()).await
+    }
+
+    pub async fn connect_with_settings(
         ip: &str,
         sampling_rate: f32,
-        leds_per_second: f64,
-        center: bool,
-    ) -> Result<LEDStripSpectrum, Box<dyn std::error::Error>> {
+        settings: SpectrumSettings,
+    ) -> Result<LEDStripSpectrum, WLEDError> {
         #[derive(Debug, Serialize, Deserialize)]
         struct Leds {
             count: u16,
@@ -210,7 +321,7 @@ impl LEDStripSpectrum {
             ver: String,
         }
         let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(2))
+            .timeout(Duration::from_secs(settings.timeout as u64))
             .build()?;
         let url = format!("http://{}/json/info", ip);
         let resp = client.get(&url).send().await?;
@@ -220,15 +331,17 @@ impl LEDStripSpectrum {
         let socket = UdpSocket::bind("0.0.0.0:0").await?;
         socket.connect((ip, info.udpport)).await?;
 
-        let samples_per_led = (sampling_rate as f64 / leds_per_second).round() as u32;
+        let samples_per_led = (sampling_rate as f64 / settings.leds_per_second).round() as u32;
 
         let state = SpectrumState::init(
             sampling_rate,
             info.leds.count,
-            1.0,
-            0.25,
+            settings.master_brightness,
+            settings.min_brightness,
             samples_per_led,
-            center,
+            settings.onset_decay_rate,
+            settings.center,
+            settings.timeout,
         );
 
         let state = Arc::new(Mutex::new(state));
@@ -279,6 +392,7 @@ pub struct SpectrumState {
     low_pass_filter: DirectForm2Transposed<f32>,
     high_pass_filter: DirectForm2Transposed<f32>,
     envelope: DynamicDecay,
+    buffer: BytesMut,
 }
 
 impl SpectrumState {
@@ -288,9 +402,11 @@ impl SpectrumState {
         master_brightness: f32,
         min_brightness: f32,
         samples_per_led: u32,
+        onset_decay_rate: f32,
         center: bool,
+        timeout: u8,
     ) -> Self {
-        let prefix = vec![0x02, 0x01];
+        let prefix = vec![0x02, timeout];
         let low_pass = DirectForm2Transposed::<f32>::new(
             Coefficients::<f32>::from_params(
                 Type::LowPass,
@@ -309,6 +425,7 @@ impl SpectrumState {
             )
             .unwrap(),
         );
+        let bytes = BytesMut::with_capacity(prefix.len() + led_count as usize * 3);
         Self {
             sample_buffer: VecDeque::new(),
             colors: VecDeque::from(vec![[0, 0, 0]; led_count as usize]),
@@ -320,7 +437,8 @@ impl SpectrumState {
             samples_per_led,
             low_pass_filter: low_pass,
             high_pass_filter: high_pass,
-            envelope: DynamicDecay::init(8.0),
+            envelope: DynamicDecay::init(onset_decay_rate),
+            buffer: bytes,
         }
     }
 
@@ -379,7 +497,8 @@ impl SpectrumState {
 
 impl Pollable for SpectrumState {
     fn poll(&self) -> Bytes {
-        let mut bytes = BytesMut::with_capacity(2 + self.led_count as usize * 3);
+        let mut bytes = self.buffer.clone();
+        bytes.clear();
         bytes.put_slice(&self.prefix);
 
         if !self.center {

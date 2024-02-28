@@ -115,8 +115,9 @@ pub async fn create_default_output_stream() -> Result<cpal::Stream, BuildStreamE
     let settings = ProcessingSettings::default();
 
     let mut lightservices: Vec<Box<dyn LightService + Send>> = Vec::new();
-    if let Ok(bridge) = hue::connect().await {
-        lightservices.push(Box::new(bridge));
+    match hue::connect().await {
+        Ok(bridge) => lightservices.push(Box::new(bridge)),
+        Err(e) => println!("{e}"),
     }
 
     /*
@@ -124,25 +125,21 @@ pub async fn create_default_output_stream() -> Result<cpal::Stream, BuildStreamE
         lightservices.push(Box::new(strip));
     }
      */
-
-    if let Ok(strip) =
-        wled::LEDStripSpectrum::connect("192.168.2.57", settings.sample_rate as f32, 60.0, true)
-            .await
-    {
-        lightservices.push(Box::new(strip));
+    match wled::LEDStripSpectrum::connect("192.168.2.57", settings.sample_rate as f32).await {
+        Ok(strip) => lightservices.push(Box::new(strip)),
+        Err(e) => println!("{e}"),
     }
-    if let Ok(strip) =
-        wled::LEDStripSpectrum::connect("192.168.2.58", settings.sample_rate as f32, 60.0, true)
-            .await
-    {
-        lightservices.push(Box::new(strip));
+
+    match wled::LEDStripSpectrum::connect("192.168.2.58", settings.sample_rate as f32).await {
+        Ok(strip) => lightservices.push(Box::new(strip)),
+        Err(e) => println!("{e}"),
     }
 
     let console = Console::default();
     lightservices.push(Box::new(console));
 
     let serializer = serialize::OnsetContainer::init(
-        "onsets.cbor".to_string(),
+        "onsets.cbor",
         settings.sample_rate as usize,
         settings.hop_size,
     );

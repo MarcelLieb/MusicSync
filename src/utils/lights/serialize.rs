@@ -44,7 +44,7 @@ impl OnsetContainer {
         Ok(())
     }
 
-    pub fn init(filename: String, sample_rate: usize, hop_size: usize) -> OnsetContainer {
+    pub fn init(filename: &str, sample_rate: usize, hop_size: usize) -> OnsetContainer {
         let data: HashMap<String, Vec<(u128, Onset)>> = HashMap::from([
             ("Full".to_string(), Vec::new()),
             ("Atmosphere".to_string(), Vec::new()),
@@ -54,7 +54,7 @@ impl OnsetContainer {
         ]);
         let raw = Vec::new();
         OnsetContainer {
-            filename,
+            filename: filename.to_string(),
             time: 0,
             time_interval: ((hop_size as f64 / sample_rate as f64) * 1000.0) as u32,
             data,
