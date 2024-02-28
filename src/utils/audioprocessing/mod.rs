@@ -22,7 +22,8 @@ pub enum Onset {
     Raw(f32),
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[serde(default)]
 pub struct ProcessingSettings {
     pub sample_rate: u32,
     pub hop_size: usize,
@@ -211,8 +212,9 @@ where
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Default, Copy, Deserialize, Serialize)]
 pub enum WindowType {
+    #[default]
     Hann,
     FlatTop,
     Triangular,
@@ -261,7 +263,8 @@ pub struct MelFilterBank {
     pub max_frequency: u32,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[serde(default)]
 pub struct MelFilterBankSettings {
     pub bands: usize,
     pub max_frequency: u32,

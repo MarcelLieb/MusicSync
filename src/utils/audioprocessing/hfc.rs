@@ -1,4 +1,5 @@
 use log::info;
+use serde::{Deserialize, Serialize};
 
 use super::Onset;
 
@@ -7,7 +8,8 @@ use super::{
     OnsetDetector,
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[serde(default)]
 pub struct DetectionWeights {
     pub low_end_weight_cutoff: usize,
     pub high_end_weight_cutoff: usize,

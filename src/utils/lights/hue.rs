@@ -711,6 +711,7 @@ struct State {
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[serde(default)]
 pub struct LightSettings {
     pub drum_decay_rate: f32,
     pub note_decay: Duration,

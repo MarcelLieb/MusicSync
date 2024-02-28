@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use super::Onset;
 
 use super::{
@@ -267,13 +269,15 @@ pub struct SpecFlux {
     threshold: ThresholdBank,
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct SpecFluxSettings {
     pub filter_bank_settings: MelFilterBankSettings,
     pub threshold_bank_settings: ThresholdBankSettings,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[serde(default)]
 pub struct ThresholdBankSettings {
     pub drum: AdvancedSettings,
     pub hihat: AdvancedSettings,
