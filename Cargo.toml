@@ -26,4 +26,5 @@ rodio = "0.17.1"
 rustfft = "6.1.0"
 serde = "1.0.193"
 tokio = {version = "1.35.1", features = ["full"]}
+toml = "0.8.10"
 webrtc-dtls = "0.8.0"
