@@ -47,13 +47,23 @@ delay = 2
 
 [[hue]]
 
+# Find bridge automatically and use "first"/only area
+# [hue.mode.Auto]
+
+# Only specify IP and use "first"/only area
+# [hue.mode.ByIP]
+# ip = "Ip of bridge"
+
+# All available areas with id will be displayed if multiple areas are available and no area is specified
+
+# Only specify area and find bridge automatically
+# [hue.mode.AutoAreaSpecified]
+# area = "Area uuid"
+
+# Specify ip of bridge and select area by id
 [hue.mode.ByIPAreaSpecified]
 ip = "Ip of bridge"
 area = "Area uuid"
-
-# [hue.mode.Auto]
-# [hue.mode.AutoAreaSpecified]
-# 
 
 [hue.light_settings]
 drum_decay_rate = 8.0
