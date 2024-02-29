@@ -45,6 +45,40 @@ threshold_range = 8
 fixed_threshold = 5.0
 delay = 2
 
+# Alternative (worse) Onset detection algorithm
+# You can only use HFC OR SpecFlux
+# [onset_detector.HFC.detection_weights]
+# low_end_weight_cutoff = 300
+# high_end_weight_cutoff = 2000
+# mids_weight_low_cutoff = 200
+# mids_weight_high_cutoff = 3000
+# drum_click_weight = 0.004999999888241291
+# note_click_weight = 0.10000000149011612
+# 
+# [onset_detector.HFC.threshold_settings.drums]
+# buffer_size = 30
+# min_intensity = 0.30000001192092896
+# delta_intensity = 0.18000000715255737
+# window_type = "Hann"
+# 
+# [onset_detector.HFC.threshold_settings.hihat]
+# buffer_size = 20
+# min_intensity = 0.30000001192092896
+# delta_intensity = 0.18000000715255737
+# window_type = "Hann"
+# 
+# [onset_detector.HFC.threshold_settings.notes]
+# buffer_size = 20
+# min_intensity = 0.20000000298023224
+# delta_intensity = 0.15000000596046448
+# window_type = "Hann"
+# 
+# [onset_detector.HFC.threshold_settings.fullband]
+# buffer_size = 20
+# min_intensity = 0.20000000298023224
+# delta_intensity = 0.15000000596046448
+# window_type = "Hann"
+
 [[hue]]
 
 # Find bridge automatically and use "first"/only area
