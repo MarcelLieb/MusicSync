@@ -2,23 +2,29 @@ use std::{fmt::Display, fs};
 
 use serde::{Deserialize, Serialize};
 
-use super::{audioprocessing::{hfc::HfcSettings, spectral_flux::SpecFluxSettings, ProcessingSettings}, lights::{hue::HueSettings, wled::{OnsetSettings, SpectrumSettings}, LightService}};
+use super::{audioprocessing::{hfc::HfcSettings, spectral_flux::SpecFluxSettings, ProcessingSettings}, lights::{hue::HueSettings, wled::{OnsetSettings, SpectrumSettings}}};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config {
-    audio_device: String,
-    console_output: bool,
-    serialize_data: bool,
-    audio_processing: ProcessingSettings, 
-    onset_detector: OnsetDetector,
-    hue: Vec<HueSettings>,
-    wled_spectrum: Vec<SpectrumSettings>,
-    wled_onset: Vec<OnsetSettings>,
+    pub audio_device: String,
+    pub console_output: bool,
+    pub serialize_data: bool,
+    pub audio_processing: ProcessingSettings, 
+    pub onset_detector: OnsetDetector,
+    pub hue: Vec<HueSettings>,
+    pub wled: Vec<WLEDConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum WLEDConfig {
+    Spectrum{ip: String, settings: SpectrumSettings},
+    Onset{ip: String, settings: OnsetSettings}
 }
 
 #[derive(Debug)]
 pub enum ConfigError {
     File(std::io::Error),
+    FileFormat,
     Parse(toml::de::Error),
 }
 
@@ -39,6 +45,7 @@ impl Display for ConfigError {
         match self {
             Self::File(_) => write!(f, "Config file not found"),
             Self::Parse(_) => write!(f, "Parsing config failed"),
+            Self::FileFormat => write!(f, "Config file must end in '.toml'")
         }
     }
 }
@@ -48,6 +55,7 @@ impl std::error::Error for ConfigError {
         match self {
             ConfigError::File(e) => Some(e),
             ConfigError::Parse(e) => Some(e),
+            ConfigError::FileFormat => None,
         }
     }
 }
@@ -73,13 +81,16 @@ impl Default for Config {
             audio_processing: ProcessingSettings::default(), 
             onset_detector: OnsetDetector::default(), 
             hue: Vec::new(), 
-            wled_spectrum: Vec::new(), 
-            wled_onset: Vec::new(),
+            wled: Vec::new(), 
         }
     }
 }
 
 pub fn load_config(file: &str) -> Result<Config, ConfigError> {
+    if file.split_terminator(".").last() != Some("toml") {
+        return Err(ConfigError::FileFormat);
+    }
+    
     let contents = fs::read_to_string(file)?;
     
     Ok(toml::de::from_str(&contents)?)
