@@ -4,8 +4,6 @@ pub mod threshold;
 
 use std::{f32::consts::PI, sync::Arc};
 
-use cpal::Sample;
-use dasp_sample::ToSample;
 use log::info;
 use realfft::{RealFftPlanner, RealToComplex};
 use rustfft::num_complex::Complex;
@@ -81,9 +79,7 @@ pub struct Buffer {
     pub rms: f32,
 }
 
-pub fn process_raw<T>(data: &[T], channels: u16, buffer: &mut Buffer)
-where
-    T: Sample + ToSample<f32>,
+pub fn process_raw(data: &[f32], channels: u16, buffer: &mut Buffer)
 {
     let Buffer {
         f32_samples,
@@ -97,7 +93,7 @@ where
     } = buffer;
 
     //Check for silence and abort if present
-    let sound = data.iter().any(|i| *i != Sample::EQUILIBRIUM);
+    let sound = data.iter().any(|i| *i != 0.0);
     if !sound {
         for channel in &mut *f32_samples {
             channel.clear();
@@ -177,7 +173,7 @@ fn fft(
         .for_each(|(f, s)| *f = s);
 }
 
-fn collapse_mono<T: Sample + ToSample<f32>>(mono_samples: &mut [f32], data: &[T], channels: u16) {
+fn collapse_mono(mono_samples: &mut [f32], data: &[f32], channels: u16) {
     let buffer_len = data.len() / channels as usize;
     // Convert to mono
     mono_samples
@@ -185,20 +181,17 @@ fn collapse_mono<T: Sample + ToSample<f32>>(mono_samples: &mut [f32], data: &[T]
         .zip(
             data.chunks(channels as usize)
                 .take(buffer_len)
-                .map(|x| x.iter().map(|s| (*s).to_sample::<f32>()).sum::<f32>()),
+                .map(|x| x.iter().sum::<f32>()),
         )
         .for_each(|(m, s)| *m = s);
 }
 
-fn split_channels<T>(channels: u16, data: &[T], f32_samples: &mut [Vec<f32>])
-where
-    T: Sample + ToSample<f32>,
+fn split_channels(channels: u16, data: &[f32], f32_samples: &mut [Vec<f32>])
 {
     for (i, channel) in f32_samples.iter_mut().enumerate() {
         channel.clear();
         channel.extend(
             data.iter()
-                .map(|s| s.to_sample::<f32>())
                 .enumerate()
                 .filter_map(|(index, f)| {
                     if index % channels as usize == i {

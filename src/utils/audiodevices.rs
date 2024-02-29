@@ -13,10 +13,6 @@ use log::{debug, error};
 
 use crate::utils::audioprocessing::OnsetDetector;
 
-fn capture_err_fn(err: cpal::StreamError) {
-    error!("an error occurred on stream: {}", err);
-}
-
 pub fn create_monitor_stream(
     device_name: &str,
     processing_settings: ProcessingSettings,
@@ -59,47 +55,38 @@ pub fn create_monitor_stream(
 
     let buffer_size = processing_settings.buffer_size * channels as usize;
     let hop_size = processing_settings.hop_size * channels as usize;
-    macro_rules! build_buffered_onset_stream {
-        ($t:ty) => {{
-            let mut buffer: VecDeque<$t> = VecDeque::new();
 
-            out.build_input_stream(
-                &config,
-                move |data: &[$t], _| {
-                    buffer.extend(data);
-                    let n = (buffer.len() + hop_size).saturating_sub(buffer_size) / hop_size;
+    let mut buffer: VecDeque<f32> = VecDeque::new();
 
-                    (0..n).for_each(|_| {
-                        process_raw(
-                            &buffer.make_contiguous()[0..buffer_size],
-                            channels,
-                            &mut detection_buffer,
-                        );
+    let outstream = out.build_input_stream(
+        &config,
+        move |data: &[f32], _| {
+            buffer.extend(data);
+            let n = (buffer.len() + hop_size).saturating_sub(buffer_size) / hop_size;
 
-                        let onsets = onset_detector.detect(
-                            &detection_buffer.freq_bins,
-                            detection_buffer.peak,
-                            detection_buffer.rms,
-                        );
-                        lightservices.process_onsets(&onsets);
-                        lightservices.process_spectrum(&detection_buffer.freq_bins);
-                        lightservices.process_samples(&detection_buffer.mono_samples);
-                        lightservices.update();
+            (0..n).for_each(|_| {
+                process_raw(
+                    &buffer.make_contiguous()[0..buffer_size],
+                    channels,
+                    &mut detection_buffer,
+                );
 
-                        buffer.drain(0..hop_size);
-                    })
-                },
-                capture_err_fn,
-                None,
-            )
-        }};
-    }
-    let outstream = match audio_cfg.sample_format() {
-        cpal::SampleFormat::F32 => build_buffered_onset_stream!(f32),
-        cpal::SampleFormat::I16 => build_buffered_onset_stream!(i16),
-        cpal::SampleFormat::U16 => build_buffered_onset_stream!(u16),
-        _ => Err(BuildStreamError::StreamConfigNotSupported),
-    };
+                let onsets = onset_detector.detect(
+                    &detection_buffer.freq_bins,
+                    detection_buffer.peak,
+                    detection_buffer.rms,
+                );
+                lightservices.process_onsets(&onsets);
+                lightservices.process_spectrum(&detection_buffer.freq_bins);
+                lightservices.process_samples(&detection_buffer.mono_samples);
+                lightservices.update();
+
+                buffer.drain(0..hop_size);
+            })
+        },
+        |err| error!("an error occurred on stream: {}", err),
+        None,
+    );
     debug!("Default output device: {:?}", out.name().unwrap());
     debug!(
         "Default output sample format: {:?}",

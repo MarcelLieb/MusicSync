@@ -1467,7 +1467,6 @@ dependencies = [
  "colored",
  "cpal",
  "ctrlc",
- "dasp_sample",
  "gethostname",
  "log",
  "plotters",
