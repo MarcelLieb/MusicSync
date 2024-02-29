@@ -1,29 +1,38 @@
 use std::collections::VecDeque;
 
-use crate::utils::audioprocessing::spectral_flux::SpecFlux;
 use crate::utils::audioprocessing::ProcessingSettings;
 use crate::utils::audioprocessing::{prepare_buffers, process_raw};
-use crate::utils::lights::console::Console;
-use crate::utils::lights::{hue, serialize, wled, LightService};
+use crate::utils::lights::LightService;
+use cpal::traits::StreamTrait;
 use cpal::{
     self,
     traits::{DeviceTrait, HostTrait},
     BuildStreamError, StreamConfig,
 };
-use log::debug;
+use log::{debug, error};
 
-use super::audioprocessing::spectral_flux::SpecFluxSettings;
+use crate::utils::audioprocessing::OnsetDetector;
 
 fn capture_err_fn(err: cpal::StreamError) {
-    eprintln!("an error occurred on stream: {}", err);
+    error!("an error occurred on stream: {}", err);
 }
 
 pub fn create_monitor_stream(
     device_name: &str,
     processing_settings: ProcessingSettings,
-    detection_settings: SpecFluxSettings,
+    onset_detector: impl OnsetDetector + Send + 'static,
     lightservices: Vec<Box<dyn LightService + Send>>,
 ) -> Result<cpal::Stream, BuildStreamError> {
+    let device_name = if device_name == "" {
+        cpal::default_host()
+            .default_output_device()
+            .ok_or_else(|| BuildStreamError::DeviceNotAvailable)?
+            .name()
+            .map_err(|_| BuildStreamError::DeviceNotAvailable)?
+    } else {
+        device_name.to_owned()
+    };
+
     let out = cpal::default_host()
         .devices()
         .map_err(|_| BuildStreamError::DeviceNotAvailable)?
@@ -43,15 +52,10 @@ pub fn create_monitor_stream(
         buffer_size: cpal::BufferSize::Default,
     };
 
+    let mut onset_detector = onset_detector;
     let mut lightservices = lightservices;
 
     let mut detection_buffer = prepare_buffers(channels, &processing_settings);
-
-    let mut spec_flux = SpecFlux::with_settings(
-        processing_settings.sample_rate,
-        processing_settings.fft_size as u32,
-        detection_settings,
-    );
 
     let buffer_size = processing_settings.buffer_size * channels as usize;
     let hop_size = processing_settings.hop_size * channels as usize;
@@ -72,7 +76,7 @@ pub fn create_monitor_stream(
                             &mut detection_buffer,
                         );
 
-                        let onsets = spec_flux.detect(
+                        let onsets = onset_detector.detect(
                             &detection_buffer.freq_bins,
                             detection_buffer.peak,
                             detection_buffer.rms,
@@ -104,51 +108,9 @@ pub fn create_monitor_stream(
     debug!("Default output buffer size: {:?}", audio_cfg.buffer_size());
     debug!("Default output sample rate: {:?}", audio_cfg.sample_rate());
     debug!("Default output channels: {:?}", audio_cfg.channels());
-    outstream
-}
-
-pub async fn create_default_output_stream() -> Result<cpal::Stream, BuildStreamError> {
-    let device = cpal::default_host()
-        .default_output_device()
-        .ok_or_else(|| BuildStreamError::DeviceNotAvailable)?;
-
-    let settings = ProcessingSettings::default();
-
-    let mut lightservices: Vec<Box<dyn LightService + Send>> = Vec::new();
-    match hue::connect().await {
-        Ok(bridge) => lightservices.push(Box::new(bridge)),
-        Err(e) => println!("{e}"),
-    }
-
-    /*
-    if let Ok(strip) = wled::LEDStripOnset::connect("192.168.2.57").await {
-        lightservices.push(Box::new(strip));
-    }
-     */
-    match wled::LEDStripSpectrum::connect("192.168.2.57", settings.sample_rate as f32).await {
-        Ok(strip) => lightservices.push(Box::new(strip)),
-        Err(e) => println!("{e}"),
-    }
-
-    match wled::LEDStripSpectrum::connect("192.168.2.58", settings.sample_rate as f32).await {
-        Ok(strip) => lightservices.push(Box::new(strip)),
-        Err(e) => println!("{e}"),
-    }
-
-    let console = Console::default();
-    lightservices.push(Box::new(console));
-
-    let serializer = serialize::OnsetContainer::init(
-        "onsets.cbor",
-        settings.sample_rate as usize,
-        settings.hop_size,
-    );
-    lightservices.push(Box::new(serializer));
-    let detection_settings = SpecFluxSettings::default();
-    create_monitor_stream(
-        &device.name().unwrap_or_default(),
-        settings,
-        detection_settings,
-        lightservices,
-    )
+    let stream = outstream?;
+    stream
+        .play()
+        .map_err(|_| BuildStreamError::StreamConfigNotSupported)?;
+    Ok(stream)
 }

@@ -369,6 +369,12 @@ impl MelFilterBank {
     }
 }
 
-trait OnsetDetector {
+pub trait OnsetDetector {
     fn detect(&mut self, freq_bins: &[f32], peak: f32, rms: f32) -> Vec<Onset>;
+}
+
+impl OnsetDetector for Box<dyn OnsetDetector + Send> {
+    fn detect(&mut self, freq_bins: &[f32], peak: f32, rms: f32) -> Vec<Onset> {
+        self.as_mut().detect(freq_bins, peak, rms)
+    }
 }

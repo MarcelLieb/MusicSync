@@ -1,41 +1,75 @@
 mod utils;
 
-use std::collections::HashMap;
-use std::{fs::File, sync::mpsc::channel};
+use std::error::Error;
+use std::sync::mpsc::channel;
 
-use crate::utils::audiodevices::create_default_output_stream;
-use crate::utils::audioprocessing::Onset;
-use crate::utils::plot::plot;
-use ciborium::from_reader;
-use cpal::traits::StreamTrait;
-use serde::Deserialize;
+use crate::utils::audiodevices::create_monitor_stream;
+use crate::utils::config::{Config, ConfigError};
+use log::{debug, error};
 
 #[tokio::main]
 async fn main() {
-    #[derive(Debug, Deserialize)]
-    struct OnsetContainer {
-        data: HashMap<String, Vec<(u128, Onset)>>,
-        raw: Vec<f32>,
-        time_interval: u32,
-    }
+    let config = match Config::load("./config.toml") {
+        Ok(loaded_config) => loaded_config,
+        Err(e) => {
+            error!("Error loading config");
+            if let ConfigError::Parse(e) = &e {
+                error!("{e}");
+            } else {
+                debug!("{e}");
+                if let Some(e) = e.source() {
+                    debug!("{e}");
+                }
+            }
 
-    {
-        let stream = create_default_output_stream()
-            .await
-            .expect("Error occurred while building stream");
-        stream.play().unwrap();
-        let (tx, rx) = channel();
+            error!("Using default config");
+            Config::default()
+        }
+    };
 
-        ctrlc::set_handler(move || tx.send(()).expect("Could not send signal on channel."))
-            .expect("Error setting Ctrl-C handler");
+    let lightservices = match config.initialize_lightservices().await {
+        Ok(vec) => vec,
+        Err(e) => {
+            error!("{e}");
+            if let Some(e) = e.source() {
+                debug!("{}", e);
+            }
+            panic!("Couldn't initialize Lightservices");
+        }
+    };
 
-        println!("Stop sync with CTRL-C");
-        rx.recv().expect("Could not receive from channel.");
-        println!("Shutting down");
-    }
+    let onset_detector = config.initialize_onset_detector();
 
-    let file = File::open("onsets.cbor").expect("Couldn't open file");
+    let stream = match create_monitor_stream(
+        &config.audio_device,
+        config.audio_processing,
+        onset_detector,
+        lightservices,
+    ) {
+        Ok(stream) => stream,
+        Err(e) => {
+            match e {
+                cpal::BuildStreamError::DeviceNotAvailable => {
+                    error!("Device not found: {}", config.audio_device)
+                }
+                _ => {
+                    debug!("{e}");
+                    if let Some(e) = e.source() {
+                        debug!("{e}");
+                    }
+                }
+            };
+            panic!("Audio stream couldn't be build");
+        }
+    };
 
-    let data: OnsetContainer = from_reader(file).unwrap();
-    plot(&data.data, &data.raw, data.time_interval, "plot.png").unwrap();
+    let (tx, rx) = channel();
+
+    ctrlc::set_handler(move || tx.send(()).expect("Could not send signal on channel."))
+        .expect("Error setting Ctrl-C handler");
+
+    println!("Stop sync with CTRL-C");
+    rx.recv().expect("Could not receive from channel.");
+    println!("Shutting down");
+    drop(stream);
 }

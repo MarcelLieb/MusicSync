@@ -1,0 +1,113 @@
+audio_device = ""
+console_output = false
+serialize_data = false
+
+[audio_processing]
+sample_rate = 48000
+hop_size = 480
+buffer_size = 1024
+fft_size = 2048
+window_type = "Hann"
+
+[onset_detector.SpecFlux.filter_bank_settings]
+bands = 82
+max_frequency = 20000
+
+[onset_detector.SpecFlux.threshold_bank_settings.drum]
+mean_range = 5
+max_range = 3
+dynamic_threshold = 0.4000000059604645
+threshold_range = 8
+fixed_threshold = 2.0
+delay = 2
+
+[onset_detector.SpecFlux.threshold_bank_settings.hihat]
+mean_range = 3
+max_range = 3
+dynamic_threshold = 0.550000011920929
+threshold_range = 8
+fixed_threshold = 5.0
+delay = 2
+
+[onset_detector.SpecFlux.threshold_bank_settings.note]
+mean_range = 6
+max_range = 3
+dynamic_threshold = 0.4000000059604645
+threshold_range = 8
+fixed_threshold = 2.0
+delay = 2
+
+[onset_detector.SpecFlux.threshold_bank_settings.full]
+mean_range = 6
+max_range = 3
+dynamic_threshold = 0.800000011920929
+threshold_range = 8
+fixed_threshold = 5.0
+delay = 2
+
+[[hue]]
+
+[hue.mode.ByIPAreaSpecified]
+ip = "Ip of bridge"
+area = "Area uuid"
+
+# [hue.mode.Auto]
+# [hue.mode.AutoAreaSpecified]
+# 
+
+[hue.light_settings]
+drum_decay_rate = 8.0
+fullband_color = [[65535, 0, 0], [2, 0, 1]]
+color_envelope = false
+
+[hue.light_settings.note_decay]
+secs = 0
+nanos = 100000000
+
+[hue.light_settings.hihat_decay]
+secs = 0
+nanos = 80000000
+
+[hue.light_settings.fullband_decay]
+secs = 0
+nanos = 250000000
+
+[hue.push_link_timeout]
+secs = 0
+nanos = 0
+
+[hue.timeout]
+secs = 0
+nanos = 0
+
+[[wled]]
+
+[wled.Spectrum]
+ip = "Ip of Strip"
+
+[wled.Spectrum.settings]
+leds_per_second = 100.0
+center = true
+master_brightness = 1.2000000476837158
+min_brightness = 0.25
+low_end_crossover = 240.0
+high_end_crossover = 2400.0
+polling_rate = 50.0
+timeout = 2
+onset_decay_rate = 6.0
+
+[[wled]]
+
+[wled.Onset]
+ip = "Ip of Strip"
+
+[wled.Onset.settings]
+white_led = true
+drum_decay_rate = 2.0
+note_decay_rate = 4.0
+brightness = 1.0
+timeout = 2
+
+[wled.Onset.settings.hihat_decay]
+secs = 0
+nanos = 200000000
