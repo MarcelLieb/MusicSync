@@ -39,10 +39,10 @@ pub struct Hfc {
 }
 
 #[derive(Debug, Clone, Copy, Default, Deserialize, Serialize)]
-#[serde(default)]
+#[serde(default, rename_all="PascalCase")]
 pub struct HfcSettings {
     pub detection_weights: DetectionWeights,
-    pub threshold_settings: ThresholdBankSettings,
+    pub threshold: ThresholdBankSettings,
 }
 
 impl Hfc {
@@ -58,7 +58,7 @@ impl Hfc {
     }
 
     pub fn with_settings(sample_rate: usize, fft_size: usize, settings: HfcSettings) -> Self {
-        let threshold = ThresholdBank::with_settings(settings.threshold_settings);
+        let threshold = ThresholdBank::with_settings(settings.threshold);
         let bin_resolution = sample_rate as f32 / fft_size as f32;
         Self {
             threshold,
@@ -195,7 +195,7 @@ impl ThresholdBank {
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize)]
-#[serde(default)]
+#[serde(default, rename_all="PascalCase")]
 pub struct ThresholdBankSettings {
     pub drums: DynamicSettings,
     pub hihat: DynamicSettings,

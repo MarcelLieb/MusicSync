@@ -29,6 +29,7 @@ pub enum HueError {
     NoBridgeFound,
     SaveBridgeError(std::io::Error),
     EntertainmentAreaNotFound,
+    IPError(std::net::AddrParseError),
 }
 
 impl std::error::Error for HueError {
@@ -37,6 +38,7 @@ impl std::error::Error for HueError {
             HueError::Http(e) => Some(e),
             HueError::Handshake(e) => Some(e),
             HueError::SaveBridgeError(e) => Some(e),
+            HueError::IPError(e) => Some(e),
             _ => None,
         }
     }
@@ -55,6 +57,7 @@ impl Display for HueError {
             Self::NoBridgeFound => write!(f, "No Bridges could be found"),
             Self::SaveBridgeError(_) => write!(f, "Error saving bridges to file"),
             Self::EntertainmentAreaNotFound => write!(f, "Entertainment area could not be found"),
+            Self::IPError(_) => write!(f, "IP address is in the wrong format"),
         }
     }
 }
@@ -85,6 +88,12 @@ impl From<ciborium::ser::Error<std::io::Error>> for HueError {
 impl From<std::io::Error> for HueError {
     fn from(err: std::io::Error) -> Self {
         HueError::SaveBridgeError(err)
+    }
+}
+
+impl From<std::net::AddrParseError> for HueError {
+    fn from(value: std::net::AddrParseError) -> Self {
+        HueError::IPError(value)
     }
 }
 
@@ -179,9 +188,12 @@ struct EntertainmentArea {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
+#[serde(default, rename_all="PascalCase")]
 pub struct HueSettings {
-    pub mode: ConnectionMode,
+    #[serde(rename="ip")]
+    pub ip: Option<Ipv4Addr>,
+    #[serde(rename="area")]
+    pub area: Option<String>,
     pub light_settings: LightSettings,
     pub push_link_timeout: Duration,
     pub timeout: Duration,
@@ -190,28 +202,13 @@ pub struct HueSettings {
 impl Default for HueSettings {
     fn default() -> Self {
         Self {
-            mode: Default::default(),
+            ip: None,
+            area: None,
             light_settings: Default::default(),
             push_link_timeout: Duration::from_secs(30),
             timeout: Duration::from_secs(2),
         }
     }
-}
-
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-pub enum ConnectionMode {
-    #[default]
-    Auto,
-    AutoAreaSpecified {
-        area: String,
-    },
-    ByIP {
-        ip: Ipv4Addr,
-    },
-    ByIPAreaSpecified {
-        ip: Ipv4Addr,
-        area: String,
-    },
 }
 
 impl BridgeManager {
@@ -526,44 +523,14 @@ pub async fn connect_by_ip(ip: Ipv4Addr) -> Result<BridgeConnection, HueError> {
 
 pub async fn connect_with_settings(settings: HueSettings) -> Result<BridgeConnection, HueError> {
     let manager = BridgeManager::new(settings.timeout);
-    match settings.mode {
-        ConnectionMode::Auto => {
-            let bridge = manager
-                .locate_bridge(None, Some(settings.push_link_timeout))
-                .await?;
 
-            manager
-                .start_connection_with_settings(bridge, None, settings.light_settings)
-                .await
-        }
-        ConnectionMode::AutoAreaSpecified { area } => {
-            let bridge = manager
-                .locate_bridge(None, Some(settings.push_link_timeout))
-                .await?;
+    let bridge = manager
+        .locate_bridge(settings.ip, Some(settings.push_link_timeout))
+        .await?;
 
-            manager
-                .start_connection_with_settings(bridge, Some(area), settings.light_settings)
-                .await
-        }
-        ConnectionMode::ByIP { ip } => {
-            let bridge = manager
-                .locate_bridge(Some(ip), Some(settings.push_link_timeout))
-                .await?;
-
-            manager
-                .start_connection_with_settings(bridge, None, settings.light_settings)
-                .await
-        }
-        ConnectionMode::ByIPAreaSpecified { ip, area } => {
-            let bridge = manager
-                .locate_bridge(Some(ip), Some(settings.push_link_timeout))
-                .await?;
-
-            manager
-                .start_connection_with_settings(bridge, Some(area), settings.light_settings)
-                .await
-        }
-    }
+    manager
+        .start_connection_with_settings(bridge, settings.area, settings.light_settings)
+        .await
 }
 
 #[allow(dead_code)]
@@ -714,8 +681,11 @@ struct State {
 #[serde(default)]
 pub struct LightSettings {
     pub drum_decay_rate: f32,
+    #[serde(rename="NoteDecay")]
     pub note_decay: Duration,
+    #[serde(rename="HihatDecay")]
     pub hihat_decay: Duration,
+    #[serde(rename="FullbandDecay")]
     pub fullband_decay: Duration,
     pub fullband_color: ([u16; 3], [u16; 3]),
     pub color_envelope: bool,

@@ -19,33 +19,41 @@ use super::{
 };
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "PascalCase")]
 pub struct Config {
-    #[serde(default)]
+    #[serde(default, rename="audio_device")]
     pub audio_device: String,
-    #[serde(default)]
+
+    #[serde(default, rename="console_output")]
     pub console_output: bool,
-    #[serde(default)]
-    pub serialize_data: bool,
-    #[serde(default)]
+
+    #[serde(default, rename="serialize_onsets")]
+    pub serialize_onsets: bool,
+
+    #[serde(default, rename = "Audio")]
     pub audio_processing: ProcessingSettings,
+
     #[serde(default)]
     pub onset_detector: OnsetDetector,
+
     #[serde(default)]
     pub hue: Vec<HueSettings>,
-    #[serde(default)]
+
+    #[serde(default, rename = "WLED")]
     pub wled: Vec<WLEDConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "effect")]
 pub enum WLEDConfig {
     Spectrum {
         ip: String,
-        #[serde(default)]
+        #[serde(default, flatten)]
         settings: SpectrumSettings,
     },
     Onset {
         ip: String,
-        #[serde(default)]
+        #[serde(default, flatten)]
         settings: OnsetSettings,
     },
 }
@@ -90,6 +98,7 @@ impl std::error::Error for ConfigError {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(tag = "algorithm")]
 pub enum OnsetDetector {
     SpecFlux(SpecFluxSettings),
     HFC(HfcSettings),
@@ -101,18 +110,12 @@ impl Default for OnsetDetector {
     }
 }
 
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(default)]
-pub struct OnsetDetectorConfig {
-    detector: OnsetDetector,
-}
-
 impl Default for Config {
     fn default() -> Self {
         Self {
             audio_device: "".to_owned(),
             console_output: false,
-            serialize_data: false,
+            serialize_onsets: false,
             audio_processing: ProcessingSettings::default(),
             onset_detector: OnsetDetector::default(),
             hue: Vec::new(),
@@ -137,7 +140,7 @@ impl Config {
     ) -> Result<Vec<Box<dyn LightService + Send>>, LightServiceError> {
         let mut lightservices: Vec<Box<dyn LightService + Send>> = Vec::new();
 
-        if self.serialize_data {
+        if self.serialize_onsets {
             let serializer = serialize::OnsetContainer::init(
                 "onsets.cbor",
                 self.audio_processing.sample_rate as usize,
@@ -205,6 +208,7 @@ impl Config {
     #[allow(dead_code)]
     pub fn generate_template(file_path: &str) {
         let mut template = Config::default();
+        template.onset_detector = OnsetDetector::SpecFlux(Default::default());
         template.wled.push(WLEDConfig::Spectrum {
             ip: "Ip of Strip".to_owned(),
             settings: Default::default(),
@@ -214,10 +218,8 @@ impl Config {
             settings: Default::default(),
         });
         template.hue.push(HueSettings {
-            mode: hue::ConnectionMode::ByIPAreaSpecified {
-                ip: Ipv4Addr::new(0, 0, 0, 0),
-                area: "Area uuid".to_owned(),
-            },
+            ip: Some(Ipv4Addr::new(0, 0, 0, 0)),
+            area: Some("Area uuid".to_owned()),
             light_settings: Default::default(),
             push_link_timeout: Default::default(),
             timeout: Default::default(),
