@@ -28,7 +28,7 @@ pub struct Config {
     pub console_output: bool,
 
     #[serde(default, rename="serialize_onsets")]
-    pub serialize_onsets: bool,
+    pub serialize_onsets: Option<String>,
 
     #[serde(default, rename = "Audio")]
     pub audio_processing: ProcessingSettings,
@@ -115,7 +115,7 @@ impl Default for Config {
         Self {
             audio_device: "".to_owned(),
             console_output: false,
-            serialize_onsets: false,
+            serialize_onsets: None,
             audio_processing: ProcessingSettings::default(),
             onset_detector: OnsetDetector::default(),
             hue: Vec::new(),
@@ -140,9 +140,10 @@ impl Config {
     ) -> Result<Vec<Box<dyn LightService + Send>>, LightServiceError> {
         let mut lightservices: Vec<Box<dyn LightService + Send>> = Vec::new();
 
-        if self.serialize_onsets {
+        if let Some(path) = &self.serialize_onsets {
+            let path = if path == "" {"onsets.cbor"} else {path};
             let serializer = serialize::OnsetContainer::init(
-                "onsets.cbor",
+                path,
                 self.audio_processing.sample_rate as usize,
                 self.audio_processing.hop_size,
             );

@@ -1,6 +1,7 @@
 audio_device = ""
 console_output = false
-serialize_onsets = false
+# Omit if you don't want to save detected onsets
+serialize_onsets = ""
 
 [Audio]
 sample_rate = 48000
