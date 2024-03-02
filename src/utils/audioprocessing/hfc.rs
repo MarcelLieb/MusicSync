@@ -1,4 +1,5 @@
 use log::info;
+use serde::{Deserialize, Serialize};
 
 use super::Onset;
 
@@ -7,7 +8,8 @@ use super::{
     OnsetDetector,
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[serde(default)]
 pub struct DetectionWeights {
     pub low_end_weight_cutoff: usize,
     pub high_end_weight_cutoff: usize,
@@ -36,10 +38,11 @@ pub struct Hfc {
     bin_resolution: f32,
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize)]
+#[serde(default, rename_all = "PascalCase")]
 pub struct HfcSettings {
     pub detection_weights: DetectionWeights,
-    pub threshold_settings: ThresholdBankSettings,
+    pub threshold: ThresholdBankSettings,
 }
 
 impl Hfc {
@@ -55,7 +58,7 @@ impl Hfc {
     }
 
     pub fn with_settings(sample_rate: usize, fft_size: usize, settings: HfcSettings) -> Self {
-        let threshold = ThresholdBank::with_settings(settings.threshold_settings);
+        let threshold = ThresholdBank::with_settings(settings.threshold);
         let bin_resolution = sample_rate as f32 / fft_size as f32;
         Self {
             threshold,
@@ -191,7 +194,8 @@ impl ThresholdBank {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[serde(default, rename_all = "PascalCase")]
 pub struct ThresholdBankSettings {
     pub drums: DynamicSettings,
     pub hihat: DynamicSettings,

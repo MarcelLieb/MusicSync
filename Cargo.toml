@@ -12,7 +12,6 @@ ciborium = "0.2.1"
 colored = "2.0.4"
 cpal = "0.15.2"
 ctrlc = "3.4.1"
-dasp_sample = "0.11.0"
 gethostname = "0.4.3"
 log = { version = "0.4.20", features = [
     "max_level_trace",
@@ -26,4 +25,5 @@ rodio = "0.17.1"
 rustfft = "6.1.0"
 serde = "1.0.193"
 tokio = {version = "1.35.1", features = ["full"]}
+toml = "0.8.10"
 webrtc-dtls = "0.8.0"

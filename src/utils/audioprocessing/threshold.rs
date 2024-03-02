@@ -1,8 +1,11 @@
 use std::collections::VecDeque;
 
+use serde::{Deserialize, Serialize};
+
 use super::{apply_window_mono, window, WindowType};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[serde(default)]
 pub struct DynamicSettings {
     pub buffer_size: usize,
     pub min_intensity: f32,
@@ -90,7 +93,8 @@ impl Default for Dynamic {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[serde(default)]
 pub struct AdvancedSettings {
     pub mean_range: usize,
     pub max_range: usize,

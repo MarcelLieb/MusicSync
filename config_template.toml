@@ -1,0 +1,150 @@
+audio_device = ""
+console_output = false
+# Omit if you don't want to save detected onsets
+serialize_onsets = ""
+
+[Audio]
+sample_rate = 48000
+hop_size = 480
+buffer_size = 1024
+fft_size = 2048
+window_type = "Hann"
+
+[OnsetDetector]
+algorithm = "SpecFlux"
+
+[OnsetDetector.FilterBankSettings]
+bands = 82
+max_frequency = 20000
+
+[OnsetDetector.ThresholdBankSettings.Drum]
+mean_range = 5
+max_range = 3
+dynamic_threshold = 0.4000000059604645
+threshold_range = 8
+fixed_threshold = 2.0
+delay = 2
+
+[OnsetDetector.ThresholdBankSettings.Hihat]
+mean_range = 3
+max_range = 3
+dynamic_threshold = 0.550000011920929
+threshold_range = 8
+fixed_threshold = 5.0
+delay = 2
+
+[OnsetDetector.ThresholdBankSettings.Note]
+mean_range = 6
+max_range = 3
+dynamic_threshold = 0.4000000059604645
+threshold_range = 8
+fixed_threshold = 2.0
+delay = 2
+
+[OnsetDetector.ThresholdBankSettings.Full]
+mean_range = 6
+max_range = 3
+dynamic_threshold = 0.800000011920929
+threshold_range = 8
+fixed_threshold = 5.0
+delay = 2
+
+# Alternative (worse) Onset detection algorithm
+# You can only use HFC OR SpecFlux
+# [OnsetDetector]
+# algorithm = "HFC"
+# 
+# [OnsetDetector.DetectionWeights]
+# low_end_weight_cutoff = 300
+# high_end_weight_cutoff = 2000
+# mids_weight_low_cutoff = 200
+# mids_weight_high_cutoff = 3000
+# drum_click_weight = 0.004999999888241291
+# note_click_weight = 0.10000000149011612
+# 
+# [OnsetDetector.Threshold.Drums]
+# buffer_size = 30
+# min_intensity = 0.30000001192092896
+# delta_intensity = 0.18000000715255737
+# window_type = "Hann"
+# 
+# [OnsetDetector.Threshold.Hihat]
+# buffer_size = 20
+# min_intensity = 0.30000001192092896
+# delta_intensity = 0.18000000715255737
+# window_type = "Hann"
+# 
+# [OnsetDetector.Threshold.Notes]
+# buffer_size = 20
+# min_intensity = 0.20000000298023224
+# delta_intensity = 0.15000000596046448
+# window_type = "Hann"
+# 
+# [OnsetDetector.Threshold.Fullband]
+# buffer_size = 20
+# min_intensity = 0.20000000298023224
+# delta_intensity = 0.15000000596046448
+# window_type = "Hann"
+
+[[Hue]]
+# Both Ip and area can be omitted
+# If no ip is specified the first hue bridge found on the network will be used
+# If no Entertainment area is specified the first area found will be used
+# If multiple areas are available and none is specified, all available areas are 
+# displayed with name and id
+# You need to have at least one entertainment area configured
+ip = "Ip of bridge"
+area = "Entertainment Area uuid"
+# Option to specify where credentials are saved after Push Link authentication
+# auth_file = "Path/to/file.cbor"
+
+[Hue.LightSettings]
+drum_decay_rate = 8.0
+fullband_color = [[65535, 0, 0], [2, 0, 1]]
+color_envelope = false
+
+[Hue.LightSettings.NoteDecay]
+secs = 0
+nanos = 100000000
+
+[Hue.LightSettings.HihatDecay]
+secs = 0
+nanos = 80000000
+
+[Hue.LightSettings.FullbandDecay]
+secs = 0
+nanos = 250000000
+
+[Hue.PushLinkTimeout]
+secs = 0
+nanos = 0
+
+[Hue.Timeout]
+secs = 0
+nanos = 0
+
+[[WLED]]
+effect = "Spectrum"
+ip = "Ip of Strip"
+leds_per_second = 100.0
+center = true
+master_brightness = 1.2000000476837158
+min_brightness = 0.25
+low_end_crossover = 240.0
+high_end_crossover = 2400.0
+polling_rate = 50.0
+timeout = 2
+onset_decay_rate = 6.0
+
+[[WLED]]
+effect = "Onset"
+ip = "Ip of Strip"
+white_led = true
+drum_decay_rate = 2.0
+note_decay_rate = 4.0
+brightness = 1.0
+timeout = 2
+
+[WLED.HihatDecay]
+secs = 0
+nanos = 200000000

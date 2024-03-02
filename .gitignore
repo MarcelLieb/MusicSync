@@ -19,3 +19,4 @@ Cargo.lock
 .vscode
 
 *.png
+config.toml
