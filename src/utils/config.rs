@@ -21,13 +21,13 @@ use super::{
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct Config {
-    #[serde(default, rename="audio_device")]
+    #[serde(default, rename = "audio_device")]
     pub audio_device: String,
 
-    #[serde(default, rename="console_output")]
+    #[serde(default, rename = "console_output")]
     pub console_output: bool,
 
-    #[serde(default, rename="serialize_onsets")]
+    #[serde(default, rename = "serialize_onsets")]
     pub serialize_onsets: Option<String>,
 
     #[serde(default, rename = "Audio")]
@@ -141,7 +141,7 @@ impl Config {
         let mut lightservices: Vec<Box<dyn LightService + Send>> = Vec::new();
 
         if let Some(path) = &self.serialize_onsets {
-            let path = if path == "" {"onsets.cbor"} else {path};
+            let path = if path == "" { "onsets.cbor" } else { path };
             let serializer = serialize::OnsetContainer::init(
                 path,
                 self.audio_processing.sample_rate as usize,

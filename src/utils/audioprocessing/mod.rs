@@ -79,8 +79,7 @@ pub struct Buffer {
     pub rms: f32,
 }
 
-pub fn process_raw(data: &[f32], channels: u16, buffer: &mut Buffer)
-{
+pub fn process_raw(data: &[f32], channels: u16, buffer: &mut Buffer) {
     let Buffer {
         f32_samples,
         mono_samples,
@@ -186,21 +185,16 @@ fn collapse_mono(mono_samples: &mut [f32], data: &[f32], channels: u16) {
         .for_each(|(m, s)| *m = s);
 }
 
-fn split_channels(channels: u16, data: &[f32], f32_samples: &mut [Vec<f32>])
-{
+fn split_channels(channels: u16, data: &[f32], f32_samples: &mut [Vec<f32>]) {
     for (i, channel) in f32_samples.iter_mut().enumerate() {
         channel.clear();
-        channel.extend(
-            data.iter()
-                .enumerate()
-                .filter_map(|(index, f)| {
-                    if index % channels as usize == i {
-                        Some(f)
-                    } else {
-                        None
-                    }
-                }),
-        );
+        channel.extend(data.iter().enumerate().filter_map(|(index, f)| {
+            if index % channels as usize == i {
+                Some(f)
+            } else {
+                None
+            }
+        }));
     }
 }
 

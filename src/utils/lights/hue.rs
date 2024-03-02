@@ -188,13 +188,13 @@ struct EntertainmentArea {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default, rename_all="PascalCase")]
+#[serde(default, rename_all = "PascalCase")]
 pub struct HueSettings {
-    #[serde(rename="ip")]
+    #[serde(rename = "ip")]
     pub ip: Option<Ipv4Addr>,
-    #[serde(rename="area")]
+    #[serde(rename = "area")]
     pub area: Option<String>,
-    #[serde(rename="auth_file")]
+    #[serde(rename = "auth_file")]
     pub auth_file: Option<String>,
     pub light_settings: LightSettings,
     pub push_link_timeout: Duration,
@@ -529,7 +529,11 @@ pub async fn connect_with_settings(settings: HueSettings) -> Result<BridgeConnec
     let manager = BridgeManager::new(settings.timeout);
 
     let bridge = manager
-        .locate_bridge(settings.ip, Some(settings.push_link_timeout), &settings.auth_file.unwrap_or(CONFIG_PATH.to_owned()))
+        .locate_bridge(
+            settings.ip,
+            Some(settings.push_link_timeout),
+            &settings.auth_file.unwrap_or(CONFIG_PATH.to_owned()),
+        )
         .await?;
 
     manager
@@ -685,11 +689,11 @@ struct State {
 #[serde(default)]
 pub struct LightSettings {
     pub drum_decay_rate: f32,
-    #[serde(rename="NoteDecay")]
+    #[serde(rename = "NoteDecay")]
     pub note_decay: Duration,
-    #[serde(rename="HihatDecay")]
+    #[serde(rename = "HihatDecay")]
     pub hihat_decay: Duration,
-    #[serde(rename="FullbandDecay")]
+    #[serde(rename = "FullbandDecay")]
     pub fullband_decay: Duration,
     pub fullband_color: ([u16; 3], [u16; 3]),
     pub color_envelope: bool,

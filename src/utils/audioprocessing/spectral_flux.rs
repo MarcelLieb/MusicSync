@@ -270,14 +270,14 @@ pub struct SpecFlux {
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
-#[serde(default, rename_all="PascalCase")]
+#[serde(default, rename_all = "PascalCase")]
 pub struct SpecFluxSettings {
     pub filter_bank_settings: MelFilterBankSettings,
     pub threshold_bank_settings: ThresholdBankSettings,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize)]
-#[serde(default, rename_all="PascalCase")]
+#[serde(default, rename_all = "PascalCase")]
 pub struct ThresholdBankSettings {
     pub drum: AdvancedSettings,
     pub hihat: AdvancedSettings,

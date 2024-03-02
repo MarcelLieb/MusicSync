@@ -39,7 +39,7 @@ pub struct Hfc {
 }
 
 #[derive(Debug, Clone, Copy, Default, Deserialize, Serialize)]
-#[serde(default, rename_all="PascalCase")]
+#[serde(default, rename_all = "PascalCase")]
 pub struct HfcSettings {
     pub detection_weights: DetectionWeights,
     pub threshold: ThresholdBankSettings,
@@ -195,7 +195,7 @@ impl ThresholdBank {
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize)]
-#[serde(default, rename_all="PascalCase")]
+#[serde(default, rename_all = "PascalCase")]
 pub struct ThresholdBankSettings {
     pub drums: DynamicSettings,
     pub hihat: DynamicSettings,

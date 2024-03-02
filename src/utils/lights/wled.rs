@@ -97,7 +97,7 @@ pub struct OnsetSettings {
     pub white_led: bool,
     pub drum_decay_rate: f32,
     pub note_decay_rate: f32,
-    #[serde(rename="HihatDecay")]
+    #[serde(rename = "HihatDecay")]
     pub hihat_decay: Duration,
     pub brightness: f32,
     pub timeout: u8,
