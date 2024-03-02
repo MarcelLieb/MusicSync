@@ -1,19 +1,22 @@
 audio_device = ""
 console_output = false
-serialize_data = false
+serialize_onsets = false
 
-[audio_processing]
+[Audio]
 sample_rate = 48000
 hop_size = 480
 buffer_size = 1024
 fft_size = 2048
 window_type = "Hann"
 
-[onset_detector.SpecFlux.filter_bank_settings]
+[OnsetDetector]
+algorithm = "SpecFlux"
+
+[OnsetDetector.FilterBankSettings]
 bands = 82
 max_frequency = 20000
 
-[onset_detector.SpecFlux.threshold_bank_settings.drum]
+[OnsetDetector.ThresholdBankSettings.Drum]
 mean_range = 5
 max_range = 3
 dynamic_threshold = 0.4000000059604645
@@ -21,7 +24,7 @@ threshold_range = 8
 fixed_threshold = 2.0
 delay = 2
 
-[onset_detector.SpecFlux.threshold_bank_settings.hihat]
+[OnsetDetector.ThresholdBankSettings.Hihat]
 mean_range = 3
 max_range = 3
 dynamic_threshold = 0.550000011920929
@@ -29,7 +32,7 @@ threshold_range = 8
 fixed_threshold = 5.0
 delay = 2
 
-[onset_detector.SpecFlux.threshold_bank_settings.note]
+[OnsetDetector.ThresholdBankSettings.Note]
 mean_range = 6
 max_range = 3
 dynamic_threshold = 0.4000000059604645
@@ -37,7 +40,7 @@ threshold_range = 8
 fixed_threshold = 2.0
 delay = 2
 
-[onset_detector.SpecFlux.threshold_bank_settings.full]
+[OnsetDetector.ThresholdBankSettings.Full]
 mean_range = 6
 max_range = 3
 dynamic_threshold = 0.800000011920929
@@ -47,7 +50,10 @@ delay = 2
 
 # Alternative (worse) Onset detection algorithm
 # You can only use HFC OR SpecFlux
-# [onset_detector.HFC.detection_weights]
+# [OnsetDetector]
+# algorithm = "HFC"
+# 
+# [OnsetDetector.DetectionWeights]
 # low_end_weight_cutoff = 300
 # high_end_weight_cutoff = 2000
 # mids_weight_low_cutoff = 200
@@ -55,81 +61,68 @@ delay = 2
 # drum_click_weight = 0.004999999888241291
 # note_click_weight = 0.10000000149011612
 # 
-# [onset_detector.HFC.threshold_settings.drums]
+# [OnsetDetector.Threshold.Drums]
 # buffer_size = 30
 # min_intensity = 0.30000001192092896
 # delta_intensity = 0.18000000715255737
 # window_type = "Hann"
 # 
-# [onset_detector.HFC.threshold_settings.hihat]
+# [OnsetDetector.Threshold.Hihat]
 # buffer_size = 20
 # min_intensity = 0.30000001192092896
 # delta_intensity = 0.18000000715255737
 # window_type = "Hann"
 # 
-# [onset_detector.HFC.threshold_settings.notes]
+# [OnsetDetector.Threshold.Notes]
 # buffer_size = 20
 # min_intensity = 0.20000000298023224
 # delta_intensity = 0.15000000596046448
 # window_type = "Hann"
 # 
-# [onset_detector.HFC.threshold_settings.fullband]
+# [OnsetDetector.Threshold.Fullband]
 # buffer_size = 20
 # min_intensity = 0.20000000298023224
 # delta_intensity = 0.15000000596046448
 # window_type = "Hann"
 
-[[hue]]
-
-# Find bridge automatically and use "first"/only area
-# [hue.mode.Auto]
-
-# Only specify IP and use "first"/only area
-# [hue.mode.ByIP]
-# ip = "Ip of bridge"
-
-# All available areas with id will be displayed if multiple areas are available and no area is specified
-
-# Only specify area and find bridge automatically
-# [hue.mode.AutoAreaSpecified]
-# area = "Area uuid"
-
-# Specify ip of bridge and select area by id
-[hue.mode.ByIPAreaSpecified]
+[[Hue]]
+# Both Ip and area can be omitted
+# If no ip is specified the first hue bridge found on the network will be used
+# If no Entertainment area is specified the first area found will be used
+# If multiple areas are available and none is specified, all available areas are 
+# displayed with name and id
+# You need to have at least one entertainment area configured
 ip = "Ip of bridge"
-area = "Area uuid"
+area = "Entertainment Area uuid"
 
-[hue.light_settings]
+[Hue.LightSettings]
 drum_decay_rate = 8.0
 fullband_color = [[65535, 0, 0], [2, 0, 1]]
 color_envelope = false
 
-[hue.light_settings.note_decay]
+[Hue.LightSettings.NoteDecay]
 secs = 0
 nanos = 100000000
 
-[hue.light_settings.hihat_decay]
+[Hue.LightSettings.HihatDecay]
 secs = 0
 nanos = 80000000
 
-[hue.light_settings.fullband_decay]
+[Hue.LightSettings.FullbandDecay]
 secs = 0
 nanos = 250000000
 
-[hue.push_link_timeout]
+[Hue.PushLinkTimeout]
 secs = 0
 nanos = 0
 
-[hue.timeout]
+[Hue.Timeout]
 secs = 0
 nanos = 0
 
-[[wled]]
-
-[wled.Spectrum]
+[[WLED]]
+effect = "Spectrum"
 ip = "Ip of Strip"
-
-[wled.Spectrum.settings]
 leds_per_second = 100.0
 center = true
 master_brightness = 1.2000000476837158
@@ -140,18 +133,15 @@ polling_rate = 50.0
 timeout = 2
 onset_decay_rate = 6.0
 
-[[wled]]
-
-[wled.Onset]
+[[WLED]]
+effect = "Onset"
 ip = "Ip of Strip"
-
-[wled.Onset.settings]
 white_led = true
 drum_decay_rate = 2.0
 note_decay_rate = 4.0
 brightness = 1.0
 timeout = 2
 
-[wled.Onset.settings.hihat_decay]
+[WLED.HihatDecay]
 secs = 0
 nanos = 200000000
