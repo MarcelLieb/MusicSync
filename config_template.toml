@@ -94,6 +94,8 @@ delay = 2
 # You need to have at least one entertainment area configured
 ip = "Ip of bridge"
 area = "Entertainment Area uuid"
+# Option to specify where credentials are saved after Push Link authentication
+# auth_file = "Path/to/file.cbor"
 
 [Hue.LightSettings]
 drum_decay_rate = 8.0

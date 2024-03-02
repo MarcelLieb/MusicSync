@@ -220,9 +220,7 @@ impl Config {
         template.hue.push(HueSettings {
             ip: Some(Ipv4Addr::new(0, 0, 0, 0)),
             area: Some("Area uuid".to_owned()),
-            light_settings: Default::default(),
-            push_link_timeout: Default::default(),
-            timeout: Default::default(),
+            ..Default::default()
         });
         let toml = toml::to_string(&template).unwrap();
         fs::write(file_path, toml).unwrap();

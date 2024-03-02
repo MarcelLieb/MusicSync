@@ -194,6 +194,8 @@ pub struct HueSettings {
     pub ip: Option<Ipv4Addr>,
     #[serde(rename="area")]
     pub area: Option<String>,
+    #[serde(rename="auth_file")]
+    pub auth_file: Option<String>,
     pub light_settings: LightSettings,
     pub push_link_timeout: Duration,
     pub timeout: Duration,
@@ -204,6 +206,7 @@ impl Default for HueSettings {
         Self {
             ip: None,
             area: None,
+            auth_file: None,
             light_settings: Default::default(),
             push_link_timeout: Duration::from_secs(30),
             timeout: Duration::from_secs(2),
@@ -294,8 +297,9 @@ impl BridgeManager {
         &self,
         ip: Option<Ipv4Addr>,
         timeout: Option<Duration>,
+        save_file: &str,
     ) -> Result<BridgeData, HueError> {
-        let mut saved_bridges = BridgeManager::load_saved_bridges(CONFIG_PATH);
+        let mut saved_bridges = BridgeManager::load_saved_bridges(save_file);
         let mut found_bridges = self.filter_reachable(&saved_bridges).await;
 
         if let Some(ip) = ip {
@@ -339,7 +343,7 @@ impl BridgeManager {
 
         saved_bridges.push(bridge.clone());
 
-        BridgeManager::save_bridges(&saved_bridges, CONFIG_PATH)?;
+        BridgeManager::save_bridges(&saved_bridges, save_file)?;
 
         Ok(bridge)
     }
@@ -508,7 +512,7 @@ impl BridgeManager {
 pub async fn connect() -> Result<BridgeConnection, HueError> {
     let manager = BridgeManager::new(HueSettings::default().timeout);
 
-    let bridge = manager.locate_bridge(None, None).await?;
+    let bridge = manager.locate_bridge(None, None, CONFIG_PATH).await?;
 
     manager.start_connection(bridge, None).await
 }
@@ -516,7 +520,7 @@ pub async fn connect() -> Result<BridgeConnection, HueError> {
 pub async fn connect_by_ip(ip: Ipv4Addr) -> Result<BridgeConnection, HueError> {
     let manager = BridgeManager::new(HueSettings::default().timeout);
 
-    let bridge = manager.locate_bridge(Some(ip), None).await?;
+    let bridge = manager.locate_bridge(Some(ip), None, CONFIG_PATH).await?;
 
     manager.start_connection(bridge, None).await
 }
@@ -525,7 +529,7 @@ pub async fn connect_with_settings(settings: HueSettings) -> Result<BridgeConnec
     let manager = BridgeManager::new(settings.timeout);
 
     let bridge = manager
-        .locate_bridge(settings.ip, Some(settings.push_link_timeout))
+        .locate_bridge(settings.ip, Some(settings.push_link_timeout), &settings.auth_file.unwrap_or(CONFIG_PATH.to_owned()))
         .await?;
 
     manager
