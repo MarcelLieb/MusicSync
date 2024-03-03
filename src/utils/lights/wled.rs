@@ -8,6 +8,7 @@ use std::{
 
 use biquad::{Biquad, Coefficients, DirectForm2Transposed, ToHertz, Type, Q_BUTTERWORTH_F32};
 use bytes::{BufMut, Bytes, BytesMut};
+use log::info;
 use serde::{Deserialize, Serialize};
 use tokio::net::UdpSocket;
 
@@ -210,7 +211,7 @@ impl LEDStripOnset {
         let url = format!("http://{}/json/info", ip);
         let resp = client.get(&url).send().await?;
         let info: Info = resp.json().await?;
-        println!("Found strip {}", info.name);
+        info!("Found strip {}", info.name);
 
         let socket = UdpSocket::bind("0.0.0.0:0").await?;
         socket.connect((ip, info.udpport)).await?;
@@ -327,7 +328,7 @@ impl LEDStripSpectrum {
         let url = format!("http://{}/json/info", ip);
         let resp = client.get(&url).send().await?;
         let info: Info = resp.json().await?;
-        println!("Found strip {}", info.name);
+        info!("Found strip {}", info.name);
 
         let socket = UdpSocket::bind("0.0.0.0:0").await?;
         socket.connect((ip, info.udpport)).await?;
