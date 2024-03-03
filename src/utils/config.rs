@@ -208,7 +208,7 @@ impl Config {
 
     #[allow(dead_code)]
     pub fn generate_template(file_path: &str) {
-        let mut template = Config{
+        let mut template = Config {
             onset_detector: OnsetDetector::SpecFlux(Default::default()),
             ..Default::default()
         };
@@ -223,6 +223,8 @@ impl Config {
         template.hue.push(HueSettings {
             ip: Some(Ipv4Addr::new(0, 0, 0, 0)),
             area: Some("Area uuid".to_owned()),
+            timeout: HueSettings::default().timeout,
+            push_link_timeout: HueSettings::default().push_link_timeout,
             ..Default::default()
         });
         let toml = toml::to_string(&template).unwrap();
