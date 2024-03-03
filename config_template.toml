@@ -49,7 +49,7 @@ threshold_range = 8
 fixed_threshold = 5.0
 delay = 2
 
-# Alternative (worse) Onset detection algorithm
+# Alternative Onset detection algorithm
 # You can only use HFC OR SpecFlux
 # [OnsetDetector]
 # algorithm = "HFC"
@@ -98,29 +98,28 @@ area = "Entertainment Area uuid"
 # Option to specify where credentials are saved after Push Link authentication
 # auth_file = "Path/to/file.cbor"
 
-[Hue.LightSettings]
 drum_decay_rate = 8.0
 fullband_color = [[65535, 0, 0], [2, 0, 1]]
 color_envelope = false
 
-[Hue.LightSettings.NoteDecay]
+[Hue.NoteDecay]
 secs = 0
 nanos = 100000000
 
-[Hue.LightSettings.HihatDecay]
+[Hue.HihatDecay]
 secs = 0
 nanos = 80000000
 
-[Hue.LightSettings.FullbandDecay]
+[Hue.FullbandDecay]
 secs = 0
 nanos = 250000000
 
 [Hue.PushLinkTimeout]
-secs = 0
+secs = 30
 nanos = 0
 
 [Hue.Timeout]
-secs = 0
+secs = 2
 nanos = 0
 
 [[WLED]]

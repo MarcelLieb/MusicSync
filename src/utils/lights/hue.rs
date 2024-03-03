@@ -196,6 +196,7 @@ pub struct HueSettings {
     pub area: Option<String>,
     #[serde(rename = "auth_file")]
     pub auth_file: Option<String>,
+    #[serde(flatten)]
     pub light_settings: LightSettings,
     pub push_link_timeout: Duration,
     pub timeout: Duration,
