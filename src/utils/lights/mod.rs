@@ -142,12 +142,24 @@ impl PollingHelper {
 
 impl Drop for PollingHelper {
     fn drop(&mut self) {
-        if let Ok(_) = self.tx.blocking_send(()) {
-            while !self.handle.is_finished() {
-                sleep(std::time::Duration::from_millis(10));
+        // Check if Tokio is running
+        match tokio::runtime::Handle::try_current() {
+            Ok(handle) => {
+                let tx = self.tx.clone();
+                handle.spawn(async move { tx.send(()).await });
+                while !self.handle.is_finished() {
+                    sleep(std::time::Duration::from_millis(10));
+                }
             }
-        } else {
-            eprintln!("This should never happen");
+            Err(_) => {
+                if let Ok(_) = self.tx.blocking_send(()) {
+                    while !self.handle.is_finished() {
+                        sleep(std::time::Duration::from_millis(10));
+                    }
+                } else {
+                    eprintln!("This should never happen");
+                }
+            }
         }
     }
 }

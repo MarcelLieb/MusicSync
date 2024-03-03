@@ -2,10 +2,12 @@ mod utils;
 
 use std::error::Error;
 use std::sync::mpsc::channel;
+use std::time::Duration;
 
 use crate::utils::audiodevices::create_monitor_stream;
 use crate::utils::config::{Config, ConfigError};
 use log::{debug, error};
+use tokio::time::sleep;
 
 #[tokio::main]
 async fn main() {
@@ -72,4 +74,6 @@ async fn main() {
     rx.recv().expect("Could not receive from channel.");
     println!("Shutting down");
     drop(stream);
+    // Wait for proper shutdown
+    sleep(Duration::from_millis(100)).await;
 }
