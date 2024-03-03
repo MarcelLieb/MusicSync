@@ -146,9 +146,9 @@ impl Pollable for OnsetState {
 
         bytes.put_slice(&self.prefix);
 
-        let red = self.drum_envelope.get_value() as f32 * self.led_count as f32 * 0.5;
-        let blue = self.note_envelope.get_value() as f32 * self.led_count as f32 * 0.5;
-        let white = self.hihat_envelope.get_value() as f32 * self.led_count as f32 * 0.2;
+        let red = self.drum_envelope.get_value() * self.led_count as f32 * 0.5;
+        let blue = self.note_envelope.get_value() * self.led_count as f32 * 0.5;
+        let white = self.hihat_envelope.get_value() * self.led_count as f32 * 0.2;
 
         let mut colors: Vec<Vec<u8>> = if self.rgbw {
             vec![vec![0, 0, 0, 0]; self.led_count as usize / 2]

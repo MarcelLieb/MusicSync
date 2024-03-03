@@ -19,10 +19,10 @@ pub fn create_monitor_stream(
     onset_detector: impl OnsetDetector + Send + 'static,
     lightservices: Vec<Box<dyn LightService + Send>>,
 ) -> Result<cpal::Stream, BuildStreamError> {
-    let device_name = if device_name == "" {
+    let device_name = if device_name.is_empty() {
         cpal::default_host()
             .default_output_device()
-            .ok_or_else(|| BuildStreamError::DeviceNotAvailable)?
+            .ok_or(BuildStreamError::DeviceNotAvailable)?
             .name()
             .map_err(|_| BuildStreamError::DeviceNotAvailable)?
     } else {
@@ -32,9 +32,8 @@ pub fn create_monitor_stream(
     let out = cpal::default_host()
         .devices()
         .map_err(|_| BuildStreamError::DeviceNotAvailable)?
-        .filter(|d| d.name().unwrap_or_default() == device_name)
-        .next()
-        .ok_or_else(|| BuildStreamError::DeviceNotAvailable)?;
+        .find(|d| d.name().unwrap_or_default() == device_name)
+        .ok_or(BuildStreamError::DeviceNotAvailable)?;
 
     let audio_cfg = out
         .default_output_config()

@@ -36,7 +36,7 @@ async fn main() {
             if let Some(e) = e.source() {
                 debug!("{}", e);
             }
-            panic!("Couldn't initialize Lightservices");
+            return;
         }
     };
 
@@ -61,7 +61,7 @@ async fn main() {
                     }
                 }
             };
-            panic!("Audio stream couldn't be build");
+            return;
         }
     };
 

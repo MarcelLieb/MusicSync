@@ -126,7 +126,7 @@ impl Default for Config {
 
 impl Config {
     pub fn load(file: &str) -> Result<Self, ConfigError> {
-        if file.split_terminator(".").last() != Some("toml") {
+        if file.split_terminator('.').last() != Some("toml") {
             return Err(ConfigError::FileFormat);
         }
 
@@ -141,7 +141,7 @@ impl Config {
         let mut lightservices: Vec<Box<dyn LightService + Send>> = Vec::new();
 
         if let Some(path) = &self.serialize_onsets {
-            let path = if path == "" { "onsets.cbor" } else { path };
+            let path = if path.is_empty() { "onsets.cbor" } else { path };
             let serializer = serialize::OnsetContainer::init(
                 path,
                 self.audio_processing.sample_rate as usize,
@@ -184,32 +184,34 @@ impl Config {
     pub fn initialize_onset_detector(
         &self,
     ) -> Box<dyn audioprocessing::OnsetDetector + Send + 'static> {
-        let detector: Box<dyn audioprocessing::OnsetDetector + Send + 'static>;
-        match self.onset_detector {
-            OnsetDetector::SpecFlux(settings) => {
-                let alg = SpecFlux::with_settings(
-                    self.audio_processing.sample_rate,
-                    self.audio_processing.fft_size as u32,
-                    settings,
-                );
-                detector = Box::new(alg);
-            }
-            OnsetDetector::HFC(settings) => {
-                let alg = Hfc::with_settings(
-                    self.audio_processing.sample_rate as usize,
-                    self.audio_processing.fft_size,
-                    settings,
-                );
-                detector = Box::new(alg);
-            }
-        };
+        let detector: Box<dyn audioprocessing::OnsetDetector + Send + 'static> =
+            match self.onset_detector {
+                OnsetDetector::SpecFlux(settings) => {
+                    let alg = SpecFlux::with_settings(
+                        self.audio_processing.sample_rate,
+                        self.audio_processing.fft_size as u32,
+                        settings,
+                    );
+                    Box::new(alg)
+                }
+                OnsetDetector::HFC(settings) => {
+                    let alg = Hfc::with_settings(
+                        self.audio_processing.sample_rate as usize,
+                        self.audio_processing.fft_size,
+                        settings,
+                    );
+                    Box::new(alg)
+                }
+            };
         detector
     }
 
     #[allow(dead_code)]
     pub fn generate_template(file_path: &str) {
-        let mut template = Config::default();
-        template.onset_detector = OnsetDetector::SpecFlux(Default::default());
+        let mut template = Config{
+            onset_detector: OnsetDetector::SpecFlux(Default::default()),
+            ..Default::default()
+        };
         template.wled.push(WLEDConfig::Spectrum {
             ip: "Ip of Strip".to_owned(),
             settings: Default::default(),

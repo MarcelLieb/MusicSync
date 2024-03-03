@@ -303,10 +303,7 @@ impl BridgeManager {
         let mut found_bridges = self.filter_reachable(&saved_bridges).await;
 
         if let Some(ip) = ip {
-            found_bridges = found_bridges
-                .into_iter()
-                .filter(|bridge| bridge.ip == ip)
-                .collect();
+            found_bridges.retain(|bridge| bridge.ip == ip);
         } else if found_bridges.len() > 1 {
             warn!("Multiple bridges found");
             for bridge in found_bridges.iter().rev() {
@@ -323,10 +320,7 @@ impl BridgeManager {
 
         let mut new_bridges = self.search_bridges().await?;
         if let Some(ip) = ip {
-            new_bridges = new_bridges
-                .into_iter()
-                .filter(|bridge| bridge.ip == ip)
-                .collect();
+            new_bridges.retain(|bridge| bridge.ip == ip);
         } else if new_bridges.len() > 1 {
             warn!("Multiple bridges found");
             for bridge in new_bridges.iter().rev() {
@@ -380,7 +374,7 @@ impl BridgeManager {
 
         let mut saved_bridge = BridgeData {
             id: config.id,
-            ip: ip,
+            ip,
             app_key: String::new(),
             app_id: String::new(),
             psk: String::new(),
@@ -491,10 +485,7 @@ impl BridgeManager {
         let mut areas = self.get_entertainment_areas(&bridge).await?;
 
         if let Some(area) = area {
-            areas = areas
-                .into_iter()
-                .filter(|ent_area| ent_area.id == area)
-                .collect();
+            areas.retain(|ent_area| ent_area.id == area);
         } else if areas.len() > 1 {
             warn!("Multiple areas found");
             for area in areas.iter().rev() {
@@ -723,7 +714,7 @@ impl State {
         prefix.put(area.id.as_bytes());
 
         let channels: Vec<_> = area.channels.iter().map(|chan| chan.channel_id).collect();
-        let buffer_size = &prefix.len() + 7 * channels.clone().len();
+        let buffer_size = prefix.len() + 7 * channels.clone().len();
         State {
             drum: envelope::DynamicDecay::init(settings.drum_decay_rate),
             hihat: envelope::FixedDecay::init(settings.hihat_decay),

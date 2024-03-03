@@ -152,7 +152,7 @@ impl Drop for PollingHelper {
                 }
             }
             Err(_) => {
-                if let Ok(_) = self.tx.blocking_send(()) {
+                if self.tx.blocking_send(()).is_ok() {
                     while !self.handle.is_finished() {
                         sleep(std::time::Duration::from_millis(10));
                     }

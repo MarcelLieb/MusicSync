@@ -335,10 +335,8 @@ impl MelFilterBank {
             .enumerate()
             .for_each(|(m, (band, x))| {
                 let start = (self.points[m] / bin_res) as usize;
-                let sum = freq_bins
+                let sum = freq_bins[start..(start + band.len())]
                     .iter()
-                    .skip(start)
-                    .take(band.len())
                     .zip(band)
                     .map(|(&f, &w)| f * w)
                     .sum::<f32>();
