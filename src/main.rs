@@ -2,15 +2,18 @@ mod utils;
 
 use std::error::Error;
 use std::sync::mpsc::channel;
-use std::time::Duration;
 
 use crate::utils::audiodevices::create_monitor_stream;
 use crate::utils::config::{Config, ConfigError};
-use log::{debug, error};
-use tokio::time::sleep;
+use log::{debug, error, info};
 
 #[tokio::main]
 async fn main() {
+    pretty_env_logger::formatted_builder()
+        .filter_level(log::LevelFilter::Warn)
+        .parse_default_env()
+        .init();
+
     let config = match Config::load("./config.toml") {
         Ok(loaded_config) => loaded_config,
         Err(e) => {
@@ -24,8 +27,7 @@ async fn main() {
                 }
             }
 
-            error!("Using default config");
-            Config::default()
+            return;
         }
     };
 
@@ -72,8 +74,7 @@ async fn main() {
 
     println!("Stop sync with CTRL-C");
     rx.recv().expect("Could not receive from channel.");
-    println!("Shutting down");
+    info!("Shutting down");
     drop(stream);
-    // Wait for proper shutdown
-    sleep(Duration::from_millis(100)).await;
+    info!("Shutdown complete");
 }

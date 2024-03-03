@@ -371,7 +371,7 @@ impl BridgeManager {
             generateclientkey: true,
         };
 
-        println!("Please press push link button");
+        warn!("Please press push link button");
 
         let mut saved_bridge = BridgeData {
             id: config.id,
@@ -425,12 +425,15 @@ impl BridgeManager {
             None => return Err(HueError::TimeOut),
         }
 
+        info!("Authenticated with {}", config.name);
+
         Ok(saved_bridge)
     }
 
     fn save_bridges(bridges: &[BridgeData], path: &str) -> Result<(), HueError> {
         let f = File::create(path)?;
         into_writer(&bridges, f)?;
+        info!("Saved authenticated bridges to {path}");
         Ok(())
     }
 
@@ -616,10 +619,11 @@ impl BridgeConnection {
             cipher_suites: vec![CipherSuiteId::Tls_Psk_With_Aes_128_Gcm_Sha256],
             psk: Some(Arc::new(move |_| Ok(decode_hex(psk.as_str()).unwrap()))),
             psk_identity_hint: Some(identity.to_vec()),
+            server_name: "localhost".to_owned(),
             ..Default::default()
         };
 
-        info!("Binding Socket");
+        debug!("Binding Socket");
         let socket = Arc::new(UdpSocket::bind("0.0.0.0:0").await.unwrap());
         socket
             .connect(SocketAddr::new(dest_ip, dest_port))
