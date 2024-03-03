@@ -4,6 +4,7 @@ use std::{
 };
 
 use bytes::Bytes;
+use log::{error, info, trace};
 use tokio::{
     select,
     sync::mpsc::{self, Sender},
@@ -143,6 +144,7 @@ impl PollingHelper {
 impl Drop for PollingHelper {
     fn drop(&mut self) {
         // Check if Tokio is running
+        info!("Shutting done background poller");
         match tokio::runtime::Handle::try_current() {
             Ok(handle) => {
                 let tx = self.tx.clone();
@@ -157,9 +159,10 @@ impl Drop for PollingHelper {
                         sleep(std::time::Duration::from_millis(10));
                     }
                 } else {
-                    eprintln!("This should never happen");
+                    error!("This should never happen");
                 }
             }
         }
+        trace!("Background poller shut down");
     }
 }

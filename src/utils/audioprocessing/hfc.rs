@@ -1,4 +1,3 @@
-use log::info;
 use serde::{Deserialize, Serialize};
 
 use super::Onset;
@@ -128,8 +127,6 @@ impl Hfc {
             .unwrap()
             .0 as f32
             * self.bin_resolution) as usize;
-
-        info!("Loudest frequency: {}Hz", index_of_max);
 
         let mut onsets: Vec<Onset> = Vec::new();
 

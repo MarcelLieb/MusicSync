@@ -4,7 +4,6 @@ pub mod threshold;
 
 use std::{f32::consts::PI, sync::Arc};
 
-use log::info;
 use realfft::{RealFftPlanner, RealToComplex};
 use rustfft::num_complex::Complex;
 use serde::{Deserialize, Serialize};
@@ -127,8 +126,6 @@ pub fn process_raw(data: &[f32], channels: u16, buffer: &mut Buffer) {
         })
         .reduce(f32::max)
         .unwrap();
-
-    info!("RMS: {:.3}, Peak: {:.3}", rms, peak);
 
     fft(f32_samples, fft_output, fft_planner, fft_window, freq_bins);
 }

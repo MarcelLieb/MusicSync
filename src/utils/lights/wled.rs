@@ -227,6 +227,8 @@ impl LEDStripOnset {
 
         let polling_helper = PollingHelper::init(socket, state.clone(), 30.0);
 
+        info!("Connected to {}", info.name);
+
         Ok(LEDStripOnset {
             strip: LEDStrip {
                 name: info.name,
@@ -349,6 +351,8 @@ impl LEDStripSpectrum {
         let state = Arc::new(Mutex::new(state));
 
         let polling_helper = PollingHelper::init(socket, state.clone(), 50.0);
+
+        info!("Connected to {}", info.name);
 
         Ok(LEDStripSpectrum {
             strip: LEDStrip {

@@ -1,5 +1,6 @@
 use std::{error::Error, fmt::Display, fs, net::Ipv4Addr};
 
+use log::info;
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -147,7 +148,8 @@ impl Config {
                 self.audio_processing.sample_rate as usize,
                 self.audio_processing.hop_size,
             );
-            lightservices.push(Box::new(serializer))
+            lightservices.push(Box::new(serializer));
+            info!("Serializing onsets to {path}");
         }
 
         if self.console_output {

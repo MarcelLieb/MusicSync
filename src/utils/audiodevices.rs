@@ -9,7 +9,7 @@ use cpal::{
     traits::{DeviceTrait, HostTrait},
     BuildStreamError, StreamConfig,
 };
-use log::{debug, error};
+use log::{debug, error, trace};
 
 use crate::utils::audioprocessing::OnsetDetector;
 
@@ -68,6 +68,11 @@ pub fn create_monitor_stream(
                     &buffer.make_contiguous()[0..buffer_size],
                     channels,
                     &mut detection_buffer,
+                );
+                trace!(
+                    "RMS: {:.3}\t Peak: {:.3}",
+                    detection_buffer.rms,
+                    detection_buffer.peak
                 );
 
                 let onsets = onset_detector.detect(
