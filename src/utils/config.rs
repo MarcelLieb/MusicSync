@@ -141,6 +141,16 @@ impl Config {
     ) -> Result<Vec<Box<dyn LightService + Send>>, LightServiceError> {
         let mut lightservices: Vec<Box<dyn LightService + Send>> = Vec::new();
 
+        let mut handles = Vec::new();
+        for settings in &self.hue {
+            let settings = settings.clone();
+            let handle = tokio::spawn(async move {
+                hue::connect_with_settings(settings).await
+            });
+
+            handles.push(handle);
+        }
+
         if let Some(path) = &self.serialize_onsets {
             let path = if path.is_empty() { "onsets.cbor" } else { path };
             let serializer = serialize::OnsetContainer::init(
@@ -175,9 +185,9 @@ impl Config {
             }
         }
 
-        for settings in &self.hue {
-            let bridge = hue::connect_with_settings(settings.clone()).await?;
-            lightservices.push(Box::new(bridge));
+        for handle in handles.into_iter() {
+            let bridge = handle.await.unwrap()?;
+            lightservices.push(Box::new(bridge))
         }
 
         Ok(lightservices)
