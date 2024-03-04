@@ -1,8 +1,6 @@
 name: auto-format
 
 on:
-  push:
-    branches: [ "master" ]
   pull_request:
     types: [ready_for_review]
     branches: [ "master" ]
