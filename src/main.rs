@@ -68,7 +68,9 @@ async fn main() {
 
     println!("Stop sync with CTRL-C");
 
-    tokio::signal::ctrl_c().await.expect("Error setting Ctrl-C handler");
+    tokio::signal::ctrl_c()
+        .await
+        .expect("Error setting Ctrl-C handler");
 
     info!("Shutting down");
     drop(stream);
