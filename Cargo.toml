@@ -8,12 +8,12 @@ edition = "2021"
 [dependencies]
 biquad = "0.4.2"
 bytes = "1.5.0"
-ciborium = "0.2.1"
-colored = "2.0.4"
+ciborium = "0.2.2"
+colored = "2.1.0"
 cpal = "0.15.2"
-ctrlc = "3.4.1"
+ctrlc = "3.4.2"
 gethostname = "0.4.3"
-log = { version = "0.4.20", features = [
+log = { version = "0.4.21", features = [
     "max_level_trace",
     "release_max_level_debug",
     "serde",
@@ -21,10 +21,10 @@ log = { version = "0.4.20", features = [
 plotters = "0.3.5"
 pretty_env_logger = "0.5.0"
 realfft = "3.3.0"
-reqwest = {version = "0.11.23", features = ["json"]}
-rodio = "0.17.1"
-rustfft = "6.1.0"
-serde = "1.0.193"
-tokio = {version = "1.35.1", features = ["full"]}
+reqwest = {version = "0.11.24", features = ["json"]}
+rodio = "0.17.3"
+rustfft = "6.2.0"
+serde = "1.0.197"
+tokio = {version = "1.36.0", features = ["full"]}
 toml = "0.8.10"
-webrtc-dtls = "0.8.0"
+webrtc-dtls = "0.9.0"
