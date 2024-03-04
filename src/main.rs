@@ -1,7 +1,6 @@
 mod utils;
 
 use std::error::Error;
-use std::sync::mpsc::channel;
 
 use crate::utils::audiodevices::create_monitor_stream;
 use crate::utils::config::{Config, ConfigError};
@@ -67,13 +66,12 @@ async fn main() {
         }
     };
 
-    let (tx, rx) = channel();
+    println!("Stop sync with CTRL-C");
 
-    ctrlc::set_handler(move || tx.send(()).expect("Could not send signal on channel."))
+    tokio::signal::ctrl_c()
+        .await
         .expect("Error setting Ctrl-C handler");
 
-    println!("Stop sync with CTRL-C");
-    rx.recv().expect("Could not receive from channel.");
     info!("Shutting down");
     drop(stream);
     info!("Shutdown complete");

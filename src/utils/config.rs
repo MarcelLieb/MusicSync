@@ -144,9 +144,7 @@ impl Config {
         let mut handles = Vec::new();
         for settings in &self.hue {
             let settings = settings.clone();
-            let handle = tokio::spawn(async move {
-                hue::connect_with_settings(settings).await
-            });
+            let handle = tokio::spawn(async move { hue::connect_with_settings(settings).await });
 
             handles.push(handle);
         }
