@@ -142,6 +142,7 @@ white_led = true
 drum_decay_rate = 2.0
 note_decay_rate = 4.0
 brightness = 1.0
+polling_rate = 50.0
 timeout = 2
 
 [WLED.HihatDecay]

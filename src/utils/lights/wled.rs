@@ -102,6 +102,7 @@ pub struct OnsetSettings {
     pub hihat_decay: Duration,
     pub brightness: f32,
     pub timeout: u8,
+    pub polling_rate: f64,
 }
 
 impl Default for OnsetSettings {
@@ -113,6 +114,7 @@ impl Default for OnsetSettings {
             hihat_decay: Duration::from_millis(200),
             brightness: 1.0,
             timeout: 2,
+            polling_rate: 50.0,
         }
     }
 }
@@ -226,7 +228,7 @@ impl LEDStripOnset {
 
         let state = Arc::new(Mutex::new(state));
 
-        let polling_helper = PollingHelper::init(socket, state.clone(), 30.0);
+        let polling_helper = PollingHelper::init(socket, state.clone(), settings.polling_rate);
 
         info!("Connected to {}", info.name);
 
@@ -352,7 +354,7 @@ impl LEDStripSpectrum {
 
         let state = Arc::new(Mutex::new(state));
 
-        let polling_helper = PollingHelper::init(socket, state.clone(), 50.0);
+        let polling_helper = PollingHelper::init(socket, state.clone(), settings.polling_rate);
 
         info!("Connected to {}", info.name);
 
