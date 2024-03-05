@@ -2,9 +2,9 @@ mod utils;
 
 use std::error::Error;
 
-use crate::utils::audiodevices::create_monitor_stream;
+use crate::utils::audiodevices::{create_monitor_stream, get_output_devices};
 use crate::utils::config::{Config, ConfigError};
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 
 #[tokio::main]
 async fn main() {
@@ -53,7 +53,11 @@ async fn main() {
         Err(e) => {
             match e {
                 cpal::BuildStreamError::DeviceNotAvailable => {
-                    error!("Device not found: {}", config.audio_device)
+                    error!("Device not found: {}", config.audio_device);
+                    warn!("Available devices:");
+                    for name in get_output_devices() {
+                        warn!("{name}");
+                    }
                 }
                 _ => {
                     debug!("{e}");
