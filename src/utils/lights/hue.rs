@@ -623,7 +623,6 @@ impl BridgeConnection {
             ..Default::default()
         };
 
-        debug!("Binding Socket");
         let socket = Arc::new(UdpSocket::bind("0.0.0.0:0").await.unwrap());
         socket
             .connect(SocketAddr::new(dest_ip, dest_port))

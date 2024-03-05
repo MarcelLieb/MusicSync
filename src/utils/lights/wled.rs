@@ -8,7 +8,7 @@ use std::{
 
 use biquad::{Biquad, Coefficients, DirectForm2Transposed, ToHertz, Type, Q_BUTTERWORTH_F32};
 use bytes::{BufMut, Bytes, BytesMut};
-use log::info;
+use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use tokio::net::UdpSocket;
 
@@ -215,6 +215,7 @@ impl LEDStripOnset {
 
         let socket = UdpSocket::bind("0.0.0.0:0").await?;
         socket.connect((ip, info.udpport)).await?;
+        debug!("Bound: {}", socket.local_addr().unwrap());
 
         let state = OnsetState::init(
             info.leds.count,
@@ -334,6 +335,7 @@ impl LEDStripSpectrum {
 
         let socket = UdpSocket::bind("0.0.0.0:0").await?;
         socket.connect((ip, info.udpport)).await?;
+        debug!("Bound: {}", socket.local_addr().unwrap());
 
         let samples_per_led = (sampling_rate as f64 / settings.leds_per_second).round() as u32;
 
