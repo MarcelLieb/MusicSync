@@ -159,7 +159,8 @@ impl Buffer {
         let channels = self.channels as f32;
         // Clear
         self.mono_samples.clear();
-        self.mono_samples.extend(std::iter::repeat(0.0).take(self.mono_samples.capacity()));
+        self.mono_samples
+            .extend(std::iter::repeat(0.0).take(self.mono_samples.capacity()));
 
         // Average channels
         for channel in self.f32_samples.iter() {
@@ -171,40 +172,46 @@ impl Buffer {
     }
 
     fn fft(&mut self) {
+        let Buffer {
+            f32_samples,
+            fft_output,
+            freq_bins,
+            fft_window,
+            fft_planner,
+            ..
+        } = self;
+        let channels = f32_samples.len();
+
         // Could only apply window to collapsed mono signal
-    apply_window(&mut self.f32_samples, &self.fft_window);
-        self.f32_samples.iter_mut().for_each(|chan| {
-            chan.extend(std::iter::repeat(0.0).take(chan.capacity() - chan.len()))
-        });
+        apply_window(f32_samples, fft_window);
 
-        // Calculate FFT
-    self.f32_samples
-        .iter_mut()
-            .zip(self.fft_output.iter_mut())
-            .for_each(
-                |(samples, output)| match self.fft_planner.process(samples, output) {
-                    Ok(()) => (),
-                    Err(e) => println!("Error: {e:?}"),
-                },
-            );
-        // Save per channel freq in f32_samples as it has been scrambled already by fft
-        self.fft_output.iter().enumerate().for_each(|(i, out)| {
-            let n = self.f32_samples[0].len() as f32;
-        self.f32_samples[i].clear();
-            self.f32_samples[i].extend(out.iter().map(|s| (s.re * s.re + s.im * s.im / n).sqrt()));
-        });
+        // Pad end with zeros
+        for channel in f32_samples.iter_mut() {
+            channel.extend(std::iter::repeat(0.0).take(channel.capacity() - channel.len()))
+        }
 
-        self.freq_bins
-            .iter_mut()
-            .zip((0..self.fft_output[0].len()).map(|i| {
-                self.f32_samples
-                    .iter()
-                    .flatten()
-                    .skip(i)
-                    .step_by(self.f32_samples[0].len())
-                    .sum::<f32>()
-            }))
-            .for_each(|(f, s)| *f = s);
+        // Calculate FFT for each channel
+        for (samples, output) in f32_samples.iter_mut().zip(fft_output.iter_mut()) {
+            match fft_planner.process(samples, output) {
+                Ok(()) => (),
+                Err(e) => println!("Error: {e:?}"),
+            }
+        }
+        // Save per channel power spectrum in f32_samples as it has been scrambled already by fft
+        for (i, out) in fft_output.iter().enumerate() {
+            let n = f32_samples[i].len() as f32;
+            f32_samples[i].clear();
+            f32_samples[i].extend(out.iter().map(|s| ((s.re * s.re + s.im * s.im) / n).sqrt()));
+        }
+
+        // Clear out bins
+        freq_bins.fill(0.0);
+
+        for channel in f32_samples.iter() {
+            freq_bins.iter_mut().zip(channel).for_each(|(bin, s)| {
+                *bin += s / channels as f32;
+            });
+        }
     }
 }
 
