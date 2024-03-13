@@ -1,7 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::utils::audioprocessing::ProcessingSettings;
-use crate::utils::audioprocessing::{prepare_buffers, process_raw};
+use crate::utils::audioprocessing::{Buffer, ProcessingSettings};
 use crate::utils::lights::LightService;
 use cpal::traits::StreamTrait;
 use cpal::{
@@ -32,7 +31,9 @@ pub fn create_monitor_stream(
     let out = cpal::default_host()
         .devices()
         .map_err(|_| BuildStreamError::DeviceNotAvailable)?
-        .find(|d| d.name().unwrap_or_default().trim().to_lowercase() == device_name.trim().to_lowercase())
+        .find(|d| {
+            d.name().unwrap_or_default().trim().to_lowercase() == device_name.trim().to_lowercase()
+        })
         .ok_or(BuildStreamError::DeviceNotAvailable)?;
 
     let audio_cfg = out
@@ -50,7 +51,7 @@ pub fn create_monitor_stream(
     let mut onset_detector = onset_detector;
     let mut lightservices = lightservices;
 
-    let mut detection_buffer = prepare_buffers(channels, &processing_settings);
+    let mut detection_buffer = Buffer::init(channels, &processing_settings);
 
     let buffer_size = processing_settings.buffer_size * channels as usize;
     let hop_size = processing_settings.hop_size * channels as usize;
@@ -64,11 +65,7 @@ pub fn create_monitor_stream(
             let n = (buffer.len() + hop_size).saturating_sub(buffer_size) / hop_size;
 
             (0..n).for_each(|_| {
-                process_raw(
-                    &buffer.make_contiguous()[0..buffer_size],
-                    channels,
-                    &mut detection_buffer,
-                );
+                detection_buffer.process_raw(&buffer.make_contiguous()[0..buffer_size]);
                 trace!(
                     "RMS: {:.3}\t Peak: {:.3}",
                     detection_buffer.rms,
@@ -106,7 +103,7 @@ pub fn create_monitor_stream(
     Ok(stream)
 }
 
-pub fn get_output_devices() -> Vec<String>{
+pub fn get_output_devices() -> Vec<String> {
     cpal::default_host()
         .output_devices()
         .unwrap()

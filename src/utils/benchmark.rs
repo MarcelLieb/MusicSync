@@ -3,7 +3,7 @@ use std::{fs::File, io::BufReader};
 use rodio::{Decoder, Source};
 
 use super::{
-    audioprocessing::{hfc::Hfc, prepare_buffers, process_raw, ProcessingSettings},
+    audioprocessing::{hfc::Hfc, Buffer, ProcessingSettings},
     lights::{serialize, LightService},
 };
 
@@ -35,17 +35,13 @@ pub fn process_file(filename: &str, settings: ProcessingSettings) {
 
     let mut lightservices: Vec<Box<dyn LightService + Send>> = vec![Box::new(serializer)];
 
-    let mut buffer_detection = prepare_buffers(channels, &settings);
+    let mut buffer_detection = Buffer::init(channels, &settings);
     let samples: Vec<f32> = source.convert_samples().collect();
 
     let n = samples.len() / hop_size;
 
     (0..n).for_each(|i| {
-        process_raw(
-            &samples[i * hop_size..buffer_size + i * hop_size],
-            channels,
-            &mut buffer_detection,
-        );
+        buffer_detection.process_raw(&samples[i * hop_size..buffer_size + i * hop_size]);
         let onsets = hfc.detect(
             &buffer_detection.freq_bins,
             buffer_detection.peak,
