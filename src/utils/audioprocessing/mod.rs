@@ -91,7 +91,7 @@ impl Buffer {
 
         self.split_channels(data);
 
-        self.collapse_mono(data);
+        self.collapse_mono();
 
         self.rms = self.rms();
         self.peak = self.peak();
@@ -155,17 +155,19 @@ impl Buffer {
         }
     }
 
-    fn collapse_mono(&mut self, data: &[f32]) {
-        let buffer_len = data.len() / self.channels as usize;
-        // Convert to mono
-        self.mono_samples
-            .iter_mut()
-            .zip(
-                data.chunks(self.channels as usize)
-                    .take(buffer_len)
-                    .map(|x| x.iter().sum::<f32>()),
-            )
-            .for_each(|(m, s)| *m = s);
+    fn collapse_mono(&mut self) {
+        let channels = self.channels as f32;
+        // Clear
+        self.mono_samples.clear();
+        self.mono_samples.extend(std::iter::repeat(0.0).take(self.mono_samples.capacity()));
+
+        // Average channels
+        for channel in self.f32_samples.iter() {
+            self.mono_samples
+                .iter_mut()
+                .zip(channel.iter())
+                .for_each(|(m, &s)| *m += s / channels)
+        }
     }
 
     fn fft(&mut self) {
