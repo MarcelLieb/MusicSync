@@ -318,7 +318,7 @@ impl MelFilterBank {
             }
 
             filter.push(band);
-        };
+        }
 
         MelFilterBank {
             filter,
