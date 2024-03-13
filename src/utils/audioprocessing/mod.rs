@@ -173,34 +173,38 @@ impl Buffer {
     fn fft(&mut self) {
         // Could only apply window to collapsed mono signal
     apply_window(&mut self.f32_samples, &self.fft_window);
+        self.f32_samples.iter_mut().for_each(|chan| {
+            chan.extend(std::iter::repeat(0.0).take(chan.capacity() - chan.len()))
+        });
+
+        // Calculate FFT
     self.f32_samples
         .iter_mut()
-        .for_each(|chan| chan.extend(std::iter::repeat(0.0).take(chan.capacity() - chan.len())));
-
-    // Calculate FFT
-    self.f32_samples.iter_mut().zip(self.fft_output.iter_mut()).for_each(
-        |(samples, output)| match self.fft_planner.process(samples, output) {
-            Ok(()) => (),
-            Err(e) => println!("Error: {e:?}"),
-        },
-    );
-    // Save per channel freq in f32_samples as it has been scrambled already by fft
-    self.fft_output.iter().enumerate().for_each(|(i, out)| {
+            .zip(self.fft_output.iter_mut())
+            .for_each(
+                |(samples, output)| match self.fft_planner.process(samples, output) {
+                    Ok(()) => (),
+                    Err(e) => println!("Error: {e:?}"),
+                },
+            );
+        // Save per channel freq in f32_samples as it has been scrambled already by fft
+        self.fft_output.iter().enumerate().for_each(|(i, out)| {
+            let n = self.f32_samples[0].len() as f32;
         self.f32_samples[i].clear();
-        self.f32_samples[i].extend(out.iter().map(|s| (s.re * s.re + s.im * s.im).sqrt()));
-    });
+            self.f32_samples[i].extend(out.iter().map(|s| (s.re * s.re + s.im * s.im / n).sqrt()));
+        });
 
-    self.freq_bins
-        .iter_mut()
-        .zip((0..self.fft_output[0].len()).map(|i| {
-            self.f32_samples
-                .iter()
-                .flatten()
-                .skip(i)
-                .step_by(self.f32_samples[0].len())
-                .sum::<f32>()
-        }))
-        .for_each(|(f, s)| *f = s);
+        self.freq_bins
+            .iter_mut()
+            .zip((0..self.fft_output[0].len()).map(|i| {
+                self.f32_samples
+                    .iter()
+                    .flatten()
+                    .skip(i)
+                    .step_by(self.f32_samples[0].len())
+                    .sum::<f32>()
+            }))
+            .for_each(|(f, s)| *f = s);
     }
 }
 
