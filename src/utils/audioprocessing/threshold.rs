@@ -111,7 +111,7 @@ impl Default for AdvancedSettings {
             max_range: 3,
             dynamic_threshold: 0.8,
             threshold_range: 8,
-            fixed_threshold: 5.0,
+            fixed_threshold: 0.5,
             delay: 2,
         }
     }

@@ -41,32 +41,6 @@ impl Default for ProcessingSettings {
     }
 }
 
-pub fn prepare_buffers(channels: u16, settings: &ProcessingSettings) -> Buffer {
-    let mut f32_samples: Vec<Vec<f32>> = Vec::with_capacity(channels.into());
-    for _ in 0..channels {
-        f32_samples.push(vec![0.0; settings.fft_size]);
-    }
-    let mono_samples: Vec<f32> = vec![0.0; settings.buffer_size];
-
-    let fft_planner = RealFftPlanner::<f32>::new().plan_fft_forward(settings.fft_size);
-    let fft_output: Vec<Vec<Complex<f32>>> = (0..channels)
-        .map(|_| fft_planner.make_output_vec())
-        .collect();
-    let freq_bins: Vec<f32> = vec![0.0; fft_output[0].capacity()];
-    let fft_window = window(settings.buffer_size, settings.window_type);
-
-    Buffer {
-        f32_samples,
-        mono_samples,
-        fft_output,
-        fft_window,
-        freq_bins,
-        fft_planner,
-        peak: 0.0,
-        rms: 0.0,
-    }
-}
-
 pub struct Buffer {
     f32_samples: Vec<Vec<f32>>,
     pub mono_samples: Vec<f32>,
@@ -76,23 +50,84 @@ pub struct Buffer {
     fft_planner: Arc<dyn RealToComplex<f32>>,
     pub peak: f32,
     pub rms: f32,
+    pub channels: u16,
 }
 
-pub fn process_raw(data: &[f32], channels: u16, buffer: &mut Buffer) {
-    let Buffer {
-        f32_samples,
-        mono_samples,
-        fft_output,
-        freq_bins,
-        fft_window,
-        fft_planner,
-        peak,
-        rms,
-    } = buffer;
+impl Buffer {
+    pub fn init(channels: u16, settings: &ProcessingSettings) -> Buffer {
+        let mut f32_samples: Vec<Vec<f32>> = Vec::with_capacity(channels.into());
+        for _ in 0..channels {
+            f32_samples.push(vec![0.0; settings.fft_size]);
+        }
+        let mono_samples: Vec<f32> = vec![0.0; settings.buffer_size];
 
-    //Check for silence and abort if present
-    let sound = data.iter().any(|i| *i != 0.0);
-    if !sound {
+        let fft_planner = RealFftPlanner::<f32>::new().plan_fft_forward(settings.fft_size);
+        let fft_output: Vec<Vec<Complex<f32>>> = (0..channels)
+            .map(|_| fft_planner.make_output_vec())
+            .collect();
+        let freq_bins: Vec<f32> = vec![0.0; fft_output[0].capacity()];
+        let fft_window = window(settings.buffer_size, settings.window_type);
+
+        Buffer {
+            f32_samples,
+            mono_samples,
+            fft_output,
+            fft_window,
+            freq_bins,
+            fft_planner,
+            peak: 0.0,
+            rms: 0.0,
+            channels,
+        }
+    }
+
+    pub fn process_raw(&mut self, data: &[f32]) {
+        //Check for silence and abort if present
+        let sound = data.iter().any(|i| *i != 0.0);
+        if !sound {
+            self.zeros();
+            return;
+        }
+
+        self.split_channels(data);
+
+        self.collapse_mono();
+
+        self.rms = self.rms();
+        self.peak = self.peak();
+
+        self.fft();
+    }
+
+    fn rms(&self) -> f32 {
+        self.f32_samples
+            .iter()
+            .map(|c| (c.iter().fold(0.0, |acc, e| acc + e * e) / c.len() as f32).sqrt())
+            .sum::<f32>()
+            / self.channels as f32
+    }
+
+    fn peak(&self) -> f32 {
+        self.f32_samples
+            .iter()
+            .map(|c| {
+                c.iter()
+                    .fold(0.0, |max, f| if f.abs() > max { f.abs() } else { max })
+            })
+            .reduce(f32::max)
+            .unwrap()
+    }
+
+    fn zeros(&mut self) {
+        let Buffer {
+            f32_samples,
+            mono_samples,
+            freq_bins,
+            peak,
+            rms,
+            ..
+        } = self;
+
         for channel in &mut *f32_samples {
             channel.clear();
             channel.extend(std::iter::repeat(0.0).take(channel.capacity()));
@@ -105,93 +140,78 @@ pub fn process_raw(data: &[f32], channels: u16, buffer: &mut Buffer) {
         freq_bins.extend(std::iter::repeat(0.0).take(freq_bins.capacity()));
         *peak = 0.0;
         *rms = 0.0;
-        return;
     }
 
-    split_channels(channels, data, f32_samples);
+    fn split_channels(&mut self, data: &[f32]) {
+        for (i, channel) in self.f32_samples.iter_mut().enumerate() {
+            channel.clear();
+            channel.extend(data.iter().enumerate().filter_map(|(index, f)| {
+                if index % self.channels as usize == i {
+                    Some(f)
+                } else {
+                    None
+                }
+            }));
+        }
+    }
 
-    collapse_mono(mono_samples, data, channels);
+    fn collapse_mono(&mut self) {
+        let channels = self.channels as f32;
+        // Clear
+        self.mono_samples.clear();
+        self.mono_samples
+            .extend(std::iter::repeat(0.0).take(self.mono_samples.capacity()));
 
-    *rms = f32_samples
-        .iter()
-        .map(|c| (c.iter().fold(0.0, |acc, e| acc + e * e) / c.len() as f32).sqrt())
-        .sum::<f32>()
-        / channels as f32;
+        // Average channels
+        for channel in self.f32_samples.iter() {
+            self.mono_samples
+                .iter_mut()
+                .zip(channel.iter())
+                .for_each(|(m, &s)| *m += s / channels)
+        }
+    }
 
-    *peak = f32_samples
-        .iter()
-        .map(|c| {
-            c.iter()
-                .fold(0.0, |max, f| if f.abs() > max { f.abs() } else { max })
-        })
-        .reduce(f32::max)
-        .unwrap();
+    fn fft(&mut self) {
+        let Buffer {
+            f32_samples,
+            fft_output,
+            freq_bins,
+            fft_window,
+            fft_planner,
+            ..
+        } = self;
+        let channels = f32_samples.len();
 
-    fft(f32_samples, fft_output, fft_planner, fft_window, freq_bins);
-}
+        // Could only apply window to collapsed mono signal
+        apply_window(f32_samples, fft_window);
 
-fn fft(
-    f32_samples: &mut [Vec<f32>],
-    fft_output: &mut [Vec<Complex<f32>>],
-    fft_planner: &Arc<dyn RealToComplex<f32>>,
-    fft_window: &[f32],
-    freq_bins: &mut [f32],
-) {
-    // Could only apply window to collapsed mono signal
-    apply_window(f32_samples, fft_window);
-    f32_samples
-        .iter_mut()
-        .for_each(|chan| chan.extend(std::iter::repeat(0.0).take(chan.capacity() - chan.len())));
+        // Pad end with zeros
+        for channel in f32_samples.iter_mut() {
+            channel.extend(std::iter::repeat(0.0).take(channel.capacity() - channel.len()))
+        }
 
-    // Calculate FFT
-    f32_samples.iter_mut().zip(fft_output.iter_mut()).for_each(
-        |(samples, output)| match fft_planner.process(samples, output) {
-            Ok(()) => (),
-            Err(e) => println!("Error: {e:?}"),
-        },
-    );
-    // Save per channel freq in f32_samples as it has been scrambled already by fft
-    fft_output.iter().enumerate().for_each(|(i, out)| {
-        f32_samples[i].clear();
-        f32_samples[i].extend(out.iter().map(|s| (s.re * s.re + s.im * s.im).sqrt()));
-    });
-
-    freq_bins
-        .iter_mut()
-        .zip((0..fft_output[0].len()).map(|i| {
-            f32_samples
-                .iter()
-                .flatten()
-                .skip(i)
-                .step_by(f32_samples[0].len())
-                .sum::<f32>()
-        }))
-        .for_each(|(f, s)| *f = s);
-}
-
-fn collapse_mono(mono_samples: &mut [f32], data: &[f32], channels: u16) {
-    let buffer_len = data.len() / channels as usize;
-    // Convert to mono
-    mono_samples
-        .iter_mut()
-        .zip(
-            data.chunks(channels as usize)
-                .take(buffer_len)
-                .map(|x| x.iter().sum::<f32>()),
-        )
-        .for_each(|(m, s)| *m = s);
-}
-
-fn split_channels(channels: u16, data: &[f32], f32_samples: &mut [Vec<f32>]) {
-    for (i, channel) in f32_samples.iter_mut().enumerate() {
-        channel.clear();
-        channel.extend(data.iter().enumerate().filter_map(|(index, f)| {
-            if index % channels as usize == i {
-                Some(f)
-            } else {
-                None
+        // Calculate FFT for each channel
+        for (samples, output) in f32_samples.iter_mut().zip(fft_output.iter_mut()) {
+            match fft_planner.process(samples, output) {
+                Ok(()) => (),
+                Err(e) => println!("Error: {e:?}"),
             }
-        }));
+        }
+        // Save per channel power spectrum in f32_samples as it has been scrambled already by fft
+        for (i, out) in fft_output.iter().enumerate() {
+            let n = f32_samples[i].len() as f32;
+            f32_samples[i].clear();
+            f32_samples[i].extend(out.iter().map(|s| ((s.re * s.re + s.im * s.im) / n).sqrt()));
+        }
+
+        // Clear out bins
+        freq_bins.fill(0.0);
+
+        for channel in f32_samples.iter() {
+            freq_bins.iter_mut().zip(channel).for_each(|(bin, s)| {
+                *bin += s / channels as f32;
+            });
+        }
     }
 }
 
@@ -283,7 +303,7 @@ impl MelFilterBank {
 
         let mut filter: Vec<Vec<f32>> = Vec::new();
 
-        (1..=bands).for_each(|m| {
+        for m in 1..=bands {
             let start = (mel[m - 1] / bin_res) as usize;
             let mid = (mel[m] / bin_res) as usize;
             let end = (mel[m + 1] / bin_res) as usize;
@@ -298,7 +318,7 @@ impl MelFilterBank {
             }
 
             filter.push(band);
-        });
+        }
 
         MelFilterBank {
             filter,
