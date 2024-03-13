@@ -303,7 +303,7 @@ impl MelFilterBank {
 
         let mut filter: Vec<Vec<f32>> = Vec::new();
 
-        (1..=bands).for_each(|m| {
+        for m in 1..=bands {
             let start = (mel[m - 1] / bin_res) as usize;
             let mid = (mel[m] / bin_res) as usize;
             let end = (mel[m + 1] / bin_res) as usize;
@@ -318,7 +318,7 @@ impl MelFilterBank {
             }
 
             filter.push(band);
-        });
+        };
 
         MelFilterBank {
             filter,
