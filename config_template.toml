@@ -20,7 +20,7 @@ max_frequency = 20000
 [OnsetDetector.ThresholdBankSettings.Drum]
 mean_range = 5
 max_range = 3
-dynamic_threshold = 0.4000000059604645
+dynamic_threshold = 0.4
 threshold_range = 8
 fixed_threshold = 2.0
 delay = 2
@@ -28,7 +28,7 @@ delay = 2
 [OnsetDetector.ThresholdBankSettings.Hihat]
 mean_range = 3
 max_range = 3
-dynamic_threshold = 0.550000011920929
+dynamic_threshold = 0.55
 threshold_range = 8
 fixed_threshold = 5.0
 delay = 2
@@ -36,7 +36,7 @@ delay = 2
 [OnsetDetector.ThresholdBankSettings.Note]
 mean_range = 6
 max_range = 3
-dynamic_threshold = 0.4000000059604645
+dynamic_threshold = 0.4
 threshold_range = 8
 fixed_threshold = 2.0
 delay = 2
@@ -44,7 +44,7 @@ delay = 2
 [OnsetDetector.ThresholdBankSettings.Full]
 mean_range = 6
 max_range = 3
-dynamic_threshold = 0.800000011920929
+dynamic_threshold = 0.8
 threshold_range = 8
 fixed_threshold = 5.0
 delay = 2
@@ -59,31 +59,31 @@ delay = 2
 # high_end_weight_cutoff = 2000
 # mids_weight_low_cutoff = 200
 # mids_weight_high_cutoff = 3000
-# drum_click_weight = 0.004999999888241291
-# note_click_weight = 0.10000000149011612
+# drum_click_weight = 0.005
+# note_click_weight = 0.1
 # 
 # [OnsetDetector.Threshold.Drums]
 # buffer_size = 30
-# min_intensity = 0.30000001192092896
-# delta_intensity = 0.18000000715255737
+# min_intensity = 0.3
+# delta_intensity = 0.18
 # window_type = "Hann"
 # 
 # [OnsetDetector.Threshold.Hihat]
 # buffer_size = 20
-# min_intensity = 0.30000001192092896
-# delta_intensity = 0.18000000715255737
+# min_intensity = 0.3
+# delta_intensity = 0.18
 # window_type = "Hann"
 # 
 # [OnsetDetector.Threshold.Notes]
 # buffer_size = 20
-# min_intensity = 0.20000000298023224
-# delta_intensity = 0.15000000596046448
+# min_intensity = 0.2
+# delta_intensity = 0.15
 # window_type = "Hann"
 # 
 # [OnsetDetector.Threshold.Fullband]
 # buffer_size = 20
-# min_intensity = 0.20000000298023224
-# delta_intensity = 0.15000000596046448
+# min_intensity = 0.2
+# delta_intensity = 0.15
 # window_type = "Hann"
 
 [[Hue]]
@@ -127,7 +127,7 @@ effect = "Spectrum"
 ip = "Ip of Strip"
 leds_per_second = 100.0
 center = true
-master_brightness = 1.2000000476837158
+master_brightness = 1.2
 min_brightness = 0.25
 low_end_crossover = 240.0
 high_end_crossover = 2400.0
