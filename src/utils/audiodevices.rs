@@ -8,7 +8,7 @@ use cpal::{
     traits::{DeviceTrait, HostTrait},
     BuildStreamError, StreamConfig,
 };
-use log::{debug, error, trace};
+use tracing::{debug, error, trace};
 
 use crate::utils::audioprocessing::OnsetDetector;
 

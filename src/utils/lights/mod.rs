@@ -4,7 +4,7 @@ use std::{
 };
 
 use bytes::Bytes;
-use log::{info, trace};
+use tracing::{info, trace};
 use tokio::{
     select,
     sync::oneshot::{self, Sender},

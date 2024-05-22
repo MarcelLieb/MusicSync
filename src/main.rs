@@ -4,14 +4,11 @@ use std::error::Error;
 
 use crate::utils::audiodevices::{create_monitor_stream, get_output_devices};
 use crate::utils::config::{Config, ConfigError};
-use log::{debug, error, info, warn};
+use tracing::{debug, error, info, warn};
 
 #[tokio::main]
 async fn main() {
-    pretty_env_logger::formatted_builder()
-        .filter_level(log::LevelFilter::Warn)
-        .parse_default_env()
-        .init();
+    tracing_subscriber::fmt::init();
 
     let config = match Config::load("./config.toml") {
         Ok(loaded_config) => loaded_config,
