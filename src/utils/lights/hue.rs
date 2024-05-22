@@ -1,6 +1,6 @@
 use bytes::{BufMut, Bytes, BytesMut};
 use ciborium::{from_reader, into_writer};
-use log::{debug, info, warn};
+use tracing::{debug, info, warn};
 use reqwest::{Client, ClientBuilder};
 use serde::{Deserialize, Serialize};
 use std::{

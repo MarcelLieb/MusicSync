@@ -22,4 +22,6 @@ rustfft = "6.2.0"
 serde = "1.0.197"
 tokio = {version = "1.37", features = ["signal", "net"]}
 toml = "0.8"
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
 webrtc-dtls = "0.10.0"

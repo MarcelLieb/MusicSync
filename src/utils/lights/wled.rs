@@ -8,7 +8,7 @@ use std::{
 
 use biquad::{Biquad, Coefficients, DirectForm2Transposed, ToHertz, Type, Q_BUTTERWORTH_F32};
 use bytes::{BufMut, Bytes, BytesMut};
-use log::{debug, info};
+use tracing::{debug, info};
 use serde::{Deserialize, Serialize};
 use tokio::net::UdpSocket;
 

@@ -4,7 +4,7 @@ use std::{
 };
 
 use bytes::Bytes;
-use log::{error, info, trace};
+use tracing::{error, info, trace};
 use tokio::{
     select,
     sync::mpsc::{self, Sender},
