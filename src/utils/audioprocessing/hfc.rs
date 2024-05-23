@@ -140,7 +140,7 @@ impl Hfc {
 
         let drums_weight = low_end_weight * drum_click_weight * high_end_weight;
         if self.threshold.drums.is_above(drums_weight) {
-            onsets.push(Onset::Drum(rms));
+            onsets.push(Onset::Kick(rms));
         }
 
         let notes_weight = mids_weight + note_click_weight * high_end_weight;

@@ -26,7 +26,8 @@ impl LightService for OnsetContainer {
                 .unwrap()
                 .push((self.time, event)),
             Onset::Note(_, _) => self.data.get_mut("Note").unwrap().push((self.time, event)),
-            Onset::Drum(_) => self.data.get_mut("Drum").unwrap().push((self.time, event)),
+            Onset::Kick(_) => self.data.get_mut("Drum").unwrap().push((self.time, event)),
+            Onset::Snare(_) => self.data.get_mut("Snare").unwrap().push((self.time, event)),
             Onset::Hihat(_) => self.data.get_mut("Hihat").unwrap().push((self.time, event)),
             Onset::Raw(value) => self.raw.push(value),
         }
@@ -51,6 +52,7 @@ impl OnsetContainer {
             ("Note".to_string(), Vec::new()),
             ("Drum".to_string(), Vec::new()),
             ("Hihat".to_string(), Vec::new()),
+            ("Snare".to_string(), Vec::new()),
         ]);
         let raw = Vec::new();
         OnsetContainer {

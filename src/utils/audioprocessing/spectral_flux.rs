@@ -407,7 +407,7 @@ impl SpecFlux {
         }
 
         if self.threshold.drum.is_above(drum_weight) {
-            onsets.push(Onset::Drum(rms));
+            onsets.push(Onset::Kick(rms));
         }
 
         if self.threshold.hihat.is_above(hihat_weight) {

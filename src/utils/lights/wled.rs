@@ -8,9 +8,9 @@ use std::{
 
 use biquad::{Biquad, Coefficients, DirectForm2Transposed, ToHertz, Type, Q_BUTTERWORTH_F32};
 use bytes::{BufMut, Bytes, BytesMut};
-use tracing::{debug, info};
 use serde::{Deserialize, Serialize};
 use tokio::net::UdpSocket;
+use tracing::{debug, info};
 
 use super::{
     color::{color_downsample, color_upsample, hsv_to_rgb, rgb_to_hsv},
@@ -254,13 +254,13 @@ impl LightService for LEDStripOnset {
     fn process_onset(&mut self, event: Onset) {
         let mut state = self.state.lock().unwrap();
         match event {
-            Onset::Drum(strength) => {
+            Onset::Kick(strength) => {
                 state.drum_envelope.trigger(strength);
             }
             Onset::Hihat(strength) => {
                 state.hihat_envelope.trigger(strength);
             }
-            Onset::Note(strength, _) => {
+            Onset::Snare(strength) => {
                 state.note_envelope.trigger(strength);
             }
             _ => {}

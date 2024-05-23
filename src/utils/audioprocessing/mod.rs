@@ -1,4 +1,5 @@
 pub mod hfc;
+pub mod ml;
 pub mod spectral_flux;
 pub mod threshold;
 
@@ -14,7 +15,8 @@ pub enum Onset {
     Full(f32),
     Atmosphere(f32, u16),
     Note(f32, u16),
-    Drum(f32),
+    Kick(f32),
+    Snare(f32),
     Hihat(f32),
     Raw(f32),
 }

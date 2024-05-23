@@ -642,7 +642,7 @@ impl LightService for BridgeConnection {
                     state.fullband.trigger(volume);
                 }
             }
-            Onset::Drum(volume) => {
+            Onset::Kick(volume) => {
                 if volume > state.drum.get_value() {
                     state.drum.trigger(volume);
                 }
@@ -652,7 +652,7 @@ impl LightService for BridgeConnection {
                     state.hihat.trigger(volume);
                 }
             }
-            Onset::Note(volume, _) => {
+            Onset::Snare(volume) => {
                 if volume > state.note.get_value() {
                     state.note.trigger(volume);
                 }
