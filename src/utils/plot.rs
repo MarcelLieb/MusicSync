@@ -65,8 +65,9 @@ pub fn plot(
                         Onset::Full(y)
                         | Onset::Atmosphere(y, _)
                         | Onset::Note(y, _)
-                        | Onset::Drum(y)
+                        | Onset::Kick(y)
                         | Onset::Hihat(y)
+                        | Onset::Snare(y)
                         | Onset::Raw(y) => *y,
                     })
                     .fold(f32::EPSILON, f32::max),
@@ -84,7 +85,8 @@ pub fn plot(
                         Onset::Full(y)
                         | Onset::Atmosphere(y, _)
                         | Onset::Note(y, _)
-                        | Onset::Drum(y)
+                        | Onset::Kick(y)
+                        | Onset::Snare(y)
                         | Onset::Hihat(y)
                         | Onset::Raw(y) => (*time, *y),
                     })
