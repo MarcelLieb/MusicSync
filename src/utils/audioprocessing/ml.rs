@@ -25,7 +25,7 @@ impl Default for ThresholdBankSettings {
                 max_range: 2,
                 dynamic_threshold: 0.0,
                 threshold_range: 2,
-                fixed_threshold: 0.1,
+                fixed_threshold: 0.05,
                 delay: 0,
             },
             snare: threshold::AdvancedSettings {
@@ -33,7 +33,7 @@ impl Default for ThresholdBankSettings {
                 max_range: 2,
                 dynamic_threshold: 0.0,
                 threshold_range: 2,
-                fixed_threshold: 0.1,
+                fixed_threshold: 0.02,
                 delay: 0,
             },
             hihat: threshold::AdvancedSettings {
@@ -41,7 +41,7 @@ impl Default for ThresholdBankSettings {
                 max_range: 2,
                 dynamic_threshold: 0.0,
                 threshold_range: 2,
-                fixed_threshold: 0.1,
+                fixed_threshold: 0.05,
                 delay: 0,
             },
         }
@@ -75,15 +75,15 @@ pub struct MLDetector {
 impl MLDetector {
     pub fn init(sample_rate: u32, fft_size: u32) -> ort::Result<Self> {
         let filter_bank = MelFilterBank::init(sample_rate, fft_size, 84, 20_000);
-        let session = Session::builder()?.commit_from_file("./path/to/model")?;
-        let buffer = ndarray::Array2::zeros((84, 15));
+        let session = Session::builder()?.commit_from_file("./cnn.onnx")?;
+        let buffer = ndarray::Array2::zeros((84, 12));
         let threshold = ThresholdBank::default();
         Ok(Self {
             filter_bank,
             session,
             buffer,
             threshold,
-            vec_buffer: Vec::with_capacity(84),
+            vec_buffer: vec![0.0; 84],
         })
     }
 }
@@ -93,17 +93,18 @@ impl OnsetDetector for MLDetector {
         self.filter_bank.filter(freq_bins, &mut self.vec_buffer);
         let array = Array1::from_vec(self.vec_buffer.clone());
         self.buffer
-            .append(Axis(0), array.view().insert_axis(Axis(0)))
+            .append(Axis(1), array.view().into_shape((84, 1)).unwrap())
             .unwrap();
-        self.buffer.remove_index(Axis(0), 0);
+        self.buffer.remove_index(Axis(1), 0);
         // TODO: Log errors
-        let inputs = inputs![self.buffer.view()].unwrap();
+        let inputs = inputs![self.buffer.view().into_shape((1, 84, 12)).unwrap()].unwrap();
         let outputs = self.session.run(inputs).unwrap();
-        let output = outputs["output0"]
+        let mut output = outputs["340"]
             .try_extract_tensor::<f32>()
             .unwrap()
             .into_owned();
-        let output: Vec<_> = output.slice(s![.., -1]).iter().cloned().collect();
+        output.mapv_inplace(|x| 1. / (1. + (-x).exp()));
+        let output: Vec<_> = output.slice(s![0, .., -1]).iter().cloned().collect();
         let mut onsets = Vec::new();
 
         if self.threshold.kick.is_above(output[0]) {
@@ -121,6 +122,8 @@ impl OnsetDetector for MLDetector {
         if !onsets.is_empty() {
             onsets.push(Onset::Full(rms))
         }
+
+        onsets.push(Onset::Raw(output[1]));
 
         onsets
     }

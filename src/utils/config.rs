@@ -5,10 +5,7 @@ use tracing::info;
 
 use super::{
     audioprocessing::{
-        self,
-        hfc::{Hfc, HfcSettings},
-        spectral_flux::{SpecFlux, SpecFluxSettings},
-        ProcessingSettings,
+        self, hfc::{Hfc, HfcSettings}, ml::MLDetector, spectral_flux::{SpecFlux, SpecFluxSettings}, ProcessingSettings
     },
     lights::{
         console::Console,
@@ -103,6 +100,7 @@ impl std::error::Error for ConfigError {
 pub enum OnsetDetector {
     SpecFlux(SpecFluxSettings),
     HFC(HfcSettings),
+    NeuralNetwork,
 }
 
 impl Default for OnsetDetector {
@@ -210,6 +208,13 @@ impl Config {
                         self.audio_processing.fft_size,
                         settings,
                     );
+                    Box::new(alg)
+                }
+                OnsetDetector::NeuralNetwork => {
+                    let alg = MLDetector::init(
+                        self.audio_processing.sample_rate as u32,
+                        self.audio_processing.fft_size as u32,
+                    ).unwrap();
                     Box::new(alg)
                 }
             };
