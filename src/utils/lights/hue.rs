@@ -1,6 +1,5 @@
 use bytes::{BufMut, Bytes, BytesMut};
 use ciborium::{from_reader, into_writer};
-use tracing::{debug, info, warn};
 use reqwest::{Client, ClientBuilder};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -12,6 +11,7 @@ use std::{
     time::Duration,
 };
 use tokio::{net::UdpSocket, select};
+use tracing::{debug, info, warn};
 use webrtc_dtls::{cipher_suite::CipherSuiteId, config::Config, conn::DTLSConn};
 
 use super::{

@@ -1,7 +1,7 @@
 use std::{error::Error, fmt::Display, fs, net::Ipv4Addr};
 
-use tracing::info;
 use serde::{Deserialize, Serialize};
+use tracing::info;
 
 use super::{
     audioprocessing::{

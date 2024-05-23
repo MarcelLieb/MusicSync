@@ -4,13 +4,13 @@ use std::{
 };
 
 use bytes::Bytes;
-use tracing::{error, info, trace};
 use tokio::{
     select,
     sync::mpsc::{self, Sender},
     task::JoinHandle,
     time,
 };
+use tracing::{error, info, trace};
 
 use super::audioprocessing::Onset;
 
