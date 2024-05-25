@@ -1,4 +1,6 @@
-use ndarray::{s, Array1, Array2, Axis};
+use std::collections::VecDeque;
+
+use ndarray::{s, ArrayView};
 use ort::{inputs, Session};
 
 use crate::utils::audioprocessing::Onset;
@@ -68,21 +70,23 @@ pub struct MLDetector {
     filter_bank: MelFilterBank,
     session: Session,
     threshold: ThresholdBank,
-    buffer: Array2<f32>,
+    ring_buffer: VecDeque<f32>,
     vec_buffer: Vec<f32>,
 }
 
 impl MLDetector {
     pub fn init(sample_rate: u32, fft_size: u32) -> ort::Result<Self> {
         let filter_bank = MelFilterBank::init(sample_rate, fft_size, 84, 20_000);
-        let session = Session::builder()?.commit_from_file("./cnn.onnx")?;
-        let buffer = ndarray::Array2::zeros((84, 12));
+        let session = Session::builder()?
+            .with_optimization_level(ort::GraphOptimizationLevel::Level3)?
+            .commit_from_file("./cnn.onnx")?;
+
         let threshold = ThresholdBank::default();
         Ok(Self {
             filter_bank,
             session,
-            buffer,
             threshold,
+            ring_buffer: VecDeque::from([0.0; 84 * 12]),
             vec_buffer: vec![0.0; 84],
         })
     }
@@ -90,21 +94,22 @@ impl MLDetector {
 
 impl OnsetDetector for MLDetector {
     fn detect(&mut self, freq_bins: &[f32], peak: f32, rms: f32) -> Vec<super::Onset> {
+        if peak < 0.0001 {
+            return vec![Onset::Raw(0.0)];
+        }
         self.filter_bank.filter(freq_bins, &mut self.vec_buffer);
-        let array = Array1::from_vec(self.vec_buffer.clone());
-        self.buffer
-            .append(Axis(1), array.view().into_shape((84, 1)).unwrap())
-            .unwrap();
-        self.buffer.remove_index(Axis(1), 0);
+        self.ring_buffer.drain(..84);
+        self.ring_buffer.extend(&self.vec_buffer);
+        let array = ArrayView::from_shape((1, 84, 12), self.ring_buffer.make_contiguous()).unwrap();
+
         // TODO: Log errors
-        let inputs = inputs![self.buffer.view().into_shape((1, 84, 12)).unwrap()].unwrap();
+        let inputs = inputs![array].unwrap();
         let outputs = self.session.run(inputs).unwrap();
-        let mut output = outputs["340"]
+        let output = outputs["340"]
             .try_extract_tensor::<f32>()
             .unwrap()
             .into_owned();
-        output.mapv_inplace(|x| 1. / (1. + (-x).exp()));
-        let output: Vec<_> = output.slice(s![0, .., -1]).iter().cloned().collect();
+        let output: Vec<_> = output.slice(s![0, .., -1]).iter().map(|x| 1. / (1. + (-x).exp())).collect();
         let mut onsets = Vec::new();
 
         if self.threshold.kick.is_above(output[0]) {
