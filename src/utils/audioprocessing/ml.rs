@@ -97,7 +97,8 @@ impl OnsetDetector for MLDetector {
         if peak < 0.0001 {
             return vec![Onset::Raw(0.0)];
         }
-        self.filter_bank.filter(freq_bins, &mut self.vec_buffer);
+        let log_spec = freq_bins.iter().map(|x| x.ln_1p()).collect::<Vec<_>>();
+        self.filter_bank.filter(&log_spec, &mut self.vec_buffer);
         self.ring_buffer.drain(..84);
         self.ring_buffer.extend(&self.vec_buffer);
         let array = ArrayView::from_shape((1, 84, 12), self.ring_buffer.make_contiguous()).unwrap();
