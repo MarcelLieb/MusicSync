@@ -72,22 +72,28 @@ pub struct MLDetector {
     threshold: ThresholdBank,
     ring_buffer: VecDeque<f32>,
     vec_buffer: Vec<f32>,
+    n_mels: usize,
+    receptive_field: usize,
 }
 
 impl MLDetector {
     pub fn init(sample_rate: u32, fft_size: u32) -> ort::Result<Self> {
-        let filter_bank = MelFilterBank::init(sample_rate, fft_size, 84, 20_000);
+        let n_mels = 96;
+        let receptive_field = 13;
+        let filter_bank = MelFilterBank::init(sample_rate, fft_size, n_mels, 20_000);
         let session = Session::builder()?
             .with_optimization_level(ort::GraphOptimizationLevel::Level3)?
-            .commit_from_file("./cnn.onnx")?;
+            .commit_from_file("./cnn96mels.onnx")?;
 
         let threshold = ThresholdBank::default();
         Ok(Self {
             filter_bank,
             session,
             threshold,
-            ring_buffer: VecDeque::from([0.0; 84 * 12]),
-            vec_buffer: vec![0.0; 84],
+            ring_buffer: VecDeque::from(vec![0.0; n_mels * receptive_field]),
+            vec_buffer: vec![0.0; n_mels],
+            n_mels,
+            receptive_field,
         })
     }
 }
@@ -99,18 +105,22 @@ impl OnsetDetector for MLDetector {
         }
         let log_spec = freq_bins.iter().map(|x| x.ln_1p()).collect::<Vec<_>>();
         self.filter_bank.filter(&log_spec, &mut self.vec_buffer);
-        self.ring_buffer.drain(..84);
+        self.ring_buffer.drain(..self.n_mels);
         self.ring_buffer.extend(&self.vec_buffer);
-        let array = ArrayView::from_shape((1, 84, 12), self.ring_buffer.make_contiguous()).unwrap();
+        let array = ArrayView::from_shape((1, self.n_mels, self.receptive_field), self.ring_buffer.make_contiguous()).unwrap();
 
         // TODO: Log errors
         let inputs = inputs![array].unwrap();
         let outputs = self.session.run(inputs).unwrap();
-        let output = outputs["340"]
+        let output = outputs["activation"]
             .try_extract_tensor::<f32>()
             .unwrap()
+            .to_shape((1, 3, self.receptive_field))
+            .unwrap()
             .into_owned();
+        println!("{:?}", output);
         let output: Vec<_> = output.slice(s![0, .., -1]).iter().map(|x| 1. / (1. + (-x).exp())).collect();
+        println!("{:?}", output);
         let mut onsets = Vec::new();
 
         if self.threshold.kick.is_above(output[0]) {
@@ -129,7 +139,7 @@ impl OnsetDetector for MLDetector {
             onsets.push(Onset::Full(rms))
         }
 
-        onsets.push(Onset::Raw(output[1]));
+        onsets.push(Onset::Raw(output[0]));
 
         onsets
     }
