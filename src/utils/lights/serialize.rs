@@ -2,6 +2,7 @@ use std::{collections::HashMap, fs::File};
 
 use ciborium::into_writer;
 use serde::{Deserialize, Serialize};
+use tracing::{error, info};
 
 use super::{LightService, Onset};
 
@@ -68,8 +69,8 @@ impl OnsetContainer {
 impl Drop for OnsetContainer {
     fn drop(&mut self) {
         match self.save() {
-            Ok(_) => println!("Saved to {}", self.filename),
-            Err(e) => println!("Error saving to {}: {}", self.filename, e),
+            Ok(_) => info!("Saved to {}", self.filename),
+            Err(e) => error!("Error saving to {}: {}", self.filename, e),
         }
     }
 }
