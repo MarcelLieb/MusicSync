@@ -1,4 +1,5 @@
 mod utils;
+use ort::{CUDAExecutionProvider, DirectMLExecutionProvider, TensorRTExecutionProvider};
 
 use std::error::Error;
 
@@ -9,6 +10,15 @@ use tracing::{debug, error, info, warn};
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
+
+    ort::init()
+        .with_execution_providers([
+            CUDAExecutionProvider::default().build(),
+            TensorRTExecutionProvider::default().build(),
+            DirectMLExecutionProvider::default().build(),
+        ])
+        .commit()
+        .unwrap();
 
     let config = match Config::load("./config.toml") {
         Ok(loaded_config) => loaded_config,
