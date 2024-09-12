@@ -4,10 +4,10 @@ use std::{
 };
 
 use bytes::Bytes;
-use log::{error, info, trace};
+use log::{info, trace};
 use tokio::{
     select,
-    sync::mpsc::{self, Sender},
+    sync::oneshot::{self, Sender},
     task::JoinHandle,
     time,
 };
@@ -97,7 +97,7 @@ impl Stream for tokio::net::UdpSocket {}
 
 #[derive(Debug)]
 pub struct PollingHelper {
-    tx: Sender<()>,
+    tx: Option<Sender<()>>,
     handle: JoinHandle<()>,
 }
 
@@ -109,7 +109,7 @@ impl PollingHelper {
         pollable: Poll,
         polling_frequency: f64,
     ) -> PollingHelper {
-        let (tx, mut rx) = mpsc::channel(1);
+        let (tx, rx) = oneshot::channel();
         let mut interval =
             time::interval(std::time::Duration::from_secs_f64(1.0 / polling_frequency));
         interval.set_missed_tick_behavior(time::MissedTickBehavior::Delay);
@@ -127,37 +127,24 @@ impl PollingHelper {
                 } => {
                     eprintln!("Never ending loop returned");
                 }
-                _ = rx.recv() => {
+                _ = rx => {
                     stream.close_connection().await;
                 }
             }
         });
 
-        PollingHelper { tx, handle }
+        PollingHelper { tx: Some(tx), handle }
     }
 }
 
 impl Drop for PollingHelper {
     fn drop(&mut self) {
-        // Check if Tokio is running
         info!("Shutting done background poller");
-        match tokio::runtime::Handle::try_current() {
-            Ok(handle) => {
-                let tx = self.tx.clone();
-                handle.spawn(async move { tx.send(()).await });
-                while !self.handle.is_finished() {
-                    sleep(std::time::Duration::from_millis(10));
-                }
-            }
-            Err(_) => {
-                if self.tx.blocking_send(()).is_ok() {
-                    while !self.handle.is_finished() {
-                        sleep(std::time::Duration::from_millis(10));
-                    }
-                } else {
-                    error!("This should never happen");
-                }
-            }
+        if let Some(tx) = self.tx.take() {
+            let _ = tx.send(());
+        }
+        while !self.handle.is_finished() {
+            sleep(std::time::Duration::from_nanos(1));
         }
         trace!("Background poller shut down");
     }
