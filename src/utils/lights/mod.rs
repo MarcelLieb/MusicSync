@@ -97,7 +97,6 @@ impl Stream for tokio::net::UdpSocket {}
 
 #[derive(Debug)]
 pub struct PollingHelper {
-    pub polling_frequency: f64,
     tx: Sender<()>,
     handle: JoinHandle<()>,
 }
@@ -111,18 +110,19 @@ impl PollingHelper {
         polling_frequency: f64,
     ) -> PollingHelper {
         let (tx, mut rx) = mpsc::channel(1);
+        let mut interval =
+            time::interval(std::time::Duration::from_secs_f64(1.0 / polling_frequency));
+        interval.set_missed_tick_behavior(time::MissedTickBehavior::Delay);
 
         let handle = tokio::task::spawn(async move {
             select! {
                 _ = async {
+                    interval.tick().await;
                     loop {
                         let bytes = { pollable.clone().lock().unwrap().poll() };
                         stream.write_data(&bytes).await.unwrap();
 
-                        time::sleep(std::time::Duration::from_secs_f64(
-                            1.0 / polling_frequency,
-                        ))
-                        .await;
+                        interval.tick().await;
                     }
                 } => {
                     eprintln!("Never ending loop returned");
@@ -133,11 +133,7 @@ impl PollingHelper {
             }
         });
 
-        PollingHelper {
-            polling_frequency,
-            tx,
-            handle,
-        }
+        PollingHelper { tx, handle }
     }
 }
 
