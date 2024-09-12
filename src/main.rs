@@ -60,7 +60,7 @@ async fn main() {
                     }
                 }
                 _ => {
-                    debug!("{e}");
+                    error!("{e}");
                     if let Some(e) = e.source() {
                         debug!("{e}");
                     }

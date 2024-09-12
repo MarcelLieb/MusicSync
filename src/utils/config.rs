@@ -272,8 +272,8 @@ impl std::error::Error for LightServiceError {
 impl Display for LightServiceError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            LightServiceError::Hue(_) => write!(f, "Connection to bridge failed"),
-            LightServiceError::WLED(_) => write!(f, "Connection to WLED strip failed"),
+            LightServiceError::Hue(e) => write!(f, "{e}"),
+            LightServiceError::WLED(e) => write!(f, "{e}"),
         }
     }
 }
