@@ -8,7 +8,7 @@ use tokio::{
 
 use crate::nodes::{internal, Node};
 
-struct Buffer<I: Clone + Send> {
+struct Aggregate<I: Clone + Send> {
     sender: broadcast::Sender<Arc<Box<[I]>>>,
     receiver: Option<broadcast::Receiver<I>>,
     handle: Option<tokio::task::JoinHandle<VecDeque<I>>>,
@@ -18,7 +18,7 @@ struct Buffer<I: Clone + Send> {
     hop_size: usize,
 }
 
-impl<I: Clone + Send + Sync> internal::Getters<I, Arc<Box<[I]>>, VecDeque<I>> for Buffer<I> {
+impl<I: Clone + Send + Sync> internal::Getters<I, Arc<Box<[I]>>, VecDeque<I>> for Aggregate<I> {
     fn get_sender(&self) -> &broadcast::Sender<Arc<Box<[I]>>> {
         &self.sender
     }
@@ -32,7 +32,7 @@ impl<I: Clone + Send + Sync> internal::Getters<I, Arc<Box<[I]>>, VecDeque<I>> fo
     }
 }
 
-impl<I: Clone + Send> Buffer<I> {
+impl<I: Clone + Send> Aggregate<I> {
     fn stop_task(&mut self) {
         if let Some(stop) = self.stop_signal.take() {
             let _ = stop.send(());
@@ -48,7 +48,7 @@ impl<I: Clone + Send> Buffer<I> {
     }
 }
 
-impl<I: Clone + Send + Sync + 'static> Node<I, Arc<Box<[I]>>, VecDeque<I>> for Buffer<I> {
+impl<I: Clone + Send + Sync + 'static> Node<I, Arc<Box<[I]>>, VecDeque<I>> for Aggregate<I> {
     fn follow<T: Clone + Send, F>(&mut self, node: impl Node<T, I, F>) {
         self.stop_task();
 
@@ -106,7 +106,7 @@ impl<I: Clone + Send + Sync + 'static> Node<I, Arc<Box<[I]>>, VecDeque<I>> for B
     }
 }
 
-struct BufferWindow<I: Clone + Send> {
+struct Window<I: Clone + Send> {
     sender: broadcast::Sender<Arc<Box<[I]>>>,
     receiver: Option<broadcast::Receiver<Arc<Box<[I]>>>>,
     handle: Option<tokio::task::JoinHandle<VecDeque<I>>>,
@@ -116,7 +116,7 @@ struct BufferWindow<I: Clone + Send> {
     hop_size: usize,
 }
 
-impl<I: Clone + Send> BufferWindow<I> {
+impl<I: Clone + Send> Window<I> {
     fn stop_task(&mut self) {
         if let Some(stop) = self.stop_signal.take() {
             let _ = stop.send(());
@@ -134,7 +134,7 @@ impl<I: Clone + Send> BufferWindow<I> {
     }
 }
 
-impl<I: Clone + Send + Sync> internal::Getters<Arc<Box<[I]>>, Arc<Box<[I]>>, VecDeque<I>> for BufferWindow<I> {
+impl<I: Clone + Send + Sync> internal::Getters<Arc<Box<[I]>>, Arc<Box<[I]>>, VecDeque<I>> for Window<I> {
     fn get_sender(&self) -> &broadcast::Sender<Arc<Box<[I]>>> {
         &self.sender
     }
@@ -148,7 +148,7 @@ impl<I: Clone + Send + Sync> internal::Getters<Arc<Box<[I]>>, Arc<Box<[I]>>, Vec
     }
 }
 
-impl <I: Clone + Send + Sync + 'static> Node<Arc<Box<[I]>>, Arc<Box<[I]>>, VecDeque<I>> for BufferWindow<I> {
+impl <I: Clone + Send + Sync + 'static> Node<Arc<Box<[I]>>, Arc<Box<[I]>>, VecDeque<I>> for Window<I> {
     fn follow<T: Clone + Send, F>(&mut self, node: impl Node<T, Arc<Box<[I]>>, F>) {
         self.stop_task();
 
