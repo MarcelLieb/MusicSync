@@ -9,7 +9,7 @@ use tokio::{
 use crate::nodes::{internal, Node};
 
 struct Aggregate<I: Clone + Send> {
-    sender: broadcast::Sender<Arc<Box<[I]>>>,
+    sender: broadcast::Sender<Arc<[I]>>,
     receiver: Option<broadcast::Receiver<I>>,
     handle: Option<tokio::task::JoinHandle<VecDeque<I>>>,
     buffer: Option<VecDeque<I>>,
@@ -18,8 +18,8 @@ struct Aggregate<I: Clone + Send> {
     hop_size: usize,
 }
 
-impl<I: Clone + Send + Sync> internal::Getters<I, Arc<Box<[I]>>, VecDeque<I>> for Aggregate<I> {
-    fn get_sender(&self) -> &broadcast::Sender<Arc<Box<[I]>>> {
+impl<I: Clone + Send + Sync> internal::Getters<I, Arc<[I]>, VecDeque<I>> for Aggregate<I> {
+    fn get_sender(&self) -> &broadcast::Sender<Arc<[I]>> {
         &self.sender
     }
 
@@ -48,7 +48,7 @@ impl<I: Clone + Send> Aggregate<I> {
     }
 }
 
-impl<I: Clone + Send + Sync + 'static> Node<I, Arc<Box<[I]>>, VecDeque<I>> for Aggregate<I> {
+impl<I: Clone + Send + Sync + 'static> Node<I, Arc<[I]>, VecDeque<I>> for Aggregate<I> {
     fn follow<T: Clone + Send, F>(&mut self, node: impl Node<T, I, F>) {
         self.stop_task();
 
@@ -77,7 +77,7 @@ impl<I: Clone + Send + Sync + 'static> Node<I, Arc<Box<[I]>>, VecDeque<I>> for A
                             Ok(data) => {
                                 buffer.push_back(data);
                                 if buffer.len() > size {
-                                    let data = Arc::new(buffer.make_contiguous()[..size].to_vec().into_boxed_slice());
+                                    let data = Arc::from(buffer.make_contiguous()[..size].to_vec());
                                     let mut status = sender.send(data);
                                     while status.is_err() {
                                         tokio::task::yield_now().await;
@@ -107,8 +107,8 @@ impl<I: Clone + Send + Sync + 'static> Node<I, Arc<Box<[I]>>, VecDeque<I>> for A
 }
 
 struct Window<I: Clone + Send> {
-    sender: broadcast::Sender<Arc<Box<[I]>>>,
-    receiver: Option<broadcast::Receiver<Arc<Box<[I]>>>>,
+    sender: broadcast::Sender<Arc<[I]>>,
+    receiver: Option<broadcast::Receiver<Arc<[I]>>>,
     handle: Option<tokio::task::JoinHandle<VecDeque<I>>>,
     buffer: Option<VecDeque<I>>,
     stop_signal: Option<oneshot::Sender<()>>,
@@ -134,12 +134,12 @@ impl<I: Clone + Send> Window<I> {
     }
 }
 
-impl<I: Clone + Send + Sync> internal::Getters<Arc<Box<[I]>>, Arc<Box<[I]>>, VecDeque<I>> for Window<I> {
-    fn get_sender(&self) -> &broadcast::Sender<Arc<Box<[I]>>> {
+impl<I: Clone + Send + Sync> internal::Getters<Arc<[I]>, Arc<[I]>, VecDeque<I>> for Window<I> {
+    fn get_sender(&self) -> &broadcast::Sender<Arc<[I]>> {
         &self.sender
     }
 
-    fn get_receiver(&mut self) -> &mut Option<broadcast::Receiver<Arc<Box<[I]>>>> {
+    fn get_receiver(&mut self) -> &mut Option<broadcast::Receiver<Arc<[I]>>> {
         &mut self.receiver
     }
 
@@ -148,8 +148,8 @@ impl<I: Clone + Send + Sync> internal::Getters<Arc<Box<[I]>>, Arc<Box<[I]>>, Vec
     }
 }
 
-impl <I: Clone + Send + Sync + 'static> Node<Arc<Box<[I]>>, Arc<Box<[I]>>, VecDeque<I>> for Window<I> {
-    fn follow<T: Clone + Send, F>(&mut self, node: impl Node<T, Arc<Box<[I]>>, F>) {
+impl <I: Clone + Send + Sync + 'static> Node<Arc<[I]>, Arc<[I]>, VecDeque<I>> for Window<I> {
+    fn follow<T: Clone + Send, F>(&mut self, node: impl Node<T, Arc<[I]>, F>) {
         self.stop_task();
 
         let (stop_tx, stop_rx) = oneshot::channel::<()>();
@@ -177,7 +177,7 @@ impl <I: Clone + Send + Sync + 'static> Node<Arc<Box<[I]>>, Arc<Box<[I]>>, VecDe
                             Ok(data) => {
                                 buffer.extend(data.iter().cloned());
                                 if buffer.len() > size {
-                                    let data = Arc::new(buffer.make_contiguous()[..size].to_vec().into_boxed_slice());
+                                    let data = Arc::from(buffer.make_contiguous()[..size].to_vec());
                                     let mut status = sender.send(data);
                                     while status.is_err() {
                                         tokio::task::yield_now().await;
