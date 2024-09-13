@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{apply_window_mono, window, WindowType};
 
-#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, PartialOrd)]
 #[serde(default)]
 pub struct DynamicSettings {
     pub buffer_size: usize,
@@ -93,7 +93,7 @@ impl Default for Dynamic {
     }
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, PartialOrd)]
 #[serde(default)]
 pub struct AdvancedSettings {
     pub mean_range: usize,

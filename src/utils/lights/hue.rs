@@ -187,7 +187,7 @@ struct EntertainmentArea {
     channels: Vec<EntertainmentChannels>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, PartialOrd)]
 #[serde(default, rename_all = "PascalCase")]
 pub struct HueSettings {
     #[serde(rename = "ip")]
@@ -680,7 +680,7 @@ struct State {
     buffer: BytesMut,
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, PartialOrd)]
 #[serde(default)]
 pub struct LightSettings {
     pub drum_decay_rate: f32,

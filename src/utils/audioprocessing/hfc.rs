@@ -7,7 +7,7 @@ use super::{
     OnsetDetector,
 };
 
-#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, PartialOrd)]
 #[serde(default)]
 pub struct DetectionWeights {
     pub low_end_weight_cutoff: usize,
@@ -37,7 +37,7 @@ pub struct Hfc {
     bin_resolution: f32,
 }
 
-#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, PartialOrd)]
 #[serde(default, rename_all = "PascalCase")]
 pub struct HfcSettings {
     pub detection_weights: DetectionWeights,
@@ -191,7 +191,7 @@ impl ThresholdBank {
     }
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, PartialOrd)]
 #[serde(default, rename_all = "PascalCase")]
 pub struct ThresholdBankSettings {
     pub drums: DynamicSettings,

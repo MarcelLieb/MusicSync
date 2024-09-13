@@ -19,7 +19,7 @@ use super::{
     },
 };
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, PartialOrd)]
 #[serde(rename_all = "PascalCase")]
 pub struct Config {
     #[serde(default, rename = "audio_device")]
@@ -44,7 +44,7 @@ pub struct Config {
     pub wled: Vec<WLEDConfig>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
 #[serde(tag = "effect")]
 pub enum WLEDConfig {
     Spectrum {
@@ -98,7 +98,7 @@ impl std::error::Error for ConfigError {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, PartialOrd)]
 #[serde(tag = "algorithm")]
 pub enum OnsetDetector {
     SpecFlux(SpecFluxSettings),
