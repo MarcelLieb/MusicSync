@@ -9,7 +9,9 @@ pub trait Node<I: Clone + Send, O: Clone + Send, S>: internal::Getters<I, O, S> 
     fn follow<T: Clone + Send, F>(&mut self, node: impl Node<T, I, F>);
     fn unfollow(&mut self) {
         self.get_receiver().take();
-        self.get_handle().take();
+        if let Some(handle) = self.get_handle().take() {
+            handle.abort();
+        }
     }
 }
 

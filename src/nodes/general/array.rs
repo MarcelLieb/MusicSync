@@ -200,4 +200,8 @@ impl <I: Clone + Send + Sync + 'static> Node<Arc<[I]>, Arc<[I]>, VecDeque<I>> fo
 
         self.handle = Some(handle);
     }
+
+    fn unfollow(&mut self) {
+        self.stop_task();
+    }
 }
