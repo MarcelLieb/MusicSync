@@ -37,12 +37,11 @@ impl<I: Clone + Send> Aggregate<I> {
         if let Some(stop) = self.stop_signal.take() {
             let _ = stop.send(());
             if let Some(handle) = self.handle.take() {
-                let rt = tokio::runtime::Handle::current();
-
-                let buffer = rt.block_on(handle).expect(
-                    "I don't know if this is possible, if you see this message, please let me know",
-                );
-                self.buffer.replace(buffer);
+                if let Ok(rt) = tokio::runtime::Handle::try_current() {
+                    if let Ok(buffer) = rt.block_on(handle) {
+                        self.buffer.replace(buffer);
+                    }
+                }
             }
         }
     }
@@ -121,14 +120,11 @@ impl<I: Clone + Send> Window<I> {
         if let Some(stop) = self.stop_signal.take() {
             let _ = stop.send(());
             if let Some(handle) = self.handle.take() {
-                let rt = tokio::runtime::Builder::new_current_thread()
-                    .build()
-                    .expect("Could not create runtime");
-
-                let buffer = rt.block_on(handle).expect(
-                    "I don't know if this is possible, if you see this message, please let me know",
-                );
-                self.buffer.replace(buffer);
+                if let Ok(rt) = tokio::runtime::Handle::try_current() {
+                    if let Ok(buffer) = rt.block_on(handle) {
+                        self.buffer.replace(buffer);
+                    }
+                }
             }
         }
     }
