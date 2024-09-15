@@ -201,3 +201,124 @@ impl <I: Clone + Send + Sync + 'static> Node<Arc<[I]>, Arc<[I]>, VecDeque<I>> fo
         self.stop_task();
     }
 }
+
+struct Retimer<I: Clone + Send> {
+    sender: broadcast::Sender<I>,
+    receiver: Option<broadcast::Receiver<I>>,
+    handle: Option<tokio::task::JoinHandle<Option<I>>>,
+    stop_signal: Option<oneshot::Sender<()>>,
+    interval: std::time::Duration,
+    buffer: Option<I>
+}
+
+impl <I: Clone + Send + Sync> internal::Getters<I, I, Option<I>> for Retimer<I> {
+    fn get_sender(&self) -> &broadcast::Sender<I> {
+        &self.sender
+    }
+
+    fn get_receiver(&mut self) -> &mut Option<broadcast::Receiver<I>> {
+        &mut self.receiver
+    }
+
+    fn get_handle(&mut self) -> &mut Option<tokio::task::JoinHandle<Option<I>>> {
+        &mut self.handle
+    }
+}
+
+impl <I: Clone + Send> Retimer<I> {
+    fn stop_task(&mut self) {
+        if let Some(stop) = self.stop_signal.take() {
+            let _ = stop.send(());
+            if let Some(handle) = self.handle.take() {
+                if let Ok(rt) = tokio::runtime::Handle::try_current() {
+                    if let Ok(buffer) = rt.block_on(handle) {
+                        self.buffer = buffer;
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl <I: Clone + Send + Sync + 'static> Node<I, I, Option<I>> for Retimer<I> {
+    fn follow<T: Clone + Send, F>(&mut self, node: impl Node<T, I, F>) {
+        self.stop_task();
+
+        let (stop_tx, stop_rx) = oneshot::channel::<()>();
+        self.stop_signal.replace(stop_tx);
+
+        let sender = self.sender.clone();
+        let mut receiver = node.subscribe();
+        let mut buffer = self.buffer.take();
+        let interval = self.interval;
+        let mut interval = tokio::time::interval(interval);
+
+        let handle = tokio::spawn(async move {
+            // Make sure the buffer is filled
+            // eliminates one if statement in the loop
+            if buffer.is_none() {
+                match receiver.recv().await {
+                    Ok(data) => {
+                        buffer.replace(data);
+                    }
+                    Err(e) => match e {
+                        broadcast::error::RecvError::Closed => return buffer,
+                        broadcast::error::RecvError::Lagged(n) => {
+                            info!("Buffer lagged by {} messages", n);
+                            loop {
+                                if let Ok(data) = receiver.recv().await {
+                                    buffer.replace(data);
+                                    break;
+                                }
+                            }
+                        },
+                    },
+                }
+            }
+            select! {
+                _ = stop_rx => {
+                    debug!("Buffer stopped");
+                    return buffer;
+                }
+                _ = async {
+                    loop {
+                        interval.tick().await;
+                        let data = buffer.take().unwrap();
+                        let mut status = sender.send(data);
+                        while status.is_err() {
+                            tokio::task::yield_now().await;
+                            status = sender.send(status.err().unwrap().0);
+                        }
+                        // Wait for data to arrive
+                        match receiver.recv().await {
+                            Ok(data) => {
+                                buffer.replace(data);
+                            }
+                            Err(e) => match e {
+                                broadcast::error::RecvError::Closed => break,
+                                broadcast::error::RecvError::Lagged(n) => {
+                                    info!("Buffer lagged by {} messages", n);
+                                    loop {
+                                        if let Ok(data) = receiver.recv().await {
+                                            buffer.replace(data);
+                                            break;
+                                        }
+                                    }
+                                },
+                            },
+                        } 
+                    }
+                } => {
+                    buffer
+                }
+            }
+        });
+
+        self.handle = Some(handle);
+    }
+
+    fn unfollow(&mut self) {
+        self.stop_task();
+    }
+    
+}
