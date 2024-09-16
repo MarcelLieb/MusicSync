@@ -258,6 +258,7 @@ fn apply_window_mono(samples: &mut [f32], window: &[f32]) {
     samples.iter_mut().zip(window).for_each(|(x, w)| *x *= w);
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct MelFilterBank {
     filter: Vec<Vec<f32>>,
     points: Vec<f32>,
@@ -360,6 +361,23 @@ impl MelFilterBank {
 
                 *x = sum;
             });
+    }
+
+    pub fn filter_alloc(&self, freq_bins: &[f32]) -> Box<[f32]> {
+        let bin_res = self.sample_rate as f32 / self.fft_size as f32;
+
+        self.filter
+            .iter()
+            .enumerate()
+            .map(|(m, band)| {
+                let start = (self.points[m] / bin_res) as usize;
+                freq_bins[start..(start + band.len())]
+                    .iter()
+                    .zip(band)
+                    .map(|(&f, &w)| f * w)
+                    .sum::<f32>()
+            })
+            .collect()
     }
 
     pub fn hertz_to_mel(hertz: f32) -> f32 {
