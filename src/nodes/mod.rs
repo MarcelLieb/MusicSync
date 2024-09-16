@@ -1,6 +1,9 @@
 use log::warn;
 use tokio::sync::broadcast;
 mod general;
+mod audio;
+
+const CHANNEL_SIZE: usize = 2;
 
 pub trait Node<I: Clone + Send, O: Clone + Send, S>: internal::Getters<I, O, S> {
     fn subscribe(&self) -> broadcast::Receiver<O> {

@@ -6,7 +6,7 @@ use tokio::{
     sync::{broadcast, oneshot},
 };
 
-use crate::nodes::{internal, Node};
+use crate::nodes::{internal, Node, CHANNEL_SIZE};
 
 struct Aggregate<I: Clone + Send> {
     sender: broadcast::Sender<Arc<[I]>>,
@@ -33,6 +33,19 @@ impl<I: Clone + Send + Sync> internal::Getters<I, Arc<[I]>, VecDeque<I>> for Agg
 }
 
 impl<I: Clone + Send> Aggregate<I> {
+    fn init(size: usize, hop_size: usize) -> Self {
+        let (sender, _) = broadcast::channel(CHANNEL_SIZE);
+        Self {
+            sender,
+            receiver: None,
+            handle: None,
+            buffer: None,
+            stop_signal: None,
+            size,
+            hop_size,
+        }
+    }
+
     fn stop_task(&mut self) {
         if let Some(stop) = self.stop_signal.take() {
             let _ = stop.send(());
@@ -116,6 +129,19 @@ struct Window<I: Clone + Send> {
 }
 
 impl<I: Clone + Send> Window<I> {
+    fn init(size: usize, hop_size: usize) -> Self {
+        let (sender, _) = broadcast::channel(CHANNEL_SIZE);
+        Self {
+            sender,
+            receiver: None,
+            handle: None,
+            buffer: None,
+            stop_signal: None,
+            size,
+            hop_size,
+        }
+    }
+
     fn stop_task(&mut self) {
         if let Some(stop) = self.stop_signal.take() {
             let _ = stop.send(());
@@ -226,6 +252,23 @@ impl <I: Clone + Send + Sync> internal::Getters<I, I, Option<I>> for Retimer<I> 
 }
 
 impl <I: Clone + Send> Retimer<I> {
+    fn init(interval: std::time::Duration) -> Self {
+        let (sender, _) = broadcast::channel(CHANNEL_SIZE);
+        Self {
+            sender,
+            receiver: None,
+            handle: None,
+            stop_signal: None,
+            interval,
+            buffer: None,
+        }
+    }
+
+    fn init_hz(hz: f64) -> Self {
+        let interval = std::time::Duration::from_secs_f64(1.0 / hz);
+        Self::init(interval)
+    }
+
     fn stop_task(&mut self) {
         if let Some(stop) = self.stop_signal.take() {
             let _ = stop.send(());
