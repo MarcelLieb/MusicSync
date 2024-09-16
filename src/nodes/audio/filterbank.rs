@@ -64,8 +64,8 @@ impl Node<Arc<[f32]>, Arc<[f32]>, ()> for MelFilterBankNode<f32> {
 }
 
 impl MelFilterBankNode<f32> {
-    pub fn new(bands: usize, n_fft: u32, sample_rate: u32, high_freq: u32) -> Self {
-        let filter_bank = MelFilterBank::init(sample_rate, n_fft, bands, high_freq);
+    pub fn new(bands: usize, n_fft: u32, sample_rate: u32, min_frequency: f32, max_frequency: f32) -> Self {
+        let filter_bank = MelFilterBank::init(sample_rate, n_fft, bands, min_frequency, max_frequency);
         let (sender, _) = broadcast::channel::<Arc<[f32]>>(CHANNEL_SIZE);
 
         Self {
