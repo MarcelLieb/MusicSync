@@ -3,7 +3,7 @@ use std::sync::Arc;
 use log::info;
 use tokio::sync::{broadcast, oneshot};
 
-use crate::{nodes::{internal::Getters, Node}, utils::audioprocessing::MelFilterBank};
+use crate::{nodes::{internal::Getters, Node, CHANNEL_SIZE}, utils::audioprocessing::MelFilterBank};
 
 
 struct MelFilterBankNode <I: Clone + Sync> {
@@ -66,7 +66,7 @@ impl Node<Arc<[f32]>, Arc<[f32]>, ()> for MelFilterBankNode<f32> {
 impl MelFilterBankNode<f32> {
     pub fn new(bands: usize, n_fft: u32, sample_rate: u32, high_freq: u32) -> Self {
         let filter_bank = MelFilterBank::init(sample_rate, n_fft, bands, high_freq);
-        let (sender, _) = broadcast::channel::<Arc<[f32]>>(1);
+        let (sender, _) = broadcast::channel::<Arc<[f32]>>(CHANNEL_SIZE);
 
         Self {
             sender,
