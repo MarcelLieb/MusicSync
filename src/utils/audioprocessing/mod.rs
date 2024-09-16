@@ -265,21 +265,24 @@ pub struct MelFilterBank {
     pub fft_size: u32,
     pub bands: usize,
     pub sample_rate: u32,
-    pub max_frequency: u32,
+    pub min_frequency: f32,
+    pub max_frequency: f32,
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, PartialOrd)]
 #[serde(default)]
 pub struct MelFilterBankSettings {
     pub bands: usize,
-    pub max_frequency: u32,
+    pub min_frequency: f32,
+    pub max_frequency: f32,
 }
 
 impl Default for MelFilterBankSettings {
     fn default() -> Self {
         Self {
             bands: 82,
-            max_frequency: 20_000,
+            min_frequency: 20.0,
+            max_frequency: 20_000.0,
         }
     }
 }
@@ -289,11 +292,14 @@ impl MelFilterBank {
         sample_rate: u32,
         fft_size: u32,
         bands: usize,
-        max_frequency: u32,
+        min_frequency: f32,
+        max_frequency: f32,
     ) -> MelFilterBank {
+        assert!(min_frequency < max_frequency, "min_frequency must be less than max_frequency");
         let num_points = bands + 2;
-        let mel_max = Self::hertz_to_mel(max_frequency as f32);
-        let step = mel_max / (num_points - 1) as f32;
+        let mel_min = Self::hertz_to_mel(min_frequency);
+        let mel_max = Self::hertz_to_mel(max_frequency);
+        let step = (mel_max - mel_min) / (num_points - 1) as f32;
 
         let mel = (0..num_points)
             .map(|i| i as f32 * step)
@@ -327,6 +333,7 @@ impl MelFilterBank {
             fft_size,
             bands,
             sample_rate,
+            min_frequency,
             max_frequency,
         }
     }
@@ -340,6 +347,7 @@ impl MelFilterBank {
             sample_rate,
             fft_size,
             settings.bands,
+            settings.min_frequency,
             settings.max_frequency,
         )
     }

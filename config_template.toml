@@ -15,6 +15,7 @@ algorithm = "SpecFlux"
 
 [OnsetDetector.FilterBankSettings]
 bands = 82
+min_frequency = 20
 max_frequency = 20000
 
 [OnsetDetector.ThresholdBankSettings.Drum]
