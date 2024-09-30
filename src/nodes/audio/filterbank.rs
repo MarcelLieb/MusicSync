@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
-use log::info;
+use log::{info, warn};
 use tokio::sync::{broadcast, oneshot};
 
 use crate::{nodes::{internal::Getters, Node, CHANNEL_SIZE}, utils::audioprocessing::MelFilterBank};
 
 
-struct MelFilterBankNode <I: Clone + Sync> {
+pub struct MelFilterBankNode <I: Clone + Sync> {
     sender: broadcast::Sender<Arc<[I]>>,
     receiver: Option<broadcast::Receiver<Arc<[I]>>>,
     handle: Option<tokio::task::JoinHandle<()>>,
@@ -29,7 +29,7 @@ impl <I: Clone + Send + Sync> Getters<Arc<[I]>, Arc<[I]>, ()> for MelFilterBankN
 }
 
 impl Node<Arc<[f32]>, Arc<[f32]>, ()> for MelFilterBankNode<f32> {
-    fn follow<T: Clone + Send, F>(&mut self, node: impl Node<T, Arc<[f32]>, F>) {
+    fn follow<T: Clone + Send, F>(&mut self, node: &impl Node<T, Arc<[f32]>, F>) {
         self.unfollow();
 
         let (stop_tx, stop_rx) = oneshot::channel::<()>();
@@ -46,8 +46,16 @@ impl Node<Arc<[f32]>, Arc<[f32]>, ()> for MelFilterBankNode<f32> {
                     loop {
                         match receiver.recv().await {
                             Ok(data) => {
+                                if data.len() != filter_bank.fft_size as usize {
+                                    warn!("Data length does not match FFT size. Skipping.");
+                                    continue;
+                                }
                                 let data = filter_bank.filter_alloc(&data);
-                                sender.send(Arc::from(data)).unwrap();
+                                let mut status = sender.send(data.into());
+                                while status.is_err() {
+                                    tokio::task::yield_now().await;
+                                    status = sender.send(status.err().unwrap().0);
+                                }
                             },
                             Err(e) => match e {
                                 broadcast::error::RecvError::Closed => break,

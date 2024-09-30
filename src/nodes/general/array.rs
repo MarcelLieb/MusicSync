@@ -8,7 +8,7 @@ use tokio::{
 
 use crate::nodes::{internal, Node, CHANNEL_SIZE};
 
-struct Aggregate<I: Clone + Send> {
+pub struct Aggregate<I: Clone + Send> {
     sender: broadcast::Sender<Arc<[I]>>,
     receiver: Option<broadcast::Receiver<I>>,
     handle: Option<tokio::task::JoinHandle<VecDeque<I>>>,
@@ -33,7 +33,7 @@ impl<I: Clone + Send + Sync> internal::Getters<I, Arc<[I]>, VecDeque<I>> for Agg
 }
 
 impl<I: Clone + Send> Aggregate<I> {
-    fn init(size: usize, hop_size: usize) -> Self {
+    pub fn init(size: usize, hop_size: usize) -> Self {
         let (sender, _) = broadcast::channel(CHANNEL_SIZE);
         Self {
             sender,
@@ -61,7 +61,7 @@ impl<I: Clone + Send> Aggregate<I> {
 }
 
 impl<I: Clone + Send + Sync + 'static> Node<I, Arc<[I]>, VecDeque<I>> for Aggregate<I> {
-    fn follow<T: Clone + Send, F>(&mut self, node: impl Node<T, I, F>) {
+    fn follow<T: Clone + Send, F>(&mut self, node: &impl Node<T, I, F>) {
         self.stop_task();
 
         let (stop_tx, stop_rx) = oneshot::channel::<()>();
@@ -88,7 +88,7 @@ impl<I: Clone + Send + Sync + 'static> Node<I, Arc<[I]>, VecDeque<I>> for Aggreg
                         match receiver.recv().await {
                             Ok(data) => {
                                 buffer.push_back(data);
-                                if buffer.len() > size {
+                                if buffer.len() >= size {
                                     let data = Arc::from(buffer.make_contiguous()[..size].to_vec());
                                     let mut status = sender.send(data);
                                     while status.is_err() {
@@ -118,7 +118,7 @@ impl<I: Clone + Send + Sync + 'static> Node<I, Arc<[I]>, VecDeque<I>> for Aggreg
     }
 }
 
-struct Window<I: Clone + Send> {
+pub struct Window<I: Clone + Send> {
     sender: broadcast::Sender<Arc<[I]>>,
     receiver: Option<broadcast::Receiver<Arc<[I]>>>,
     handle: Option<tokio::task::JoinHandle<VecDeque<I>>>,
@@ -129,8 +129,8 @@ struct Window<I: Clone + Send> {
 }
 
 impl<I: Clone + Send> Window<I> {
-    fn init(size: usize, hop_size: usize) -> Self {
-        let (sender, _) = broadcast::channel(CHANNEL_SIZE);
+    pub fn init(size: usize, hop_size: usize) -> Self {
+        let (sender, _) = broadcast::channel(CHANNEL_SIZE * (size / hop_size + 1));
         Self {
             sender,
             receiver: None,
@@ -171,7 +171,7 @@ impl<I: Clone + Send + Sync> internal::Getters<Arc<[I]>, Arc<[I]>, VecDeque<I>> 
 }
 
 impl <I: Clone + Send + Sync + 'static> Node<Arc<[I]>, Arc<[I]>, VecDeque<I>> for Window<I> {
-    fn follow<T: Clone + Send, F>(&mut self, node: impl Node<T, Arc<[I]>, F>) {
+    fn follow<T: Clone + Send, F>(&mut self, node: &impl Node<T, Arc<[I]>, F>) {
         self.stop_task();
 
         let (stop_tx, stop_rx) = oneshot::channel::<()>();
@@ -198,7 +198,7 @@ impl <I: Clone + Send + Sync + 'static> Node<Arc<[I]>, Arc<[I]>, VecDeque<I>> fo
                         match receiver.recv().await {
                             Ok(data) => {
                                 buffer.extend(data.iter().cloned());
-                                if buffer.len() > size {
+                                while buffer.len() > size {
                                     let data = Arc::from(buffer.make_contiguous()[..size].to_vec());
                                     let mut status = sender.send(data);
                                     while status.is_err() {
@@ -206,6 +206,7 @@ impl <I: Clone + Send + Sync + 'static> Node<Arc<[I]>, Arc<[I]>, VecDeque<I>> fo
                                         status = sender.send(status.err().unwrap().0);
                                     }
                                     buffer.drain(0..hop_size);
+                                    tokio::task::yield_now().await;
                                 }
                             }
                             Err(e) => match e {
@@ -228,7 +229,7 @@ impl <I: Clone + Send + Sync + 'static> Node<Arc<[I]>, Arc<[I]>, VecDeque<I>> fo
     }
 }
 
-struct Retimer<I: Clone + Send> {
+pub struct Retimer<I: Clone + Send> {
     sender: broadcast::Sender<I>,
     receiver: Option<broadcast::Receiver<I>>,
     handle: Option<tokio::task::JoinHandle<Option<I>>>,
@@ -252,7 +253,7 @@ impl <I: Clone + Send + Sync> internal::Getters<I, I, Option<I>> for Retimer<I> 
 }
 
 impl <I: Clone + Send> Retimer<I> {
-    fn init(interval: std::time::Duration) -> Self {
+    pub fn init(interval: std::time::Duration) -> Self {
         let (sender, _) = broadcast::channel(CHANNEL_SIZE);
         Self {
             sender,
@@ -264,7 +265,7 @@ impl <I: Clone + Send> Retimer<I> {
         }
     }
 
-    fn init_hz(hz: f64) -> Self {
+    pub fn init_hz(hz: f64) -> Self {
         let interval = std::time::Duration::from_secs_f64(1.0 / hz);
         Self::init(interval)
     }
@@ -284,7 +285,7 @@ impl <I: Clone + Send> Retimer<I> {
 }
 
 impl <I: Clone + Send + Sync + 'static> Node<I, I, Option<I>> for Retimer<I> {
-    fn follow<T: Clone + Send, F>(&mut self, node: impl Node<T, I, F>) {
+    fn follow<T: Clone + Send, F>(&mut self, node: &impl Node<T, I, F>) {
         self.stop_task();
 
         let (stop_tx, stop_rx) = oneshot::channel::<()>();

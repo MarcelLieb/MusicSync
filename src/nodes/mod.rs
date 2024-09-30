@@ -9,7 +9,7 @@ pub trait Node<I: Clone + Send, O: Clone + Send, S>: internal::Getters<I, O, S> 
     fn subscribe(&self) -> broadcast::Receiver<O> {
         self.get_sender().subscribe()
     }
-    fn follow<T: Clone + Send, F>(&mut self, node: impl Node<T, I, F>);
+    fn follow<T: Clone + Send, F>(&mut self, node: &impl Node<T, I, F>);
     fn unfollow(&mut self) {
         self.get_receiver().take();
         if let Some(handle) = self.get_handle().take() {
@@ -51,7 +51,7 @@ impl<I: Clone + Send + 'static, O: Clone + Send + 'static> internal::Getters<I, 
 }
 
 impl<I: Clone + Send + 'static> Node<I, I, ()> for NodeImpl<I, I> {
-    fn follow<T: Clone + Send, F>(&mut self, node: impl Node<T, I, F>) {
+    fn follow<T: Clone + Send, F>(&mut self, node: &impl Node<T, I, F>) {
         let mut receiver = node.subscribe();
 
         if let Some(handle) = self.handle.take() {
