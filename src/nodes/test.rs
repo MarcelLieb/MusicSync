@@ -7,7 +7,7 @@ use super::{
     audio::filterbank::MelFilterBankNode,
     general::array::Window,
     internal::Getters,
-    Node, NodeTypes, CHANNEL_SIZE,
+    NodeTrait, Node, CHANNEL_SIZE,
 };
 
 // A Node that sends 0.0 as fast as it can
@@ -31,8 +31,8 @@ impl Getters<(), f32, ()> for ZeroNode {
     }
 }
 
-impl Node<(), f32, ()> for ZeroNode {
-    async fn follow<T: Clone + Send, F>(&mut self, _: &impl Node<T, (), F>) {}
+impl NodeTrait<(), f32, ()> for ZeroNode {
+    async fn follow<T: Clone + Send, F>(&mut self, _: &impl NodeTrait<T, (), F>) {}
 }
 
 impl ZeroNode {
@@ -75,8 +75,8 @@ impl Getters<(), Arc<[f32]>, ()> for ArrayNode {
     }
 }
 
-impl Node<(), Arc<[f32]>, ()> for ArrayNode {
-    async fn follow<T: Clone + Send, F>(&mut self, _: &impl Node<T, (), F>) {}
+impl NodeTrait<(), Arc<[f32]>, ()> for ArrayNode {
+    async fn follow<T: Clone + Send, F>(&mut self, _: &impl NodeTrait<T, (), F>) {}
 }
 
 impl ArrayNode {
@@ -124,8 +124,8 @@ impl<T: Clone + Send + Sync + Debug> Getters<T, T, ()> for PrintNode<T> {
     }
 }
 
-impl<T: Clone + Send + Sync + Debug + 'static> Node<T, T, ()> for PrintNode<T> {
-    async fn follow<F: Clone + Send, I>(&mut self, node: &impl Node<F, T, I>) {
+impl<T: Clone + Send + Sync + Debug + 'static> NodeTrait<T, T, ()> for PrintNode<T> {
+    async fn follow<F: Clone + Send, I>(&mut self, node: &impl NodeTrait<F, T, I>) {
         self.unfollow().await;
 
         let sender = self.sender.clone();
@@ -194,7 +194,7 @@ pub async fn test_chain() {
     let mel_filter_bank = MelFilterBankNode::new(1000, 4096, 44100, 0.0, 22050.0);
     let printer: PrintNode<Arc<[f32]>> = PrintNode::new("FilterBank");
     let printer2: PrintNode<Arc<[f32]>> = PrintNode::new("Copys");
-    let save_state = DashMap::<&str, NodeTypes>::new();
+    let save_state = DashMap::<&str, Node>::new();
     save_state.insert("zero", zero.into());
     save_state.insert("window1", window1.into());
     save_state.insert("window2", window2.into());

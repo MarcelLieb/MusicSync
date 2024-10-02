@@ -3,10 +3,12 @@ use std::sync::Arc;
 use log::{info, warn};
 use tokio::sync::{broadcast, oneshot};
 
-use crate::{nodes::{internal::Getters, Node, CHANNEL_SIZE}, utils::audioprocessing::MelFilterBank};
+use crate::{
+    nodes::{internal::Getters, NodeTrait, CHANNEL_SIZE},
+    utils::audioprocessing::MelFilterBank,
+};
 
-
-pub struct MelFilterBankNode <I: Clone + Sync> {
+pub struct MelFilterBankNode<I: Clone + Sync> {
     sender: broadcast::Sender<Arc<[I]>>,
     receiver: Option<broadcast::Receiver<Arc<[I]>>>,
     handle: Option<tokio::task::JoinHandle<()>>,
@@ -14,7 +16,7 @@ pub struct MelFilterBankNode <I: Clone + Sync> {
     filter_bank: MelFilterBank,
 }
 
-impl <I: Clone + Send + Sync> Getters<Arc<[I]>, Arc<[I]>, ()> for MelFilterBankNode<I> {
+impl<I: Clone + Send + Sync> Getters<Arc<[I]>, Arc<[I]>, ()> for MelFilterBankNode<I> {
     fn get_sender(&self) -> &broadcast::Sender<Arc<[I]>> {
         &self.sender
     }
@@ -28,9 +30,9 @@ impl <I: Clone + Send + Sync> Getters<Arc<[I]>, Arc<[I]>, ()> for MelFilterBankN
     }
 }
 
-impl Node<Arc<[f32]>, Arc<[f32]>, ()> for MelFilterBankNode<f32> {
-    fn follow<T: Clone + Send, F>(&mut self, node: &impl Node<T, Arc<[f32]>, F>) {
-        self.unfollow();
+impl NodeTrait<Arc<[f32]>, Arc<[f32]>, ()> for MelFilterBankNode<f32> {
+    async fn follow<T: Clone + Send, F>(&mut self, node: &impl NodeTrait<T, Arc<[f32]>, F>) {
+        self.unfollow().await;
 
         let (stop_tx, stop_rx) = oneshot::channel::<()>();
         self.stop_signal.replace(stop_tx);
@@ -72,8 +74,15 @@ impl Node<Arc<[f32]>, Arc<[f32]>, ()> for MelFilterBankNode<f32> {
 }
 
 impl MelFilterBankNode<f32> {
-    pub fn new(bands: usize, n_fft: u32, sample_rate: u32, min_frequency: f32, max_frequency: f32) -> Self {
-        let filter_bank = MelFilterBank::init(sample_rate, n_fft, bands, min_frequency, max_frequency);
+    pub fn new(
+        bands: usize,
+        n_fft: u32,
+        sample_rate: u32,
+        min_frequency: f32,
+        max_frequency: f32,
+    ) -> Self {
+        let filter_bank =
+            MelFilterBank::init(sample_rate, n_fft, bands, min_frequency, max_frequency);
         let (sender, _) = broadcast::channel::<Arc<[f32]>>(CHANNEL_SIZE);
 
         Self {

@@ -6,7 +6,7 @@ use tokio::{
     sync::{broadcast, oneshot},
 };
 
-use crate::nodes::{internal, Node, CHANNEL_SIZE};
+use crate::nodes::{internal, NodeTrait, CHANNEL_SIZE};
 
 pub struct Aggregate<I: Clone + Send> {
     sender: broadcast::Sender<Arc<[I]>>,
@@ -46,23 +46,19 @@ impl<I: Clone + Send> Aggregate<I> {
         }
     }
 
-    fn stop_task(&mut self) {
+    async fn stop_task(&mut self) {
         if let Some(stop) = self.stop_signal.take() {
             let _ = stop.send(());
             if let Some(handle) = self.handle.take() {
-                if let Ok(rt) = tokio::runtime::Handle::try_current() {
-                    if let Ok(buffer) = rt.block_on(handle) {
-                        self.buffer.replace(buffer);
-                    }
-                }
+                self.buffer.replace(handle.await.unwrap());
             }
         }
     }
 }
 
-impl<I: Clone + Send + Sync + 'static> Node<I, Arc<[I]>, VecDeque<I>> for Aggregate<I> {
-    fn follow<T: Clone + Send, F>(&mut self, node: &impl Node<T, I, F>) {
-        self.stop_task();
+impl<I: Clone + Send + Sync + 'static> NodeTrait<I, Arc<[I]>, VecDeque<I>> for Aggregate<I> {
+    async fn follow<T: Clone + Send, F>(&mut self, node: &impl NodeTrait<T, I, F>) {
+        self.stop_task().await;
 
         let (stop_tx, stop_rx) = oneshot::channel::<()>();
         self.stop_signal.replace(stop_tx);
@@ -113,8 +109,8 @@ impl<I: Clone + Send + Sync + 'static> Node<I, Arc<[I]>, VecDeque<I>> for Aggreg
         self.handle = Some(handle);
     }
 
-    fn unfollow(&mut self) {
-        self.stop_task();
+    async fn unfollow(&mut self) {
+        self.stop_task().await;
     }
 }
 
@@ -142,15 +138,11 @@ impl<I: Clone + Send> Window<I> {
         }
     }
 
-    fn stop_task(&mut self) {
+    async fn stop_task(&mut self) {
         if let Some(stop) = self.stop_signal.take() {
             let _ = stop.send(());
             if let Some(handle) = self.handle.take() {
-                if let Ok(rt) = tokio::runtime::Handle::try_current() {
-                    if let Ok(buffer) = rt.block_on(handle) {
-                        self.buffer.replace(buffer);
-                    }
-                }
+                self.buffer.replace(handle.await.unwrap());
             }
         }
     }
@@ -170,9 +162,9 @@ impl<I: Clone + Send + Sync> internal::Getters<Arc<[I]>, Arc<[I]>, VecDeque<I>> 
     }
 }
 
-impl <I: Clone + Send + Sync + 'static> Node<Arc<[I]>, Arc<[I]>, VecDeque<I>> for Window<I> {
-    fn follow<T: Clone + Send, F>(&mut self, node: &impl Node<T, Arc<[I]>, F>) {
-        self.stop_task();
+impl<I: Clone + Send + Sync + 'static> NodeTrait<Arc<[I]>, Arc<[I]>, VecDeque<I>> for Window<I> {
+    async fn follow<T: Clone + Send, F>(&mut self, node: &impl NodeTrait<T, Arc<[I]>, F>) {
+        self.stop_task().await;
 
         let (stop_tx, stop_rx) = oneshot::channel::<()>();
         self.stop_signal.replace(stop_tx);
@@ -197,6 +189,7 @@ impl <I: Clone + Send + Sync + 'static> Node<Arc<[I]>, Arc<[I]>, VecDeque<I>> fo
                     loop {
                         match receiver.recv().await {
                             Ok(data) => {
+                                info!("Data received");
                                 buffer.extend(data.iter().cloned());
                                 while buffer.len() > size {
                                     let data = Arc::from(buffer.make_contiguous()[..size].to_vec());
@@ -224,8 +217,8 @@ impl <I: Clone + Send + Sync + 'static> Node<Arc<[I]>, Arc<[I]>, VecDeque<I>> fo
         self.handle = Some(handle);
     }
 
-    fn unfollow(&mut self) {
-        self.stop_task();
+    async fn unfollow(&mut self) {
+        self.stop_task().await;
     }
 }
 
@@ -235,10 +228,10 @@ pub struct Retimer<I: Clone + Send> {
     handle: Option<tokio::task::JoinHandle<Option<I>>>,
     stop_signal: Option<oneshot::Sender<()>>,
     interval: std::time::Duration,
-    buffer: Option<I>
+    buffer: Option<I>,
 }
 
-impl <I: Clone + Send + Sync> internal::Getters<I, I, Option<I>> for Retimer<I> {
+impl<I: Clone + Send + Sync> internal::Getters<I, I, Option<I>> for Retimer<I> {
     fn get_sender(&self) -> &broadcast::Sender<I> {
         &self.sender
     }
@@ -252,7 +245,7 @@ impl <I: Clone + Send + Sync> internal::Getters<I, I, Option<I>> for Retimer<I> 
     }
 }
 
-impl <I: Clone + Send> Retimer<I> {
+impl<I: Clone + Send> Retimer<I> {
     pub fn init(interval: std::time::Duration) -> Self {
         let (sender, _) = broadcast::channel(CHANNEL_SIZE);
         Self {
@@ -270,23 +263,19 @@ impl <I: Clone + Send> Retimer<I> {
         Self::init(interval)
     }
 
-    fn stop_task(&mut self) {
+    async fn stop_task(&mut self) {
         if let Some(stop) = self.stop_signal.take() {
             let _ = stop.send(());
             if let Some(handle) = self.handle.take() {
-                if let Ok(rt) = tokio::runtime::Handle::try_current() {
-                    if let Ok(buffer) = rt.block_on(handle) {
-                        self.buffer = buffer;
-                    }
-                }
+                self.buffer = handle.await.unwrap();
             }
         }
     }
 }
 
-impl <I: Clone + Send + Sync + 'static> Node<I, I, Option<I>> for Retimer<I> {
-    fn follow<T: Clone + Send, F>(&mut self, node: &impl Node<T, I, F>) {
-        self.stop_task();
+impl<I: Clone + Send + Sync + 'static> NodeTrait<I, I, Option<I>> for Retimer<I> {
+    async fn follow<T: Clone + Send, F>(&mut self, node: &impl NodeTrait<T, I, F>) {
+        self.stop_task().await;
 
         let (stop_tx, stop_rx) = oneshot::channel::<()>();
         self.stop_signal.replace(stop_tx);
@@ -315,7 +304,7 @@ impl <I: Clone + Send + Sync + 'static> Node<I, I, Option<I>> for Retimer<I> {
                                     break;
                                 }
                             }
-                        },
+                        }
                     },
                 }
             }
@@ -350,7 +339,7 @@ impl <I: Clone + Send + Sync + 'static> Node<I, I, Option<I>> for Retimer<I> {
                                     }
                                 },
                             },
-                        } 
+                        }
                     }
                 } => {
                     buffer
@@ -361,8 +350,7 @@ impl <I: Clone + Send + Sync + 'static> Node<I, I, Option<I>> for Retimer<I> {
         self.handle = Some(handle);
     }
 
-    fn unfollow(&mut self) {
-        self.stop_task();
+    async fn unfollow(&mut self) {
+        self.stop_task().await;
     }
-    
 }
