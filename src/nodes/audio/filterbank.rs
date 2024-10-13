@@ -40,6 +40,7 @@ impl NodeTrait<Arc<[f32]>, Arc<[f32]>, ()> for MelFilterBankNode<f32> {
         let sender = self.sender.clone();
         let mut receiver = node.subscribe();
         let filter_bank = self.filter_bank.clone();
+        let input_size = filter_bank.fft_size / 2 + 1;
 
         let handle = tokio::spawn(async move {
             tokio::select! {
@@ -48,8 +49,8 @@ impl NodeTrait<Arc<[f32]>, Arc<[f32]>, ()> for MelFilterBankNode<f32> {
                     loop {
                         match receiver.recv().await {
                             Ok(data) => {
-                                if data.len() != filter_bank.fft_size as usize {
-                                    warn!("Data length does not match FFT size. Skipping.");
+                                if data.len() != input_size as usize {
+                                    warn!("Data length of {} does not match input size of {}. Skipping.", data.len(), input_size);
                                     continue;
                                 }
                                 let data = filter_bank.filter_alloc(&data);
@@ -60,7 +61,7 @@ impl NodeTrait<Arc<[f32]>, Arc<[f32]>, ()> for MelFilterBankNode<f32> {
                                 }
                             },
                             Err(e) => match e {
-                                broadcast::error::RecvError::Closed => break,
+                                broadcast::error::RecvError::Closed => warn!("Sender closed"),
                                 broadcast::error::RecvError::Lagged(n) => info!("Lagged: {}", n),
                             },
                         }
