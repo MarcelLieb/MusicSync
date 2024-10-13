@@ -126,7 +126,7 @@ pub struct Window<I: Clone + Send> {
 
 impl<I: Clone + Send> Window<I> {
     pub fn init(size: usize, hop_size: usize) -> Self {
-        let (sender, _) = broadcast::channel(CHANNEL_SIZE * (size / hop_size + 1));
+        let (sender, _) = broadcast::channel(CHANNEL_SIZE);
         Self {
             sender,
             receiver: None,
@@ -189,7 +189,6 @@ impl<I: Clone + Send + Sync + 'static> NodeTrait<Arc<[I]>, Arc<[I]>, VecDeque<I>
                     loop {
                         match receiver.recv().await {
                             Ok(data) => {
-                                info!("Data received");
                                 buffer.extend(data.iter().cloned());
                                 while buffer.len() > size {
                                     let data = Arc::from(buffer.make_contiguous()[..size].to_vec());
