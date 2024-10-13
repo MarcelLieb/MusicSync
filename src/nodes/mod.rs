@@ -47,6 +47,7 @@ enum Node {
     Array(test::ArrayNode),
     PrinterFloat(test::PrintNode<f32>),
     PrinterArray(test::PrintNode<Arc<[f32]>>),
+    FFT(audio::fft::FFT),
 }
 
 impl FallibleNode<f32, f32> for Node {
@@ -67,6 +68,7 @@ impl FallibleNode<Arc<[f32]>, Arc<[f32]>> for Node {
             Node::PrinterArray(_node) => _node.follow(node).await,
             Node::MelFilterBank(_node) => _node.follow(node).await,
             Node::Window(_node) => _node.follow(node).await,
+            Node::FFT(_node) => _node.follow(node).await,
             _ => {}
         }
     }
@@ -96,6 +98,7 @@ impl Node {
             }
             Node::RetimerFloat(node) => FallibleNode::<f32, f32>::follow(self, node).await,
             Node::Zero(node) => FallibleNode::<f32, f32>::follow(self, node).await,
+            Node::FFT(node) => FallibleNode::<Arc<[f32]>, Arc<[f32]>>::follow(self, node).await,
         }
     }
 
@@ -110,6 +113,7 @@ impl Node {
             Node::PrinterArray(node) => node.unfollow().await,
             Node::RetimerFloat(node) => node.unfollow().await,
             Node::Zero(node) => node.unfollow().await,
+            Node::FFT(node) => node.unfollow().await,
         }
     }
 }
@@ -129,6 +133,12 @@ impl From<general::array::Window<f32>> for Node {
 impl From<general::array::Retimer<f32>> for Node {
     fn from(node: general::array::Retimer<f32>) -> Self {
         Node::RetimerFloat(node)
+    }
+}
+
+impl From<general::array::Retimer<Arc<[f32]>>> for Node {
+    fn from(node: general::array::Retimer<Arc<[f32]>>) -> Self {
+        Node::RetimerArray(node)
     }
 }
 
@@ -159,6 +169,12 @@ impl From<test::PrintNode<f32>> for Node {
 impl From<test::PrintNode<Arc<[f32]>>> for Node {
     fn from(node: test::PrintNode<Arc<[f32]>>) -> Self {
         Node::PrinterArray(node)
+    }
+}
+
+impl From<audio::fft::FFT> for Node {
+    fn from(node: audio::fft::FFT) -> Self {
+        Node::FFT(node)
     }
 }
 

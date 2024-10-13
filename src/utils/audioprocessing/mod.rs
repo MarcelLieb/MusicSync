@@ -216,7 +216,9 @@ impl Buffer {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Clone, Default, Copy, Deserialize, Serialize, PartialEq, PartialOrd, Eq, Hash, Ord)]
+#[derive(
+    Debug, Clone, Default, Copy, Deserialize, Serialize, PartialEq, PartialOrd, Eq, Hash, Ord,
+)]
 pub enum WindowType {
     #[default]
     Hann,
@@ -225,7 +227,7 @@ pub enum WindowType {
 }
 
 #[allow(unused_variables, non_snake_case)]
-fn window(length: usize, window_type: WindowType) -> Vec<f32> {
+pub fn window(length: usize, window_type: WindowType) -> Vec<f32> {
     match window_type {
         WindowType::Hann => (0..length)
             .map(|n| 0.5 * (1. - f32::cos(2. * PI * n as f32 / length as f32)))
@@ -248,20 +250,21 @@ fn window(length: usize, window_type: WindowType) -> Vec<f32> {
     }
 }
 
-fn apply_window(samples: &mut [Vec<f32>], window: &[f32]) {
+pub fn apply_window(samples: &mut [Vec<f32>], window: &[f32]) {
     samples
         .iter_mut()
         .for_each(|channel| apply_window_mono(channel, window));
 }
 
-fn apply_window_mono(samples: &mut [f32], window: &[f32]) {
+pub fn apply_window_mono(samples: &mut [f32], window: &[f32]) {
     samples.iter_mut().zip(window).for_each(|(x, w)| *x *= w);
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct MelFilterBank {
-    filter: Vec<Vec<f32>>,
     points: Vec<f32>,
+    band_bounds: Vec<(usize, usize)>,
+    flat_filter: Vec<f32>,
     pub fft_size: u32,
     pub bands: usize,
     pub sample_rate: u32,
@@ -295,7 +298,10 @@ impl MelFilterBank {
         min_frequency: f32,
         max_frequency: f32,
     ) -> MelFilterBank {
-        assert!(min_frequency < max_frequency, "min_frequency must be less than max_frequency");
+        assert!(
+            min_frequency < max_frequency,
+            "min_frequency must be less than max_frequency"
+        );
         let num_points = bands + 2;
         let mel_min = Self::hertz_to_mel(min_frequency);
         let mel_max = Self::hertz_to_mel(max_frequency);
@@ -327,8 +333,19 @@ impl MelFilterBank {
             filter.push(band);
         }
 
+        let flat_filter = filter.iter().flatten().copied().collect::<Vec<f32>>();
+        let band_bounds = filter
+            .iter()
+            .map(|b| b.len())
+            .scan(0, |acc, len| {
+                *acc += len;
+                Some((*acc - len, len))
+            })
+            .collect::<Vec<(usize, usize)>>();
+
         MelFilterBank {
-            filter,
+            band_bounds,
+            flat_filter,
             points: mel,
             fft_size,
             bands,
@@ -355,33 +372,31 @@ impl MelFilterBank {
     pub fn filter(&self, freq_bins: &[f32], out: &mut [f32]) {
         let bin_res = self.sample_rate as f32 / self.fft_size as f32;
 
-        self.filter
-            .iter()
-            .zip(out)
-            .enumerate()
-            .for_each(|(m, (band, x))| {
+        self.band_bounds.iter().zip(out).enumerate().for_each(
+            |(m, (&(band_start, band_len), x))| {
                 let start = (self.points[m] / bin_res) as usize;
-                let sum = freq_bins[start..(start + band.len())]
+                let sum = freq_bins[start..(start + band_len)]
                     .iter()
-                    .zip(band)
+                    .zip(&self.flat_filter[band_start..(band_start + band_len)])
                     .map(|(&f, &w)| f * w)
                     .sum::<f32>();
 
                 *x = sum;
-            });
+            },
+        );
     }
 
     pub fn filter_alloc(&self, freq_bins: &[f32]) -> Box<[f32]> {
         let bin_res = self.sample_rate as f32 / self.fft_size as f32;
 
-        self.filter
+        self.band_bounds
             .iter()
             .enumerate()
-            .map(|(m, band)| {
+            .map(|(m, &(band_start, band_len))| {
                 let start = (self.points[m] / bin_res) as usize;
-                freq_bins[start..(start + band.len())]
+                freq_bins[start..(start + band_len)]
                     .iter()
-                    .zip(band)
+                    .zip(&self.flat_filter[band_start..(band_start + band_len)])
                     .map(|(&f, &w)| f * w)
                     .sum::<f32>()
             })
