@@ -1,7 +1,10 @@
 use std::{fmt::Debug, sync::Arc, time::Duration};
 
 use dashmap::DashMap;
+use log::warn;
 use tokio::sync::broadcast;
+
+use crate::nodes::audio::fft::FFT;
 
 use super::{
     audio::filterbank::MelFilterBankNode,
@@ -80,7 +83,7 @@ impl NodeTrait<(), Arc<[f32]>, ()> for ArrayNode {
 }
 
 impl ArrayNode {
-    pub fn new(cooldown: Duration, size: usize) -> Self {
+    pub fn new(_cooldown: Duration, size: usize) -> Self {
         let (sender, _) = broadcast::channel(CHANNEL_SIZE);
         let _sender = sender.clone();
 
@@ -91,7 +94,8 @@ impl ArrayNode {
                     tokio::task::yield_now().await;
                     status = _sender.send(status.err().unwrap().0);
                 }
-                tokio::time::sleep(cooldown).await;
+                // tokio::time::sleep(cooldown).await;
+                tokio::task::yield_now().await;
             }
         });
         Self {
@@ -180,20 +184,21 @@ impl<T: Clone + Send + Sync + Debug> PrintNode<T> {
 }
 
 pub async fn test_chain() {
-    let zero = ArrayNode::new(Duration::from_secs_f64(2048.0 / 192_000.0), 4096 * 100);
-    let window1 = Window::init(4096 * 10, 4096 * 10);
+    let zero = ArrayNode::new(Duration::from_secs_f64(4096.0 / 48_000.0), 4096 * 100);
+    let window1 = Window::init(4096 * 4, 4096 * 4);
     let window2 = Window::init(4096, 4096);
-    let window3 = Window::init(24523, 4096);
+    let window3 = Window::init(4096, 4096);
     let window4 = Window::init(4096, 4096);
-    let window5 = Window::init(14351, 4096);
-    let window6 = Window::init(134534, 4096);
-    let window7 = Window::init(355452, 4096);
-    let window8 = Window::init(34342, 4096);
-    let window9 = Window::init(24342, 4096);
+    let window5 = Window::init(4096, 4096);
+    let window6 = Window::init(4096, 4096);
+    let window7 = Window::init(4096, 480);
+    let window8 = Window::init(4096, 4096);
+    let window9 = Window::init(4096, 1024);
     let window10 = Window::init(4096, 4096);
+    let fft = FFT::init(4096, crate::utils::audioprocessing::WindowType::Hann);
     let mel_filter_bank = MelFilterBankNode::new(1000, 4096, 44100, 0.0, 22050.0);
     let printer: PrintNode<Arc<[f32]>> = PrintNode::new("FilterBank");
-    let printer2: PrintNode<Arc<[f32]>> = PrintNode::new("Copys");
+    let printer2: PrintNode<Arc<[f32]>> = PrintNode::new("FFT + Copy");
     let save_state = DashMap::<&str, Node>::new();
     save_state.insert("zero", zero.into());
     save_state.insert("window1", window1.into());
@@ -206,77 +211,98 @@ pub async fn test_chain() {
     save_state.insert("window8", window8.into());
     save_state.insert("window9", window9.into());
     save_state.insert("window10", window10.into());
+    save_state.insert("fft", fft.into());
     save_state.insert("mel_filter_bank", mel_filter_bank.into());
     save_state.insert("printer", printer.into());
     save_state.insert("printer2", printer2.into());
 
+    warn!("Following zero");
     save_state
         .get_mut("window1")
         .unwrap()
         .follow(&save_state.get("zero").unwrap())
         .await;
+    warn!("Following window1");
     save_state
         .get_mut("window2")
         .unwrap()
         .follow(&save_state.get("window1").unwrap())
         .await;
+    warn!("Following window2");
     save_state
         .get_mut("window3")
         .unwrap()
         .follow(&save_state.get("window1").unwrap())
         .await;
+    warn!("Following window3");
     save_state
         .get_mut("window4")
         .unwrap()
         .follow(&save_state.get("window3").unwrap())
         .await;
+    warn!("Following window4");
     save_state
         .get_mut("window5")
         .unwrap()
         .follow(&save_state.get("window4").unwrap())
         .await;
+    warn!("Following window5");
     save_state
         .get_mut("window6")
         .unwrap()
         .follow(&save_state.get("window5").unwrap())
         .await;
+    warn!("Following window6");
     save_state
         .get_mut("window7")
         .unwrap()
         .follow(&save_state.get("window6").unwrap())
         .await;
+    warn!("Following window7");
     save_state
         .get_mut("window8")
         .unwrap()
         .follow(&save_state.get("window7").unwrap())
         .await;
+    warn!("Following window8");
     save_state
         .get_mut("window9")
         .unwrap()
         .follow(&save_state.get("window8").unwrap())
         .await;
+    warn!("Following window9");
     save_state
         .get_mut("window10")
         .unwrap()
         .follow(&save_state.get("window9").unwrap())
         .await;
+    warn!("Following window10");
+    save_state
+        .get_mut("fft")
+        .unwrap()
+        .follow(&save_state.get("window10").unwrap())
+        .await;
+    warn!("Following fft");
     save_state
         .get_mut("mel_filter_bank")
         .unwrap()
-        .follow(&save_state.get("window4").unwrap())
+        .follow(&save_state.get("fft").unwrap())
         .await;
+    warn!("Following mel_filter_bank");
     save_state
         .get_mut("printer")
         .unwrap()
         .follow(&save_state.get("mel_filter_bank").unwrap())
         .await;
+    warn!("Following fft");
     save_state
         .get_mut("printer2")
         .unwrap()
-        .follow(&save_state.get("window10").unwrap())
+        .follow(&save_state.get("fft").unwrap())
         .await;
+    warn!("done following");
 
-    tokio::time::sleep(Duration::from_secs(10)).await;
+    tokio::time::sleep(Duration::from_secs(30)).await;
 
     println!("Unfollowing");
     for mut value in save_state.iter_mut() {
