@@ -183,7 +183,7 @@ impl<T: Clone + Send + Sync + Debug> PrintNode<T> {
     }
 }
 
-pub async fn test_chain() {
+pub async fn test_chain(secs: u64) {
     let zero = ArrayNode::new(Duration::from_secs_f64(4096.0 / 48_000.0), 4096 * 100);
     let window1 = Window::init(4096 * 4, 4096 * 4);
     let window2 = Window::init(4096, 4096);
@@ -302,7 +302,7 @@ pub async fn test_chain() {
         .await;
     warn!("done following");
 
-    tokio::time::sleep(Duration::from_secs(30)).await;
+    tokio::time::sleep(Duration::from_secs(secs)).await;
 
     println!("Unfollowing");
     for mut value in save_state.iter_mut() {
