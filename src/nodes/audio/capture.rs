@@ -48,7 +48,7 @@ impl LoopbackNode {
             buffer_size: cpal::BufferSize::Default,
         };
 
-        let id = manager.add_reference(1);
+        let id = manager.add_reference(channels as usize);
         let tx = manager.get_input_queue();
         let id_inner = id.clone();
 
