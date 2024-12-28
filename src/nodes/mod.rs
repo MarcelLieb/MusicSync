@@ -5,10 +5,9 @@ use std::{
 };
 
 use kanal::Sender;
-use rayon::ThreadPoolBuilder;
 use uuid::Uuid;
 
-use crate::utils::worker_pool::WorkerPoolTokio;
+use crate::utils::worker_pool::WorkerPoolStd;
 mod audio;
 mod general;
 pub mod test;
@@ -118,28 +117,26 @@ impl DataGraphManager {
         let graph = Arc::new(RwLock::new(DataGraph::new()));
         let graph_inner = graph.clone();
 
-        let (tx, rx) = kanal::unbounded_async::<(Address, Data)>();
+        let (tx, rx) = kanal::unbounded::<(Address, Data)>();
         let tx_inner = tx.clone();
 
         let work_dispatcher = std::thread::spawn(move || {
-            let _pool: WorkerPoolTokio<((Arc<str>, usize), Data)> = WorkerPoolTokio::with_channel(4, tx_inner.clone(), rx, move |rt, (address, data): (Address, Data)| {
+            let _pool: WorkerPoolStd<((Arc<str>, usize), Data)> = WorkerPoolStd::with_channel(16, tx_inner.clone(), rx, move |(address, data): (Address, Data)| {
                 let graph_inner = graph_inner.clone();
                 let tx_inner = tx_inner.clone();
-                rt.spawn(async move {
-                    let outputs = {
-                        let graph = graph_inner.read().unwrap();
-                        graph.handle_data(address, data)
-                    };
-                    for (address, data) in outputs {
-                        tx_inner.send((address, data)).await.unwrap();
-                    }
-                });
+                let outputs = {
+                    let graph = graph_inner.read().unwrap();
+                    graph.handle_data(address, data)
+                };
+                for (address, data) in outputs {
+                    tx_inner.send((address, data)).unwrap();
+                }
             });
         });
 
-        let (in_tx, in_rx) = kanal::bounded::<(Address, Data)>(1024);
+        let (in_tx, in_rx) = kanal::unbounded::<(Address, Data)>();
         let graph_inner = graph.clone();
-        let tx_inner = tx.clone().as_sync().clone();
+        let tx_inner = tx.clone();
         let input_dispatcher = std::thread::spawn(move || {
             while let Ok((address, data)) = in_rx.recv() {
                 let followers = {
@@ -154,7 +151,7 @@ impl DataGraphManager {
             }
         });
 
-        let tx = tx.as_sync().clone();
+        let tx = tx.clone();
 
         Self {
             graph,
