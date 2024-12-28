@@ -51,3 +51,41 @@ impl<T: Send + 'static> WorkerPoolTokio<T>{
     }
 }
 
+
+#[allow(dead_code)]
+pub struct WorkerPoolStd<T> {
+    workers: Vec<std::thread::JoinHandle<()>>,
+    sender: kanal::Sender<T>,
+}
+
+#[allow(dead_code)]
+impl<T> WorkerPoolStd<T> {
+    pub fn new<F>(num_workers: usize, f: F) -> Self
+    where
+        F: Fn(T) -> () + Send + Clone + 'static,
+        T: Send + 'static,
+    {
+        let (tx, rx) = kanal::unbounded();
+        Self::with_channel(num_workers, tx, rx, f)
+    }
+
+    pub fn with_channel<F>(num_workers: usize, tx: kanal::Sender<T>, rx: kanal::Receiver<T>, f: F) -> Self
+    where
+        F: Fn(T) -> () + Send + Clone + 'static,
+        T: Send + 'static,
+    {
+        let workers = (0..num_workers)
+            .map(|_| {
+                let f_inner = f.clone();
+                let rx = rx.clone();
+                std::thread::spawn(move || {
+                    while let Ok(data) = rx.recv() {
+                        f_inner(data);
+                    }
+                })
+            })
+            .collect();
+        Self { workers, sender: tx }
+    }
+}
+
