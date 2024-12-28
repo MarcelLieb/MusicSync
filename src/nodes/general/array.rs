@@ -105,14 +105,14 @@ impl DataHandler for Window<f32> {
         }
         match data {
             crate::nodes::Data::FloatArray(data) => {
+                let mut out = Vec::new();
                 self.buffer.extend(data.iter());
-                if self.buffer.len() >= self.size {
+                while self.buffer.len() >= self.size {
                     let data: Arc<[f32]> = Arc::from(self.buffer.make_contiguous()[..self.size].to_vec());
+                    out.push((0, crate::nodes::Data::FloatArray(data.into())));
                     self.buffer.drain(0..self.hop_size);
-                    vec![(0, crate::nodes::Data::FloatArray(data.into()))]
-                } else {
-                    vec![]
                 }
+                out
             }
             _ => {
                 warn!("Invalid data type");
