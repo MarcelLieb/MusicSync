@@ -1,80 +1,14 @@
-use std::sync::Arc;
-
-use log::{info, warn};
-use tokio::sync::{broadcast, oneshot};
+use log::warn;
 
 use crate::{
-    nodes::{internal::Getters, NodeTrait, CHANNEL_SIZE},
-    utils::audioprocessing::MelFilterBank,
+    nodes::DataHandler, utils::audioprocessing::MelFilterBank
 };
 
-pub struct MelFilterBankNode<I: Clone + Sync> {
-    sender: broadcast::Sender<Arc<[I]>>,
-    receiver: Option<broadcast::Receiver<Arc<[I]>>>,
-    handle: Option<tokio::task::JoinHandle<()>>,
-    stop_signal: Option<oneshot::Sender<()>>,
+pub struct MelFilterBankNode {
     filter_bank: MelFilterBank,
 }
 
-impl<I: Clone + Send + Sync> Getters<Arc<[I]>, Arc<[I]>, ()> for MelFilterBankNode<I> {
-    fn get_sender(&self) -> &broadcast::Sender<Arc<[I]>> {
-        &self.sender
-    }
-
-    fn get_receiver(&mut self) -> &mut Option<broadcast::Receiver<Arc<[I]>>> {
-        &mut self.receiver
-    }
-
-    fn get_handle(&mut self) -> &mut Option<tokio::task::JoinHandle<()>> {
-        &mut self.handle
-    }
-}
-
-impl NodeTrait<Arc<[f32]>, Arc<[f32]>, ()> for MelFilterBankNode<f32> {
-    async fn follow<T: Clone + Send, F>(&mut self, node: &impl NodeTrait<T, Arc<[f32]>, F>) {
-        self.unfollow().await;
-
-        let (stop_tx, stop_rx) = oneshot::channel::<()>();
-        self.stop_signal.replace(stop_tx);
-
-        let sender = self.sender.clone();
-        let mut receiver = node.subscribe();
-        let filter_bank = self.filter_bank.clone();
-        let input_size = filter_bank.fft_size / 2 + 1;
-
-        let handle = tokio::spawn(async move {
-            tokio::select! {
-                _ = stop_rx => {},
-                _ = async {
-                    loop {
-                        match receiver.recv().await {
-                            Ok(data) => {
-                                if data.len() != input_size as usize {
-                                    warn!("Data length of {} does not match input size of {}. Skipping.", data.len(), input_size);
-                                    continue;
-                                }
-                                let data = filter_bank.filter_alloc(&data);
-                                let mut status = sender.send(data.into());
-                                while status.is_err() {
-                                    tokio::task::yield_now().await;
-                                    status = sender.send(status.err().unwrap().0);
-                                }
-                            },
-                            Err(e) => match e {
-                                broadcast::error::RecvError::Closed => warn!("Sender closed"),
-                                broadcast::error::RecvError::Lagged(n) => info!("Lagged: {}", n),
-                            },
-                        }
-                    }
-                } => {},
-            }
-        });
-
-        self.handle.replace(handle);
-    }
-}
-
-impl MelFilterBankNode<f32> {
+impl MelFilterBankNode {
     pub fn new(
         bands: usize,
         n_fft: u32,
@@ -84,14 +18,65 @@ impl MelFilterBankNode<f32> {
     ) -> Self {
         let filter_bank =
             MelFilterBank::init(sample_rate, n_fft, bands, min_frequency, max_frequency);
-        let (sender, _) = broadcast::channel::<Arc<[f32]>>(CHANNEL_SIZE);
 
         Self {
-            sender,
-            receiver: None,
-            handle: None,
-            stop_signal: None,
             filter_bank,
         }
     }
+}
+
+impl DataHandler for MelFilterBankNode {
+    fn handle(&mut self, port: usize, data: crate::nodes::Data) -> Vec<(usize, crate::nodes::Data)> {
+        if port != 0 {
+            warn!("Invalid port");
+            return vec![];
+        }
+        match data {
+            crate::nodes::Data::FloatArray(data) => {
+                let data = self.filter_bank.filter_alloc(&data);
+                vec![(0, crate::nodes::Data::FloatArray(data.into()))]
+            }
+            _ => {
+                warn!("Invalid data type");
+                vec![]
+            }
+        }
+    }
+
+    fn num_input_ports(&self) -> usize {
+        1
+    }
+
+    fn num_output_ports(&self) -> usize {
+        1
+    }
+
+    fn get_input_name(&self, port: usize) -> Option<&str> {
+        match port {
+            0 => Some("Input"),
+            _ => None,
+        }
+    }
+
+    fn get_output_name(&self, port: usize) -> Option<&str> {
+        match port {
+            0 => Some("Output"),
+            _ => None,
+        }
+    }
+
+    fn get_input_type(&self, port: usize) -> Option<crate::nodes::DataType> {
+        match port {
+            0 => Some(crate::nodes::DataType::FloatArray),
+            _ => None,
+        }
+    }
+
+    fn get_output_type(&self, port: usize) -> Option<crate::nodes::DataType> {
+        match port {
+            0 => Some(crate::nodes::DataType::FloatArray),
+            _ => None,
+        }
+    }
+    
 }

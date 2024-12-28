@@ -1,229 +1,210 @@
-use std::sync::Arc;
+use std::{collections::HashMap, fmt::Debug, sync::{Arc, Mutex, RwLock}};
 
-use log::warn;
-use tokio::sync::broadcast;
+use dashmap::DashMap;
+use rayon::ThreadPoolBuilder;
+use uuid::Uuid;
 mod audio;
 mod general;
 pub mod test;
 
-const CHANNEL_SIZE: usize = 32;
-
-pub trait NodeTrait<I: Clone + Send, O: Clone + Send, S>: internal::Getters<I, O, S> + Send {
-    fn subscribe(&self) -> broadcast::Receiver<O> {
-        self.get_sender().subscribe()
-    }
-    async fn follow<T: Clone + Send, F>(&mut self, node: &impl NodeTrait<T, I, F>);
-    async fn unfollow(&mut self) {
-        self.get_receiver().take();
-        if let Some(handle) = self.get_handle().take() {
-            handle.abort();
-        }
-    }
+pub enum DataType {
+    Float,
+    FloatArray,
+    Color,
+    ColorArray,
+    Int,
+    IntArray,
 }
 
-mod internal {
-    use tokio::sync::broadcast;
-
-    pub trait Getters<I: Clone + Send, O: Clone + Send, T> {
-        fn get_sender(&self) -> &broadcast::Sender<O>;
-        fn get_receiver(&mut self) -> &mut Option<broadcast::Receiver<I>>;
-        fn get_handle(&mut self) -> &mut Option<tokio::task::JoinHandle<T>>;
-    }
+#[derive(Debug, Clone)]
+pub enum Data {
+    Float(f32),
+    FloatArray(Arc<[f32]>),
+    Color((u8, u8, u8)),
+    ColorArray(Arc<[(u8, u8, u8)]>),
+    Int(i32),
+    IntArray(Arc<[i32]>),
 }
 
-pub trait FallibleNode<I: Clone + Send, O: Clone + Send> {
-    async fn follow<T: Clone + Send, F>(&mut self, node: &impl NodeTrait<T, I, F>);
+type Address = (Arc<str>, usize);
+
+pub trait DataHandler {
+    fn handle(&mut self, port: usize, data: Data) -> Vec<(usize, Data)>;
+
+    fn num_input_ports(&self) -> usize;
+
+    fn num_output_ports(&self) -> usize;
+
+    fn get_input_name(&self, port: usize) -> Option<&str>;
+
+    fn get_output_name(&self, port: usize) -> Option<&str>;
+
+    fn get_input_type(&self, port: usize) -> Option<DataType>;
+
+    fn get_output_type(&self, port: usize) -> Option<DataType>;
 }
 
-
-#[non_exhaustive]
-enum Node {
-    Aggregate(general::array::Aggregate<f32>),
-    Window(general::array::Window<f32>),
-    RetimerFloat(general::array::Retimer<f32>),
-    RetimerArray(general::array::Retimer<Arc<[f32]>>),
-    MelFilterBank(audio::filterbank::MelFilterBankNode<f32>),
-    Zero(test::ZeroNode),
-    Array(test::ArrayNode),
-    PrinterFloat(test::PrintNode<f32>),
-    PrinterArray(test::PrintNode<Arc<[f32]>>),
-    FFT(audio::fft::FFT),
+pub struct DataGraph {
+    nodes: DashMap<Arc<str>, Arc<Mutex<dyn DataHandler + Send>>>,
+    follow_graph: DashMap<Arc<str>, RwLock<HashMap<usize, Vec<(Arc<str>, usize)>>>>,
 }
 
-impl FallibleNode<f32, f32> for Node {
-    async fn follow<T: Clone + Send, F>(&mut self, node: &impl NodeTrait<T, f32, F>) {
-        match self {
-            Node::Aggregate(_node) => _node.follow(node).await,
-            Node::RetimerFloat(_node) => _node.follow(node).await,
-            Node::PrinterFloat(_node) => _node.follow(node).await,
-            _ => {}
-        }
-    }
-}
-
-impl FallibleNode<Arc<[f32]>, Arc<[f32]>> for Node {
-    async fn follow<T: Clone + Send, F>(&mut self, node: &impl NodeTrait<T, Arc<[f32]>, F>) {
-        match self {
-            Node::RetimerArray(_node) => _node.follow(node).await,
-            Node::PrinterArray(_node) => _node.follow(node).await,
-            Node::MelFilterBank(_node) => _node.follow(node).await,
-            Node::Window(_node) => _node.follow(node).await,
-            Node::FFT(_node) => _node.follow(node).await,
-            _ => {}
-        }
-    }
-}
-
-impl Node {
-    pub async fn follow(&mut self, node: &Node) {
-        match node {
-            Node::Aggregate(node) => {
-                FallibleNode::<Arc<[f32]>, Arc<[f32]>>::follow(self, node).await
-            }
-            Node::Window(node) => {
-                FallibleNode::<Arc<[f32]>, Arc<[f32]>>::follow(self, node).await
-            }
-            Node::MelFilterBank(node) => {
-                FallibleNode::<Arc<[f32]>, Arc<[f32]>>::follow(self, node).await
-            }
-            Node::Array(node) => {
-                FallibleNode::<Arc<[f32]>, Arc<[f32]>>::follow(self, node).await
-            }
-            Node::RetimerArray(node) => {
-                FallibleNode::<Arc<[f32]>, Arc<[f32]>>::follow(self, node).await
-            }
-            Node::PrinterFloat(node) => FallibleNode::<f32, f32>::follow(self, node).await,
-            Node::PrinterArray(node) => {
-                FallibleNode::<Arc<[f32]>, Arc<[f32]>>::follow(self, node).await
-            }
-            Node::RetimerFloat(node) => FallibleNode::<f32, f32>::follow(self, node).await,
-            Node::Zero(node) => FallibleNode::<f32, f32>::follow(self, node).await,
-            Node::FFT(node) => FallibleNode::<Arc<[f32]>, Arc<[f32]>>::follow(self, node).await,
+impl DataGraph {
+    pub fn new() -> Self {
+        Self {
+            nodes: DashMap::new(),
+            follow_graph: DashMap::new(),
         }
     }
 
-    pub async fn unfollow(&mut self) {
-        match self {
-            Node::Aggregate(node) => node.unfollow().await,
-            Node::Window(node) => node.unfollow().await,
-            Node::MelFilterBank(node) => node.unfollow().await,
-            Node::Array(node) => node.unfollow().await,
-            Node::RetimerArray(node) => node.unfollow().await,
-            Node::PrinterFloat(node) => node.unfollow().await,
-            Node::PrinterArray(node) => node.unfollow().await,
-            Node::RetimerFloat(node) => node.unfollow().await,
-            Node::Zero(node) => node.unfollow().await,
-            Node::FFT(node) => node.unfollow().await,
-        }
+    pub fn add_node(&self, handler: impl DataHandler + Send + 'static) -> Arc<str> {
+        let id: Arc<str> = Uuid::new_v4().to_string().into();
+        self.nodes.insert(id.clone(), Arc::new(Mutex::new(handler)));
+        self.follow_graph.insert(id.clone(), RwLock::new(HashMap::new()));
+        id
+    }
+
+    pub fn follow(&self, follower: &str, followee: &str, port_1: usize, port_2: usize) {
+        println!("{:?}", self.follow_graph);
+        println!("{} -> {} {} {}\n", follower, followee, port_1, port_2);
+        let follow_graph = self.follow_graph.get(follower).unwrap();
+        let mut follow_graph = follow_graph.write().unwrap();
+        let followers = follow_graph.entry(port_1).or_insert_with(Vec::new);
+        followers.push((followee.into(), port_2));
+    }
+
+    pub fn handle_data(&self, address: Address, data: Data) -> Vec<(Address, Data)> {
+        let node_id = Arc::from(address.0);
+        let node = self.nodes.get(&node_id).unwrap();
+        let mut node = node.lock().unwrap();
+        let data = node.handle(address.1, data);
+        let followers_per_port = self.follow_graph.get(&node_id).unwrap();
+        let followers_per_port = followers_per_port.read().unwrap();
+        let results = data
+            .into_iter()
+            .flat_map(|(port, data)| {
+                let followers = followers_per_port.get(&port);
+                followers.map(|followers| {
+                    followers
+                        .iter()
+                        .map(move |(follower, port)| ((follower.clone(), *port), data.clone()))
+                })
+            })
+            .flatten()
+            .collect();
+        return results;
     }
 }
 
-impl From<general::array::Aggregate<f32>> for Node {
-    fn from(node: general::array::Aggregate<f32>) -> Self {
-        Node::Aggregate(node)
-    }
+pub struct DataGraphManager {
+    graph: Arc<DataGraph>,
+    handle: std::thread::JoinHandle<()>,
+    work_queue: std::sync::mpsc::Sender<(Address, Data)>,
 }
 
-impl From<general::array::Window<f32>> for Node {
-    fn from(node: general::array::Window<f32>) -> Self {
-        Node::Window(node)
-    }
-}
+impl DataGraphManager {
+    pub fn new() -> Self {
+        let graph = Arc::new(DataGraph::new());
+        let graph_inner = graph.clone();
 
-impl From<general::array::Retimer<f32>> for Node {
-    fn from(node: general::array::Retimer<f32>) -> Self {
-        Node::RetimerFloat(node)
-    }
-}
+        let (tx, rx) = std::sync::mpsc::channel::<(Address, Data)>();
+        let tx_inner = tx.clone();
 
-impl From<general::array::Retimer<Arc<[f32]>>> for Node {
-    fn from(node: general::array::Retimer<Arc<[f32]>>) -> Self {
-        Node::RetimerArray(node)
-    }
-}
-
-impl From<audio::filterbank::MelFilterBankNode<f32>> for Node {
-    fn from(node: audio::filterbank::MelFilterBankNode<f32>) -> Self {
-        Node::MelFilterBank(node)
-    }
-}
-
-impl From<test::ZeroNode> for Node {
-    fn from(node: test::ZeroNode) -> Self {
-        Node::Zero(node)
-    }
-}
-
-impl From<test::ArrayNode> for Node {
-    fn from(node: test::ArrayNode) -> Self {
-        Node::Array(node)
-    }
-}
-
-impl From<test::PrintNode<f32>> for Node {
-    fn from(node: test::PrintNode<f32>) -> Self {
-        Node::PrinterFloat(node)
-    }
-}
-
-impl From<test::PrintNode<Arc<[f32]>>> for Node {
-    fn from(node: test::PrintNode<Arc<[f32]>>) -> Self {
-        Node::PrinterArray(node)
-    }
-}
-
-impl From<audio::fft::FFT> for Node {
-    fn from(node: audio::fft::FFT) -> Self {
-        Node::FFT(node)
-    }
-}
-
-struct NodeImpl<I: Clone, O: Clone> {
-    sender: broadcast::Sender<O>,
-    receiver: Option<broadcast::Receiver<I>>,
-    handle: Option<tokio::task::JoinHandle<()>>,
-}
-
-impl<I: Clone + Send + 'static, O: Clone + Send + 'static> internal::Getters<I, O, ()>
-    for NodeImpl<I, O>
-{
-    fn get_sender(&self) -> &broadcast::Sender<O> {
-        &self.sender
-    }
-
-    fn get_receiver(&mut self) -> &mut Option<broadcast::Receiver<I>> {
-        &mut self.receiver
-    }
-
-    fn get_handle(&mut self) -> &mut Option<tokio::task::JoinHandle<()>> {
-        &mut self.handle
-    }
-}
-
-impl<I: Clone + Send + 'static> NodeTrait<I, I, ()> for NodeImpl<I, I> {
-    async fn follow<T: Clone + Send, F>(&mut self, node: &impl NodeTrait<T, I, F>) {
-        let mut receiver = node.subscribe();
-
-        if let Some(handle) = self.handle.take() {
-            handle.abort();
-        }
-
-        let sender = self.sender.clone();
-        let handle = tokio::spawn(async move {
-            loop {
-                match receiver.recv().await {
-                    Ok(data) => {
-                        let _ = sender.send(data);
-                    }
-                    Err(broadcast::error::RecvError::Closed) => {
-                        break;
-                    }
-                    Err(broadcast::error::RecvError::Lagged(n)) => {
-                        warn!("Lagged by {}", n);
-                    }
+        let handle = std::thread::spawn(move || {
+            let pool = ThreadPoolBuilder::new().num_threads(16).build().unwrap();
+            pool.scope(move |s| {
+                while let Ok((address, data)) = rx.recv() {
+                    let tx_inner = tx_inner.clone();
+                    let graph_inner = graph_inner.clone();
+                    s.spawn(move |_| {
+                        for (address, data) in graph_inner.handle_data(address, data) {
+                            tx_inner.send((address, data)).unwrap();
+                        }
+                    });
                 }
-            }
+            });
         });
-        self.handle.replace(handle);
+        Self {
+            graph,
+            handle,
+            work_queue: tx,
+        }
     }
+
+    pub fn handle_data(&self, address: Address, data: Data) {
+        self.work_queue.send((address, data)).unwrap();
+    }
+
+    pub fn add_node(&self, handler: impl DataHandler + Send + 'static) -> Arc<str> {
+        self.graph.add_node(handler)
+    }
+
+    pub fn follow(&self, follower: &str, followee: &str, port_1: usize, port_2: usize) {
+        self.graph.follow(follower, followee, port_1, port_2);
+    }
+}
+
+pub struct PrintNode { 
+    count: usize,
+    every: usize,
+}
+
+impl PrintNode {
+    pub fn new(every: usize) -> Self {
+        Self {
+            count: 0,
+            every,
+        }
+    }
+}
+
+impl DataHandler for PrintNode {
+    fn handle(&mut self, port: usize, data: Data) -> Vec<(usize, Data)> {
+        if port != 0 {
+            return vec![];
+        }
+        self.count += 1;
+        if self.count % self.every == 0 {
+            println!("{:?}", data);
+            self.count = 0;
+        }
+        vec![(port, data)]
+    }
+
+    fn num_input_ports(&self) -> usize {
+        1
+    }
+
+    fn num_output_ports(&self) -> usize {
+        1
+    }
+
+    fn get_input_name(&self, port: usize) -> Option<&str> {
+        match port {
+            0 => Some("input"),
+            _ => None,
+        }
+    }
+
+    fn get_output_name(&self, port: usize) -> Option<&str> {
+        match port {
+            0 => Some("output"),
+            _ => None,
+        }
+    }
+
+    fn get_input_type(&self, port: usize) -> Option<DataType> {
+        match port {
+            0 => Some(DataType::Float),
+            _ => None,
+        }
+    }
+
+    fn get_output_type(&self, port: usize) -> Option<DataType> {
+        match port {
+            0 => Some(DataType::Float),
+            _ => None,
+        }
+    }
+    
 }

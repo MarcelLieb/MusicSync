@@ -16,6 +16,7 @@ gethostname = "0.5.0"
 log = "0.4.21"
 plotters = "0.3.7"
 pretty_env_logger = "0.5.0"
+rayon = "1.10.0"
 realfft = "3.4.0"
 reqwest = {version = "0.12.11", features = ["json"]}
 rodio = "0.20.1"
@@ -23,4 +24,5 @@ rustfft = "6.2.0"
 serde = "1.0.217"
 tokio = {version = "1.42", features = ["signal", "net"]}
 toml = "0.8"
+uuid = {version = "*", features = ["v4"]}
 webrtc-dtls = "0.11.0"
