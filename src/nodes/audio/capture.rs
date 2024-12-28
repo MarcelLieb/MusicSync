@@ -59,6 +59,18 @@ impl LoopbackNode {
                 if data.iter().all(|&x| x == 0.0) {
                     return;
                 }
+                let audio = (0..channels).map(|i| {
+                    data.iter().enumerate().filter_map(|(j, &x)| {
+                        if j % channels as usize == i as usize {
+                            Some(x)
+                        } else {
+                            None
+                        }
+                    }).collect::<Arc<[f32]>>()
+                }).collect::<Arc<[_]>>();
+                for (i, data) in audio.iter().enumerate() {
+                    tx.send(((id_inner.clone(), i), crate::nodes::Data::FloatArray(data.clone()))).unwrap();
+                }
                 tx.send(((id_inner.clone(), 0), crate::nodes::Data::FloatArray(data.into()))).unwrap();
             },
             move |err| {
@@ -97,11 +109,11 @@ impl DataHandler for LoopbackNode {
         Some(format!("Channel {}", port).into())
     }
     
-    fn get_input_type(&self, _: usize) -> Option<crate::nodes::DataType> {
+    fn get_input_type(&self, _: usize) -> Option<DataType> {
         None
     }
     
-    fn get_output_type(&self, port: usize) -> Option<crate::nodes::DataType> {
+    fn get_output_type(&self, port: usize) -> Option<DataType> {
         if port < self.channels as usize {
             Some(crate::nodes::DataType::FloatArray)
         } else {
