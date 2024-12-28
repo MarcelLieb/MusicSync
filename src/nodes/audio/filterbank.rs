@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use log::warn;
 
 use crate::{
@@ -51,16 +53,16 @@ impl DataHandler for MelFilterBankNode {
         1
     }
 
-    fn get_input_name(&self, port: usize) -> Option<&str> {
+    fn get_input_name(&self, port: usize) -> Option<Arc<str>> {
         match port {
-            0 => Some("Input"),
+            0 => Some("Input".into()),
             _ => None,
         }
     }
 
-    fn get_output_name(&self, port: usize) -> Option<&str> {
+    fn get_output_name(&self, port: usize) -> Option<Arc<str>> {
         match port {
-            0 => Some("Output"),
+            0 => Some("Output".into()),
             _ => None,
         }
     }

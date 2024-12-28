@@ -11,6 +11,7 @@ use crate::nodes::{DataGraphManager, DataHandler, DataType};
 
 pub struct LoopbackNode {
     pub id: Arc<str>,
+    channels: u16,
     stream: cpal::Stream,
 }
 
@@ -67,7 +68,7 @@ impl LoopbackNode {
         )?;
         stream.play().unwrap();
 
-        Ok(Self { id, stream })
+        Ok(Self { id, stream, channels })
     }
 }
 
@@ -85,18 +86,15 @@ impl DataHandler for LoopbackNode {
     }
 
     fn num_output_ports(&self) -> usize {
-        1
+        self.channels as usize
     }
 
-    fn get_input_name(&self, _: usize) -> Option<&str> {
+    fn get_input_name(&self, _: usize) -> Option<Arc<str>> {
         None
     }
 
-    fn get_output_name(&self, port: usize) -> Option<&str> {
-        match port {
-            0 => Some("Output"),
-            _ => None,
-        }
+    fn get_output_name(&self, port: usize) -> Option<Arc<str>> {
+        Some(format!("Channel {}", port).into())
     }
     
     fn get_input_type(&self, _: usize) -> Option<crate::nodes::DataType> {
@@ -104,9 +102,10 @@ impl DataHandler for LoopbackNode {
     }
     
     fn get_output_type(&self, port: usize) -> Option<crate::nodes::DataType> {
-        match port {
-            0 => Some(DataType::FloatArray),
-            _ => None,
+        if port < self.channels as usize {
+            Some(crate::nodes::DataType::FloatArray)
+        } else {
+            None
         }
     }
 }

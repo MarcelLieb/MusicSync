@@ -71,16 +71,16 @@ impl DataHandler for FFT {
         1
     }
 
-    fn get_input_name(&self, port: usize) -> Option<&str> {
+    fn get_input_name(&self, port: usize) -> Option<Arc<str>> {
         match port {
-            0 => Some("input"),
+            0 => Some("input".into()),
             _ => None,
         }
     }
 
-    fn get_output_name(&self, port: usize) -> Option<&str> {
+    fn get_output_name(&self, port: usize) -> Option<Arc<str>> {
         match port {
-            0 => Some("output"),
+            0 => Some("output".into()),
             _ => None,
         }
     }
