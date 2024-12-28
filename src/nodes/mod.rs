@@ -1,6 +1,10 @@
-use std::{collections::HashMap, fmt::Debug, sync::{Arc, Mutex, RwLock}};
+use std::{
+    collections::HashMap,
+    fmt::Debug,
+    sync::{Arc, Mutex, RwLock},
+};
 
-use dashmap::DashMap;
+use kanal::Sender;
 use rayon::ThreadPoolBuilder;
 use uuid::Uuid;
 mod audio;
@@ -45,89 +49,130 @@ pub trait DataHandler {
 }
 
 pub struct DataGraph {
-    nodes: DashMap<Arc<str>, Arc<Mutex<dyn DataHandler + Send>>>,
-    follow_graph: DashMap<Arc<str>, RwLock<HashMap<usize, Vec<(Arc<str>, usize)>>>>,
+    nodes: HashMap<Arc<str>, Arc<Mutex<dyn DataHandler + Send>>>,
+    follow_graph: HashMap<Arc<str>, Arc<[RwLock<Vec<(Arc<str>, usize)>>]>>,
 }
 
 impl DataGraph {
     pub fn new() -> Self {
         Self {
-            nodes: DashMap::new(),
-            follow_graph: DashMap::new(),
+            nodes: HashMap::new(),
+            follow_graph: HashMap::new(),
         }
     }
 
-    pub fn add_node(&self, handler: impl DataHandler + Send + 'static) -> Arc<str> {
-        let id: Arc<str> = Uuid::new_v4().to_string().into();
+    pub fn add_node(&mut self, handler: impl DataHandler + Send + 'static) -> Arc<str> {
+        let port_count = handler.num_output_ports();
+        let id: Arc<str> = self.add_reference(port_count);
         self.nodes.insert(id.clone(), Arc::new(Mutex::new(handler)));
-        self.follow_graph.insert(id.clone(), RwLock::new(HashMap::new()));
         id
     }
 
-    pub fn follow(&self, follower: &str, followee: &str, port_1: usize, port_2: usize) {
-        println!("{:?}", self.follow_graph);
-        println!("{} -> {} {} {}\n", follower, followee, port_1, port_2);
-        let follow_graph = self.follow_graph.get(follower).unwrap();
+    fn add_reference(&mut self, num_ports: usize) -> Arc<str> {
+        let id: Arc<str> = Uuid::new_v4().to_string().into();
+        self.follow_graph.insert(id.clone(), (0..num_ports).map(|_| RwLock::new(Vec::new())).collect::<Arc<[_]>>());
+        id
+    }
+
+    pub fn follow(&self, source: &str, target: &str, port_1: usize, port_2: usize) {
+        let follow_graph = &self.follow_graph.get(source).unwrap()[port_1];
         let mut follow_graph = follow_graph.write().unwrap();
-        let followers = follow_graph.entry(port_1).or_insert_with(Vec::new);
-        followers.push((followee.into(), port_2));
+        follow_graph.push((target.into(), port_2));
     }
 
     pub fn handle_data(&self, address: Address, data: Data) -> Vec<(Address, Data)> {
         let node_id = Arc::from(address.0);
         let node = self.nodes.get(&node_id).unwrap();
-        let mut node = node.lock().unwrap();
-        let data = node.handle(address.1, data);
+        let data = {
+            let mut node = node.lock().unwrap();
+            node.handle(address.1, data)
+        };
+
         let followers_per_port = self.follow_graph.get(&node_id).unwrap();
-        let followers_per_port = followers_per_port.read().unwrap();
-        let results = data
-            .into_iter()
-            .flat_map(|(port, data)| {
-                let followers = followers_per_port.get(&port);
-                followers.map(|followers| {
-                    followers
-                        .iter()
-                        .map(move |(follower, port)| ((follower.clone(), *port), data.clone()))
-                })
-            })
-            .flatten()
-            .collect();
+        let results = data.into_iter().flat_map(|(port, data)| {
+            let followers = followers_per_port[port].read().unwrap();
+            followers.iter().map(|(follower, port)| ((follower.clone(), *port), data.clone())).collect::<Vec<_>>()
+        }).collect();
         return results;
+    }
+
+    pub fn get_followers(&self, node: &str, port: usize) -> Option<Vec<(Arc<str>, usize)>> {
+        let followers_per_port = self.follow_graph.get(node)?;
+        let followers = followers_per_port[port].read().unwrap();
+        Some(followers.clone())
     }
 }
 
 pub struct DataGraphManager {
-    graph: Arc<DataGraph>,
-    handle: std::thread::JoinHandle<()>,
-    work_queue: std::sync::mpsc::Sender<(Address, Data)>,
+    graph: Arc<RwLock<DataGraph>>,
+    work_dispatcher: std::thread::JoinHandle<()>,
+    input_dispatcher: std::thread::JoinHandle<()>,
+    work_queue: Sender<(Address, Data)>,
+    input_queue: Sender<(Address, Data)>,
 }
 
 impl DataGraphManager {
     pub fn new() -> Self {
-        let graph = Arc::new(DataGraph::new());
+        let graph = Arc::new(RwLock::new(DataGraph::new()));
         let graph_inner = graph.clone();
 
-        let (tx, rx) = std::sync::mpsc::channel::<(Address, Data)>();
+        let (tx, rx) = kanal::unbounded::<(Address, Data)>();
         let tx_inner = tx.clone();
 
-        let handle = std::thread::spawn(move || {
-            let pool = ThreadPoolBuilder::new().num_threads(16).build().unwrap();
-            pool.scope(move |s| {
+        let work_dispatcher = std::thread::spawn(move || {
+            let pool = ThreadPoolBuilder::new().num_threads(4).build().unwrap();
+            let batch_size = 4;
+            let mut batch = Vec::with_capacity(batch_size);
+            pool.scope_fifo(move |s| {
                 while let Ok((address, data)) = rx.recv() {
+                    if !rx.is_empty() {
+                        println!("{}", rx.len());
+                    }
+                    batch.push((address, data));
+                    if batch.len() < batch_size && !rx.is_empty() {
+                        continue;
+                    }
+                    let batch = batch.drain(..).collect::<Vec<_>>();
                     let tx_inner = tx_inner.clone();
                     let graph_inner = graph_inner.clone();
-                    s.spawn(move |_| {
-                        for (address, data) in graph_inner.handle_data(address, data) {
-                            tx_inner.send((address, data)).unwrap();
+                    s.spawn_fifo(move |_| {
+                        for (address, data) in batch {
+                            let outputs = {
+                                let graph = graph_inner.read().unwrap();
+                                graph.handle_data(address, data)
+                            };
+                            for (address, data) in outputs {
+                                tx_inner.send((address, data)).unwrap();
+                            }
                         }
                     });
                 }
             });
         });
+
+        let (in_tx, in_rx) = kanal::bounded::<(Address, Data)>(1024);
+        let graph_inner = graph.clone();
+        let tx_inner = tx.clone();
+        let input_dispatcher = std::thread::spawn(move || {
+            while let Ok((address, data)) = in_rx.recv() {
+                let followers = {
+                    let graph = graph_inner.read().unwrap();
+                    graph.get_followers(&address.0, address.1)
+                };
+                if let Some(followers) = followers {
+                    for (follower, port) in followers {
+                        tx_inner.send(((follower, port), data.clone())).unwrap();
+                    }
+                }
+            }
+        });
+
         Self {
             graph,
-            handle,
+            work_dispatcher,
+            input_dispatcher,
             work_queue: tx,
+            input_queue: in_tx,
         }
     }
 
@@ -135,26 +180,31 @@ impl DataGraphManager {
         self.work_queue.send((address, data)).unwrap();
     }
 
-    pub fn add_node(&self, handler: impl DataHandler + Send + 'static) -> Arc<str> {
-        self.graph.add_node(handler)
+    pub fn add_node(&mut self, handler: impl DataHandler + Send + 'static) -> Arc<str> {
+        self.graph.write().unwrap().add_node(handler)
+    }
+
+    pub fn add_reference(&self, ports: usize) -> Arc<str> {
+        self.graph.write().unwrap().add_reference(ports)
+    }
+
+    pub fn get_input_queue(&self) -> Sender<(Address, Data)> {
+        self.input_queue.clone()
     }
 
     pub fn follow(&self, follower: &str, followee: &str, port_1: usize, port_2: usize) {
-        self.graph.follow(follower, followee, port_1, port_2);
+        self.graph.read().unwrap().follow(follower, followee, port_1, port_2);
     }
 }
 
-pub struct PrintNode { 
+pub struct PrintNode {
     count: usize,
     every: usize,
 }
 
 impl PrintNode {
     pub fn new(every: usize) -> Self {
-        Self {
-            count: 0,
-            every,
-        }
+        Self { count: 0, every }
     }
 }
 
@@ -206,5 +256,4 @@ impl DataHandler for PrintNode {
             _ => None,
         }
     }
-    
 }
