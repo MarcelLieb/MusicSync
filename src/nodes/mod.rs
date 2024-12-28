@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     fmt::Debug,
-    sync::{Arc, Mutex, RwLock},
+    sync::{atomic::{AtomicUsize, Ordering}, Arc, RwLock},
 };
 
 use kanal::Sender;
@@ -34,7 +34,7 @@ pub enum Data {
 type Address = (Arc<str>, usize);
 
 pub trait DataHandler {
-    fn handle(&mut self, port: usize, data: Data) -> Vec<(usize, Data)>;
+    fn handle(&self, port: usize, data: Data) -> Vec<(usize, Data)>;
 
     fn num_input_ports(&self) -> usize;
 
@@ -50,7 +50,7 @@ pub trait DataHandler {
 }
 
 pub struct DataGraph {
-    nodes: HashMap<Arc<str>, Arc<Mutex<dyn DataHandler + Send>>>,
+    nodes: HashMap<Arc<str>, Arc<dyn DataHandler + Send + Sync>>,
     follow_graph: HashMap<Arc<str>, Arc<[RwLock<Vec<(Arc<str>, usize)>>]>>,
 }
 
@@ -62,10 +62,10 @@ impl DataGraph {
         }
     }
 
-    pub fn add_node(&mut self, handler: impl DataHandler + Send + 'static) -> Arc<str> {
+    pub fn add_node(&mut self, handler: impl DataHandler + Send + Sync + 'static) -> Arc<str> {
         let port_count = handler.num_output_ports();
         let id: Arc<str> = self.add_reference(port_count);
-        self.nodes.insert(id.clone(), Arc::new(Mutex::new(handler)));
+        self.nodes.insert(id.clone(), Arc::new(handler));
         id
     }
 
@@ -84,10 +84,7 @@ impl DataGraph {
     pub fn handle_data(&self, address: Address, data: Data) -> Vec<(Address, Data)> {
         let node_id = Arc::from(address.0);
         let node = self.nodes.get(&node_id).unwrap();
-        let data = {
-            let mut node = node.lock().unwrap();
-            node.handle(address.1, data)
-        };
+        let data = node.handle(address.1, data);
 
         let followers_per_port = self.follow_graph.get(&node_id).unwrap();
         let results = data.into_iter().flat_map(|(port, data)| {
@@ -166,7 +163,7 @@ impl DataGraphManager {
         self.work_queue.send((address, data)).unwrap();
     }
 
-    pub fn add_node(&mut self, handler: impl DataHandler + Send + 'static) -> Arc<str> {
+    pub fn add_node(&mut self, handler: impl DataHandler + Send + Sync + 'static) -> Arc<str> {
         self.graph.write().unwrap().add_node(handler)
     }
 
@@ -184,25 +181,25 @@ impl DataGraphManager {
 }
 
 pub struct PrintNode {
-    count: usize,
+    count: AtomicUsize,
     every: usize,
 }
 
 impl PrintNode {
     pub fn new(every: usize) -> Self {
-        Self { count: 0, every }
+        Self { count: 0.into(), every }
     }
 }
 
 impl DataHandler for PrintNode {
-    fn handle(&mut self, port: usize, data: Data) -> Vec<(usize, Data)> {
+    fn handle(&self, port: usize, data: Data) -> Vec<(usize, Data)> {
         if port != 0 {
             return vec![];
         }
-        self.count += 1;
-        if self.count % self.every == 0 {
+        self.count.fetch_add(1, Ordering::Relaxed);
+        if self.count.load(Ordering::Relaxed) % self.every == 0 {
             println!("{:?}", data);
-            self.count = 0;
+            self.count.store(0, Ordering::Relaxed);
         }
         vec![(port, data)]
     }

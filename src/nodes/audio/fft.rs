@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use log::warn;
 use realfft::{RealFftPlanner, RealToComplex};
-use rustfft::num_complex::Complex;
 
 use crate::{nodes::{Data, DataHandler, DataType}, utils::audioprocessing::{window, WindowType}};
 
@@ -11,29 +10,23 @@ use crate::{nodes::{Data, DataHandler, DataType}, utils::audioprocessing::{windo
 pub struct FFT {
     fft_planner: Arc<dyn RealToComplex<f32>>,
     fft_size: usize,
-    output_buffer: Option<Vec<Complex<f32>>>,
-    scratch_buffer: Option<Vec<Complex<f32>>>,
     window: Arc<[f32]>,
 }
 
 impl FFT {
     pub fn init(fft_size: usize, window_type: WindowType) -> Self {
         let fft_planner = RealFftPlanner::<f32>::new().plan_fft_forward(fft_size as usize);
-        let output_buffer = fft_planner.make_output_vec().into();
-        let scratch_buffer = fft_planner.make_scratch_vec().into();
         let window = window(fft_size, window_type).into();
         Self {
             fft_planner,
             fft_size,
             window,
-            output_buffer,
-            scratch_buffer,
         }
     }
 }
 
 impl DataHandler for FFT {
-    fn handle(&mut self, port: usize, data: Data) -> Vec<(usize, Data)> {
+    fn handle(&self, port: usize, data: Data) -> Vec<(usize, Data)> {
         if port != 0 {
             warn!("Invalid port");
             return vec![];
@@ -50,11 +43,12 @@ impl DataHandler for FFT {
                     warn!("Data length is greater than FFT size");
                     data.truncate(self.fft_size);
                 }
+                let mut output = self.fft_planner.make_output_vec();
                 let mut data = data.into_iter().zip(self.window.iter()).map(|(a, b)| a * b).collect::<Vec<f32>>();
-                self.fft_planner.process_with_scratch(&mut data, self.output_buffer.as_mut().unwrap(), self.scratch_buffer.as_mut().unwrap()).unwrap();
-                let data = self.output_buffer.as_ref().unwrap().iter().map(|x| x.norm()).collect::<Vec<f32>>();
+                self.fft_planner.process(&mut data, &mut output).unwrap();
+                let data = output.iter().map(|x| x.norm()).collect::<Arc<[f32]>>();
                 
-                vec![(0, Data::FloatArray(data.into()))]
+                vec![(0, Data::FloatArray(data))]
             }
             _ => {
                 warn!("Invalid data type");

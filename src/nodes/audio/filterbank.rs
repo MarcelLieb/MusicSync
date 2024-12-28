@@ -28,7 +28,7 @@ impl MelFilterBankNode {
 }
 
 impl DataHandler for MelFilterBankNode {
-    fn handle(&mut self, port: usize, data: crate::nodes::Data) -> Vec<(usize, crate::nodes::Data)> {
+    fn handle(&self, port: usize, data: crate::nodes::Data) -> Vec<(usize, crate::nodes::Data)> {
         if port != 0 {
             warn!("Invalid port");
             return vec![];

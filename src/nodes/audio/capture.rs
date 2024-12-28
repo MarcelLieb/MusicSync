@@ -86,7 +86,7 @@ impl LoopbackNode {
 
 impl DataHandler for LoopbackNode {
     fn handle(
-        &mut self,
+        &self,
         _: usize,
         _: crate::nodes::Data,
     ) -> Vec<(usize, crate::nodes::Data)> {

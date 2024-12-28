@@ -1,11 +1,11 @@
-use std::{collections::VecDeque, sync::Arc};
+use std::{collections::VecDeque, sync::{Arc, Mutex}};
 
 use log::warn;
 
 use crate::nodes::DataHandler;
 
 pub struct Aggregate<I> {
-    buffer: VecDeque<I>,
+    buffer: Mutex<VecDeque<I>>,
     size: usize,
     hop_size: usize,
 }
@@ -13,7 +13,7 @@ pub struct Aggregate<I> {
 impl<I> Aggregate<I> {
     pub fn init(size: usize, hop_size: usize) -> Self {
         Self {
-            buffer: VecDeque::new(),
+            buffer: Mutex::new(VecDeque::new()),
             size,
             hop_size,
         }
@@ -21,17 +21,18 @@ impl<I> Aggregate<I> {
 }
 
 impl DataHandler for Aggregate<f32> {
-    fn handle(&mut self, port: usize, data: crate::nodes::Data) -> Vec<(usize, crate::nodes::Data)> {
+    fn handle(&self, port: usize, data: crate::nodes::Data) -> Vec<(usize, crate::nodes::Data)> {
         if port != 0 {
             warn!("Invalid port");
             return vec![];
         }
         match data {
             crate::nodes::Data::Float(data) => {
-                self.buffer.push_back(data);
-                if self.buffer.len() >= self.size {
-                    let data: Arc<[f32]> = Arc::from(self.buffer.make_contiguous()[..self.size].to_vec());
-                    self.buffer.drain(0..self.hop_size);
+                let mut buffer = self.buffer.lock().unwrap();
+                buffer.push_back(data);
+                if buffer.len() >= self.size {
+                    let data: Arc<[f32]> = Arc::from(buffer.make_contiguous()[..self.size].to_vec());
+                    buffer.drain(0..self.hop_size);
                     vec![(0, crate::nodes::Data::FloatArray(data.into()))]
                 } else {
                     vec![]
@@ -82,7 +83,7 @@ impl DataHandler for Aggregate<f32> {
 }
 
 pub struct Window<I> {
-    buffer: VecDeque<I>,
+    buffer: Mutex<VecDeque<I>>,
     size: usize,
     hop_size: usize,
 }
@@ -90,7 +91,7 @@ pub struct Window<I> {
 impl<I: Clone + Send> Window<I> {
     pub fn init(size: usize, hop_size: usize) -> Self {
         Self {
-            buffer: VecDeque::new(),
+            buffer: Mutex::new(VecDeque::new()),
             size,
             hop_size,
         }
@@ -98,7 +99,7 @@ impl<I: Clone + Send> Window<I> {
 }
 
 impl DataHandler for Window<f32> {
-    fn handle(&mut self, port: usize, data: crate::nodes::Data) -> Vec<(usize, crate::nodes::Data)> {
+    fn handle(&self, port: usize, data: crate::nodes::Data) -> Vec<(usize, crate::nodes::Data)> {
         if port != 0 {
             warn!("Invalid port");
             return vec![];
@@ -106,11 +107,14 @@ impl DataHandler for Window<f32> {
         match data {
             crate::nodes::Data::FloatArray(data) => {
                 let mut out = Vec::new();
-                self.buffer.extend(data.iter());
-                while self.buffer.len() >= self.size {
-                    let data: Arc<[f32]> = Arc::from(self.buffer.make_contiguous()[..self.size].to_vec());
-                    out.push((0, crate::nodes::Data::FloatArray(data.into())));
-                    self.buffer.drain(0..self.hop_size);
+                {
+                    let mut buffer = self.buffer.lock().unwrap();
+                    buffer.extend(data.iter());
+                    while buffer.len() >= self.size {
+                        let data: Arc<[f32]> = Arc::from(buffer.make_contiguous()[..self.size].to_vec());
+                        out.push((0, crate::nodes::Data::FloatArray(data.into())));
+                        buffer.drain(0..self.hop_size);
+                    }
                 }
                 out
             }
