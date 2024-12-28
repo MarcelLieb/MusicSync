@@ -7,6 +7,8 @@ use std::{
 use kanal::Sender;
 use rayon::ThreadPoolBuilder;
 use uuid::Uuid;
+
+use crate::utils::worker_pool::WorkerPoolTokio;
 mod audio;
 mod general;
 pub mod test;
@@ -116,43 +118,28 @@ impl DataGraphManager {
         let graph = Arc::new(RwLock::new(DataGraph::new()));
         let graph_inner = graph.clone();
 
-        let (tx, rx) = kanal::unbounded::<(Address, Data)>();
+        let (tx, rx) = kanal::unbounded_async::<(Address, Data)>();
         let tx_inner = tx.clone();
 
         let work_dispatcher = std::thread::spawn(move || {
-            let pool = ThreadPoolBuilder::new().num_threads(4).build().unwrap();
-            let batch_size = 4;
-            let mut batch = Vec::with_capacity(batch_size);
-            pool.scope_fifo(move |s| {
-                while let Ok((address, data)) = rx.recv() {
-                    if !rx.is_empty() {
-                        println!("{}", rx.len());
+            let _pool: WorkerPoolTokio<((Arc<str>, usize), Data)> = WorkerPoolTokio::with_channel(4, tx_inner.clone(), rx, move |rt, (address, data): (Address, Data)| {
+                let graph_inner = graph_inner.clone();
+                let tx_inner = tx_inner.clone();
+                rt.spawn(async move {
+                    let outputs = {
+                        let graph = graph_inner.read().unwrap();
+                        graph.handle_data(address, data)
+                    };
+                    for (address, data) in outputs {
+                        tx_inner.send((address, data)).await.unwrap();
                     }
-                    batch.push((address, data));
-                    if batch.len() < batch_size && !rx.is_empty() {
-                        continue;
-                    }
-                    let batch = batch.drain(..).collect::<Vec<_>>();
-                    let tx_inner = tx_inner.clone();
-                    let graph_inner = graph_inner.clone();
-                    s.spawn_fifo(move |_| {
-                        for (address, data) in batch {
-                            let outputs = {
-                                let graph = graph_inner.read().unwrap();
-                                graph.handle_data(address, data)
-                            };
-                            for (address, data) in outputs {
-                                tx_inner.send((address, data)).unwrap();
-                            }
-                        }
-                    });
-                }
+                });
             });
         });
 
         let (in_tx, in_rx) = kanal::bounded::<(Address, Data)>(1024);
         let graph_inner = graph.clone();
-        let tx_inner = tx.clone();
+        let tx_inner = tx.clone().as_sync().clone();
         let input_dispatcher = std::thread::spawn(move || {
             while let Ok((address, data)) = in_rx.recv() {
                 let followers = {
@@ -166,6 +153,8 @@ impl DataGraphManager {
                 }
             }
         });
+
+        let tx = tx.as_sync().clone();
 
         Self {
             graph,

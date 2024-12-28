@@ -7,3 +7,4 @@ pub mod config;
 pub mod lights;
 #[allow(dead_code)]
 pub mod plot;
+pub mod worker_pool;
