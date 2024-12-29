@@ -130,14 +130,14 @@ impl Buffer {
 
         for channel in &mut *f32_samples {
             channel.clear();
-            channel.extend(std::iter::repeat(0.0).take(channel.capacity()));
+            channel.resize(channel.capacity(), 0.0);
         }
 
         mono_samples.clear();
-        mono_samples.extend(std::iter::repeat(0.0).take(mono_samples.capacity()));
+        mono_samples.resize(mono_samples.capacity(), 0.0);
 
         freq_bins.clear();
-        freq_bins.extend(std::iter::repeat(0.0).take(freq_bins.capacity()));
+        freq_bins.resize(freq_bins.capacity(), 0.0);
         *peak = 0.0;
         *rms = 0.0;
     }
@@ -187,7 +187,7 @@ impl Buffer {
 
         // Pad end with zeros
         for channel in f32_samples.iter_mut() {
-            channel.extend(std::iter::repeat(0.0).take(channel.capacity() - channel.len()))
+            channel.resize(channel.capacity(), 0.0);
         }
 
         // Calculate FFT for each channel
