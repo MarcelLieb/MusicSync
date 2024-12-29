@@ -6,7 +6,7 @@ use crate::nodes::DataHandler;
 
 
 
-struct SpecFlux {
+pub struct SpecFlux {
     prev: Mutex<Arc<[f32]>>,
 }
 
@@ -26,10 +26,11 @@ impl DataHandler for SpecFlux {
         }
         match data {
             crate::nodes::Data::FloatArray(data) => {
+                let log_magnitude = data.iter().map(|x| (x * 0.1).ln_1p()).collect::<Arc<[f32]>>();
                 let out = {
                     let mut prev = self.prev.lock().unwrap();
-                    let out = data.iter().zip(prev.iter()).map(|(a, b)| (a - b).max(0.0)).sum();
-                    *prev = data.clone();
+                    let out = prev.iter().zip(log_magnitude.iter()).map(|(a, b)| (b - a).max(0.0)).sum();
+                    *prev = log_magnitude.clone();
                     out
                 };
                 vec![(0, crate::nodes::Data::Float(out))]
