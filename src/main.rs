@@ -16,7 +16,7 @@ async fn main() {
         .parse_default_env()
         .init();
 
-    test_chain(10).await;
+    test_chain(10);
 
     let config = match Config::load("./config.toml") {
         Ok(loaded_config) => loaded_config,
