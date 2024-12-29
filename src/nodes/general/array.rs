@@ -53,20 +53,6 @@ impl DataHandler for Aggregate<f32> {
         1
     }
 
-    fn get_input_name(&self, port: usize) -> Option<Arc<str>> {
-        match port {
-            0 => Some("Input".into()),
-            _ => None,
-        }
-    }
-
-    fn get_output_name(&self, port: usize) -> Option<Arc<str>> {
-        match port {
-            0 => Some("Output".into()),
-            _ => None,
-        }
-    }
-
     fn get_input_type(&self, port: usize) -> Option<crate::nodes::DataType> {
         match port {
             0 => Some(crate::nodes::DataType::FloatArray),
@@ -131,20 +117,6 @@ impl DataHandler for Window<f32> {
 
     fn num_output_ports(&self) -> usize {
         1
-    }
-
-    fn get_input_name(&self, port: usize) -> Option<Arc<str>> {
-        match port {
-            0 => Some("Input".into()),
-            _ => None,
-        }
-    }
-
-    fn get_output_name(&self, port: usize) -> Option<Arc<str>> {
-        match port {
-            0 => Some("Output".into()),
-            _ => None,
-        }
     }
 
     fn get_input_type(&self, port: usize) -> Option<crate::nodes::DataType> {

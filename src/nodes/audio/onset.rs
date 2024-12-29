@@ -51,7 +51,7 @@ impl DataHandler for SpecFlux {
 
     fn get_input_name(&self, port: usize) -> Option<Arc<str>> {
         match port {
-            0 => Some("FFT".into()),
+            0 => Some("Frequencies".into()),
             _ => None,
         }
     }

@@ -55,14 +55,14 @@ impl DataHandler for MelFilterBankNode {
 
     fn get_input_name(&self, port: usize) -> Option<Arc<str>> {
         match port {
-            0 => Some("Input".into()),
+            0 => Some("FFT".into()),
             _ => None,
         }
     }
 
     fn get_output_name(&self, port: usize) -> Option<Arc<str>> {
         match port {
-            0 => Some("Output".into()),
+            0 => Some("Frequencies".into()),
             _ => None,
         }
     }

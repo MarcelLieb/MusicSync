@@ -106,6 +106,9 @@ impl DataHandler for LoopbackNode {
     }
 
     fn get_output_name(&self, port: usize) -> Option<Arc<str>> {
+        if port > self.channels as usize {
+            return None;
+        }
         Some(format!("Channel {}", port).into())
     }
     

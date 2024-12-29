@@ -40,9 +40,27 @@ pub trait DataHandler {
 
     fn num_output_ports(&self) -> usize;
 
-    fn get_input_name(&self, port: usize) -> Option<Arc<str>>;
+    fn get_input_name(&self, port: usize) -> Option<Arc<str>> {
+        let num_ports = self.num_input_ports();
+        if port >= num_ports {
+            return None;
+        }
+        if num_ports > 1 {
+            return Some(format!("Input {}", port).into())
+        }
+        Some("Input".into())
+    }
 
-    fn get_output_name(&self, port: usize) -> Option<Arc<str>>;
+    fn get_output_name(&self, port: usize) -> Option<Arc<str>> {
+        let num_ports = self.num_output_ports();
+        if port >= num_ports {
+            return None;
+        }
+        if num_ports > 1 {
+            return Some(format!("Output {}", port).into())
+        }
+        Some("Output".into())
+    }
 
     fn get_input_type(&self, port: usize) -> Option<DataType>;
 
@@ -210,20 +228,6 @@ impl DataHandler for PrintNode {
 
     fn num_output_ports(&self) -> usize {
         1
-    }
-
-    fn get_input_name(&self, port: usize) -> Option<Arc<str>> {
-        match port {
-            0 => Some("input".into()),
-            _ => None,
-        }
-    }
-
-    fn get_output_name(&self, port: usize) -> Option<Arc<str>> {
-        match port {
-            0 => Some("output".into()),
-            _ => None,
-        }
     }
 
     fn get_input_type(&self, port: usize) -> Option<DataType> {
