@@ -183,3 +183,87 @@ impl Default for Advanced {
         Advanced::with_settings(AdvancedSettings::default())
     }
 }
+
+
+pub struct Basic {
+    past_samples: VecDeque<f32>,
+    mean_range: usize,
+    max_range: usize,
+    threshold: f32,
+    cool_down: usize,
+    past_onsets: VecDeque<bool>,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, PartialOrd)]
+#[serde(default)]
+pub struct BasicSettings {
+    pub mean_range: usize,
+    pub max_range: usize,
+    pub threshold: f32,
+    pub cool_down: usize,
+}
+
+impl Default for BasicSettings {
+    fn default() -> Self {
+        BasicSettings {
+            mean_range: 6,
+            max_range: 3,
+            threshold: 0.8,
+            cool_down: 2,
+        }
+    }
+    
+}
+
+impl Basic {
+    pub fn init() -> Self {
+        Self::with_settings(BasicSettings::default())
+    }
+
+    pub fn with_settings(settings: BasicSettings) -> Self {
+        let len = settings.max_range.max(settings.mean_range);
+        Basic {
+            past_samples: VecDeque::from(vec![0.0; len]),
+            mean_range: settings.mean_range,
+            max_range: settings.max_range,
+            threshold: settings.threshold,
+            cool_down: settings.cool_down,
+            past_onsets: VecDeque::from(vec![false; settings.cool_down + 1]),
+        }
+    }
+
+    pub fn is_above(&mut self, value: f32) -> bool {
+        self.past_samples.pop_back();
+        self.past_samples.push_front(value);
+
+        let max = self
+            .past_samples
+            .iter()
+            .enumerate()
+            .take(self.max_range)
+            .reduce(|a, b| if a.1 > b.1 { a } else { b });
+
+        if max.is_none() {
+            self.past_onsets.pop_back();
+            self.past_onsets.push_front(false);
+            return false;
+        }
+        let max = max.unwrap();
+        if max.0 != 0 {
+            self.past_onsets.pop_back();
+            self.past_onsets.push_front(false);
+            return false;
+        }
+
+        if self.past_onsets.iter().take(self.cool_down).any(|&b| b) {
+            self.past_onsets.pop_back();
+            self.past_onsets.push_front(false);
+            return false;
+        }
+
+        let mean =
+            self.past_samples.iter().take(self.mean_range).sum::<f32>() / self.mean_range as f32;
+
+        value >= mean + self.threshold
+    }
+}
