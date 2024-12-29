@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use log::warn;
 use realfft::{RealFftPlanner, RealToComplex};
@@ -10,17 +10,19 @@ use crate::{nodes::{Data, DataHandler, DataType}, utils::audioprocessing::{windo
 pub struct FFT {
     fft_planner: Arc<dyn RealToComplex<f32>>,
     fft_size: usize,
-    window: Arc<[f32]>,
+    window: RwLock<Arc<[f32]>>,
+    window_type: WindowType,
 }
 
 impl FFT {
     pub fn init(fft_size: usize, window_type: WindowType) -> Self {
         let fft_planner = RealFftPlanner::<f32>::new().plan_fft_forward(fft_size as usize);
-        let window = window(fft_size, window_type).into();
+        let window = RwLock::new(window(fft_size, window_type).into());
         Self {
             fft_planner,
             fft_size,
             window,
+            window_type,
         }
     }
 }
@@ -33,20 +35,24 @@ impl DataHandler for FFT {
         }
         match data {
             Data::FloatArray(data) => {
-                let mut data = data.to_vec();
                 let data_len = data.len();
+                let window_len = self.window.read().unwrap().len();
+                if window_len != data_len && window_len <= self.fft_size {
+                    let mut window_ = self.window.write().unwrap();
+                    *window_ = window(data_len, self.window_type).into();
+                }
+                let mut data = data.into_iter().zip(self.window.read().unwrap().iter()).map(|(a, b)| a * b).collect::<Vec<f32>>();
                 if data_len < self.fft_size {
-                    warn!("Data length is less than FFT size");
-                    return vec![];
+                    data.resize(self.fft_size, 0.0);
                 }
                 if data_len > self.fft_size {
                     warn!("Data length is greater than FFT size");
                     data.truncate(self.fft_size);
                 }
                 let mut output = self.fft_planner.make_output_vec();
-                let mut data = data.into_iter().zip(self.window.iter()).map(|(a, b)| a * b).collect::<Vec<f32>>();
+                let n = self.fft_size;
                 self.fft_planner.process(&mut data, &mut output).unwrap();
-                let data = output.iter().map(|x| x.norm()).collect::<Arc<[f32]>>();
+                let data = output.iter().map(|x| ((x.re * x.re + x.im * x.im) / n as f32).sqrt()).collect::<Arc<[f32]>>();
                 
                 vec![(0, Data::FloatArray(data))]
             }
