@@ -71,7 +71,6 @@ impl LoopbackNode {
                 for (i, data) in audio.iter().enumerate() {
                     tx.send(((id_inner.clone(), i), crate::nodes::Data::FloatArray(data.clone()))).unwrap();
                 }
-                tx.send(((id_inner.clone(), 0), crate::nodes::Data::FloatArray(data.into()))).unwrap();
             },
             move |err| {
                 error!("An error occurred on the output audio stream: {}", err);
