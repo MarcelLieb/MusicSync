@@ -241,7 +241,7 @@ impl Basic {
             .iter()
             .enumerate()
             .take(self.max_range)
-            .reduce(|a, b| if a.1 > b.1 { a } else { b });
+            .reduce(|a, b| if a.1 >= b.1 { a } else { b });
 
         if max.is_none() {
             self.past_onsets.pop_back();
