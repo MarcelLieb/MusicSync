@@ -121,9 +121,9 @@ impl DataGraph {
 
 pub struct DataGraphManager {
     graph: Arc<RwLock<DataGraph>>,
-    work_dispatcher: std::thread::JoinHandle<()>,
+    worker_pool: WorkerPoolStd<((Arc<str>, usize), Data)>,
     input_dispatcher: std::thread::JoinHandle<()>,
-    work_queue: Sender<(Address, Data)>,
+    work_queue: Sender<(usize, (Address, Data))>,
     input_queue: Sender<(Address, Data)>,
 }
 
@@ -132,21 +132,17 @@ impl DataGraphManager {
         let graph = Arc::new(RwLock::new(DataGraph::new()));
         let graph_inner = graph.clone();
 
-        let (tx, rx) = kanal::unbounded::<(Address, Data)>();
+        let (tx, rx) = kanal::unbounded::<(usize, (Address, Data))>();
         let tx_inner = tx.clone();
 
-        let work_dispatcher = std::thread::spawn(move || {
-            let _pool: WorkerPoolStd<((Arc<str>, usize), Data)> = WorkerPoolStd::with_channel(16, tx_inner.clone(), rx, move |(address, data): (Address, Data)| {
-                let graph_inner = graph_inner.clone();
-                let tx_inner = tx_inner.clone();
-                let outputs = {
-                    let graph = graph_inner.read().unwrap();
-                    graph.handle_data(address, data)
-                };
-                for (address, data) in outputs {
-                    tx_inner.send((address, data)).unwrap();
-                }
-            });
+        let pool: WorkerPoolStd<((Arc<str>, usize), Data)> = WorkerPoolStd::with_channel(16, tx_inner.clone(), rx, move |prio, (address, data)| {
+            let outputs = {
+                let graph = graph_inner.read().unwrap();
+                graph.handle_data(address, data)
+            };
+            for (address, data) in outputs {
+                let _ = tx_inner.send((prio + 1, (address, data)));
+            }
         });
 
         let (in_tx, in_rx) = kanal::unbounded::<(Address, Data)>();
@@ -160,7 +156,7 @@ impl DataGraphManager {
                 };
                 if let Some(followers) = followers {
                     for (follower, port) in followers {
-                        tx_inner.send(((follower, port), data.clone())).unwrap();
+                        tx_inner.send((0, ((follower, port), data.clone()))).unwrap();
                     }
                 }
             }
@@ -170,7 +166,7 @@ impl DataGraphManager {
 
         Self {
             graph,
-            work_dispatcher,
+            worker_pool: pool,
             input_dispatcher,
             work_queue: tx,
             input_queue: in_tx,
@@ -178,7 +174,7 @@ impl DataGraphManager {
     }
 
     pub fn handle_data(&self, address: Address, data: Data) {
-        self.work_queue.send((address, data)).unwrap();
+        let _ = self.work_queue.send((0, (address, data)));
     }
 
     pub fn add_node(&mut self, handler: impl DataHandler + Send + Sync + 'static) -> Arc<str> {
