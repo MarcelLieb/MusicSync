@@ -21,7 +21,7 @@ pub enum DataType {
     IntArray,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum Data {
     Float(f32),
     FloatArray(Arc<[f32]>),
@@ -29,6 +29,20 @@ pub enum Data {
     ColorArray(Arc<[(u8, u8, u8)]>),
     Int(i32),
     IntArray(Arc<[i32]>),
+}
+
+impl Clone for Data {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Float(arg0) => Self::Float(arg0.clone()),
+            Self::Color(arg0) => Self::Color(arg0.clone()),
+            Self::Int(arg0) => Self::Int(arg0.clone()),
+            // Make sure the Arc clone is used
+            Self::FloatArray(arg0) => Self::FloatArray(Arc::clone(arg0)),
+            Self::ColorArray(arg0) => Self::ColorArray(Arc::clone(arg0)),
+            Self::IntArray(arg0) => Self::IntArray(Arc::clone(arg0)),
+        }
+    }
 }
 
 type Address = (Arc<str>, usize);

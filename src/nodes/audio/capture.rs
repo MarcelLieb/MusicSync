@@ -67,9 +67,9 @@ impl LoopbackNode {
                             None
                         }
                     }).collect::<Arc<[f32]>>()
-                }).collect::<Arc<[_]>>();
-                for (i, data) in audio.iter().enumerate() {
-                    tx.send(((id_inner.clone(), i), crate::nodes::Data::FloatArray(data.clone()))).unwrap();
+                }).collect::<Vec<_>>();
+                for (i, data) in audio.into_iter().enumerate() {
+                    tx.send(((id_inner.clone(), i), crate::nodes::Data::FloatArray(data))).unwrap();
                 }
             },
             move |err| {
