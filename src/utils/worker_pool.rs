@@ -128,6 +128,7 @@ impl<T: Clone + Send + 'static> WorkerPoolStd<T> {
         let inner_tx = inner_sender.clone();
         let dispatcher = std::thread::spawn(move || {
             let mut work_queue: BinaryHeap<PrioT<T>> = BinaryHeap::new();
+            let batch_size = 2;
             loop {
                 if let Some(data) = work_queue.pop() {
                     // If there is data queued try to distribute it to the threads
@@ -136,8 +137,9 @@ impl<T: Clone + Send + 'static> WorkerPoolStd<T> {
                         if !success {
                             // If all threads are busy readd it to the queue
                             work_queue.push(option.unwrap().into());
-                        } else {
-                            // Else check for new data without blocking
+                        }
+                        // Check for new data without blocking
+                        for _ in 0..batch_size {
                             if let Ok(Some(data)) = rx.try_recv() {
                                 work_queue.push(data.into());
                             }

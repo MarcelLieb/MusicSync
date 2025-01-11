@@ -10,7 +10,7 @@ use log::error;
 use crate::nodes::{DataGraphManager, DataHandler, DataType};
 
 pub struct LoopbackNode {
-    pub id: Arc<str>,
+    pub id: u128,
     channels: u16,
     stream: cpal::Stream,
 }

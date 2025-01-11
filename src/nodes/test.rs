@@ -24,13 +24,13 @@ pub fn test_chain(secs: u64) {
     let printer_onset_id = graph_manager.add_node(printer_onset);
     println!("Done adding nodes");
 
-    graph_manager.follow(&input_id, &window_id, 0, 0);
-    graph_manager.follow(&window_id, &fft_id, 0, 0);
-    graph_manager.follow(&fft_id, &printer_fft_id, 0, 0);
-    graph_manager.follow(&fft_id, &mel_filter_bank_id, 0, 0);
-    graph_manager.follow(&mel_filter_bank_id, &spec_flux_id, 0, 0);
-    graph_manager.follow(&spec_flux_id, &threshold_id, 0, 0);
-    graph_manager.follow(&threshold_id, &printer_onset_id, 0, 0);
+    graph_manager.follow(input_id, window_id, 0, 0);
+    graph_manager.follow(window_id, fft_id, 0, 0);
+    graph_manager.follow(fft_id, printer_fft_id, 0, 0);
+    graph_manager.follow(fft_id, mel_filter_bank_id, 0, 0);
+    graph_manager.follow(mel_filter_bank_id, spec_flux_id, 0, 0);
+    graph_manager.follow(spec_flux_id, threshold_id, 0, 0);
+    graph_manager.follow(threshold_id, printer_onset_id, 0, 0);
 
     println!("Done following nodes");
 
