@@ -177,6 +177,9 @@ impl<T> Drop for WorkerPoolStd<T> {
         self.inner_sender.close();
         self.inner_receiver.close();
         self.sender.close();
+        while let Some(worker) = self.workers.pop() {
+            worker.join().unwrap();
+        }
     }
 }
 
