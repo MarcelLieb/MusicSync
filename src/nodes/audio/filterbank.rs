@@ -1,9 +1,10 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
+use biquad::{Biquad, Coefficients, DirectForm2Transposed, ToHertz, Q_BUTTERWORTH_F32};
 use log::warn;
 
 use crate::{
-    nodes::DataHandler, utils::audioprocessing::MelFilterBank
+    nodes::{self, Data, DataHandler}, utils::audioprocessing::MelFilterBank
 };
 
 pub struct MelFilterBankNode {
@@ -81,4 +82,86 @@ impl DataHandler for MelFilterBankNode {
         }
     }
     
+}
+
+pub struct ThreeBandFilter {
+    low_pass: Mutex<DirectForm2Transposed<f32>>,
+    high_pass: Mutex<DirectForm2Transposed<f32>>,
+}
+
+impl ThreeBandFilter {
+    pub fn new(low_crossover: f64, high_crossover: f64, sample_rate: usize) -> Self {
+        Self {
+            low_pass: Mutex::new(
+                DirectForm2Transposed::new(
+                    Coefficients::<f32>::from_params(
+                        biquad::Type::LowPass, sample_rate.hz(), low_crossover.hz(), Q_BUTTERWORTH_F32
+                    ).unwrap()
+                )
+            ), 
+            high_pass: Mutex::new(
+                DirectForm2Transposed::new(
+                    Coefficients::<f32>::from_params(
+                        biquad::Type::LowPass, sample_rate.hz(), high_crossover.hz(), Q_BUTTERWORTH_F32
+                    ).unwrap()
+                )
+            )
+        }
+    }
+}
+
+impl DataHandler for ThreeBandFilter {
+    fn handle(&self, port: usize, data: crate::nodes::Data) -> Vec<(usize, crate::nodes::Data)> {
+        if port != 0 {
+            return vec![];
+        }
+
+        match data {
+            Data::Float(v) => {
+                let low = self.low_pass.lock().unwrap().run(v);
+                let high = self.high_pass.lock().unwrap().run(v);
+                let mid = v - low - high;
+                return vec![(0, Data::Float(low)), (1, Data::Float(mid)), (2, Data::Float(high))];
+            }
+            _ => return vec![]
+        }
+    }
+
+    fn num_input_ports(&self) -> usize {
+        1
+    }
+
+    fn num_output_ports(&self) -> usize {
+        3
+    }
+
+    fn get_input_type(&self, port: usize) -> Option<crate::nodes::DataType> {
+        if port == 0 {
+            return Some(nodes::DataType::Float)
+        }
+        None
+    }
+
+    fn get_output_type(&self, port: usize) -> Option<crate::nodes::DataType> {
+        match port {
+            0 | 1 | 2 => Some(nodes::DataType::Float),
+            _ => None
+        }
+    }
+
+    fn get_input_name(&self, port: usize) -> Option<Arc<str>> {
+        if port == 0 {
+            return Some("Signal".into())
+        }
+        None
+    }
+
+    fn get_output_name(&self, port: usize) -> Option<Arc<str>> {
+        match port {
+            0 => Some("low".into()),
+            1 => Some("mid".into()),
+            2 => Some("high".into()),
+            _ => None
+        }
+    }
 }
