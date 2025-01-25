@@ -456,9 +456,7 @@ impl SpectrumState {
         self.sample_buffer.extend(samples);
         let n = self.sample_buffer.len() / self.samples_per_led as usize;
         self.sample_buffer.make_contiguous();
-        for _ in 0..n {
-            let samples = self.sample_buffer.as_slices().0;
-
+        for samples in self.sample_buffer.as_slices().0.chunks(self.samples_per_led as usize).take(n) {
             let (low_weight, mid_weight, highs_weight) = samples
                 .iter()
                 .map(|s| {
@@ -484,7 +482,7 @@ impl SpectrumState {
 
             let brightness = ((self.envelope.get_value() * (1.0 - self.min_brightness))
                 + self.min_brightness)
-                * self.master_brightness; // Set a minimum quarter brightness
+                * self.master_brightness;
 
             let rgb = [
                 (low_weight / max * 255.0 * brightness) as u8,
@@ -499,9 +497,8 @@ impl SpectrumState {
 
             self.colors.pop_front();
             self.colors.push_back(rgb);
-
-            self.sample_buffer.drain(0..self.samples_per_led as usize);
         }
+        self.sample_buffer = self.sample_buffer.split_off(self.samples_per_led as usize * n);
     }
 }
 
