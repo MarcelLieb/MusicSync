@@ -1,7 +1,8 @@
 use std::{
-    collections::HashMap, fmt::Debug, sync::{atomic::{AtomicU16, AtomicUsize, Ordering}, Arc, RwLock}
+    fmt::Debug, sync::{atomic::{AtomicU16, AtomicUsize, Ordering}, Arc, RwLock}
 };
 
+use dashmap::DashMap;
 use kanal::Sender;
 use uuid::Uuid;
 
@@ -80,26 +81,26 @@ pub trait DataHandler {
 }
 
 pub struct DataGraph {
-    nodes: HashMap<u128, Arc<dyn DataHandler + Send + Sync>>,
-    follow_graph: HashMap<u128, Arc<[RwLock<Vec<(u128, usize)>>]>>,
+    nodes: DashMap<u128, Arc<dyn DataHandler + Send + Sync>>,
+    follow_graph: DashMap<u128, Arc<[RwLock<Vec<(u128, usize)>>]>>,
 }
 
 impl DataGraph {
     pub fn new() -> Self {
         Self {
-            nodes: HashMap::new(),
-            follow_graph: HashMap::new(),
+            nodes: DashMap::new(),
+            follow_graph: DashMap::new(),
         }
     }
 
-    pub fn add_node(&mut self, handler: impl DataHandler + Send + Sync + 'static) -> u128 {
+    pub fn add_node(&self, handler: impl DataHandler + Send + Sync + 'static) -> u128 {
         let port_count = handler.num_output_ports();
         let id:u128 = self.add_reference(port_count);
         self.nodes.insert(id.clone(), Arc::new(handler));
         id
     }
 
-    fn add_reference(&mut self, num_ports: usize) -> u128 {
+    fn add_reference(&self, num_ports: usize) -> u128 {
         let id: u128 = Uuid::new_v4().to_u128_le();
         self.follow_graph.insert(id, (0..num_ports).map(|_| RwLock::new(Vec::new())).collect::<Arc<[_]>>());
         id
@@ -133,7 +134,7 @@ impl DataGraph {
 
 pub struct DataGraphManager {
     work_queue: Sender<(usize, (Address, Data))>,
-    graph: Arc<RwLock<DataGraph>>,
+    graph: Arc<DataGraph>,
     time_index: Arc<AtomicU16>,
     input_queue: Sender<(Address, Data)>,
     worker_pool: WorkerPoolStd<(Address, Data)>,
@@ -142,7 +143,7 @@ pub struct DataGraphManager {
 
 impl DataGraphManager {
     pub fn new() -> Self {
-        let graph = Arc::new(RwLock::new(DataGraph::new()));
+        let graph = Arc::new(DataGraph::new());
         let graph_inner = graph.clone();
         let time_index = Arc::new(AtomicU16::new(0));
 
@@ -151,8 +152,7 @@ impl DataGraphManager {
 
         let pool: WorkerPoolStd<((u128, usize), Data)> = WorkerPoolStd::with_channel(12, tx_inner.clone(), rx, move |prio, (address, data)| {
             let outputs = {
-                let graph = graph_inner.read().unwrap();
-                graph.handle_data(address, data)
+                graph_inner.handle_data(address, data)
             };
             for (address, data) in outputs {
                 let _ = tx_inner.send((prio + 1, (address, data)));
@@ -167,8 +167,7 @@ impl DataGraphManager {
             while let Ok((address, data)) = in_rx.recv() {
                 let time = time_inner.fetch_sub(1, Ordering::Acquire) as u32;
                 let followers = {
-                    let graph = graph_inner.read().unwrap();
-                    graph.get_followers(address.0, address.1)
+                    graph_inner.get_followers(address.0, address.1)
                 };
                 if let Some(followers) = followers {
                     for (follower, port) in followers {
@@ -197,11 +196,11 @@ impl DataGraphManager {
     }
 
     pub fn add_node(&mut self, handler: impl DataHandler + Send + Sync + 'static) -> u128 {
-        self.graph.write().unwrap().add_node(handler)
+        self.graph.add_node(handler)
     }
 
     pub fn add_reference(&self, ports: usize) -> u128 {
-        self.graph.write().unwrap().add_reference(ports)
+        self.graph.add_reference(ports)
     }
 
     pub fn get_input_queue(&self) -> Sender<(Address, Data)> {
@@ -209,7 +208,7 @@ impl DataGraphManager {
     }
 
     pub fn follow(&self, follower: u128, followee: u128, port_1: usize, port_2: usize) {
-        self.graph.read().unwrap().follow(follower, followee, port_1, port_2);
+        self.graph.follow(follower, followee, port_1, port_2);
     }
 }
 
@@ -230,9 +229,9 @@ impl DataHandler for PrintNode {
             return vec![];
         }
         self.count.fetch_add(1, Ordering::Relaxed);
-        if self.count.load(Ordering::Relaxed) % self.every == 0 {
-            println!("{:?}", data);
-            self.count.store(0, Ordering::Relaxed);
+        let index = self.count.load(Ordering::Relaxed);
+        if index % self.every == 0 {
+            println!("{index}: {:?}", data);
         }
         vec![(port, data)]
     }
