@@ -50,7 +50,6 @@ impl LoopbackNode {
 
         let id = manager.add_reference(channels as usize);
         let tx = manager.get_input_queue();
-        let id_inner = id.clone();
 
         let stream = out.build_input_stream(
             &config,
@@ -69,7 +68,7 @@ impl LoopbackNode {
                     }).collect::<Arc<[f32]>>()
                 }).collect::<Vec<_>>();
                 for (i, data) in audio.into_iter().enumerate() {
-                    tx.send(((id_inner.clone(), i), crate::nodes::Data::FloatArray(data))).unwrap();
+                    tx.send(((id, i), crate::nodes::Data::FloatArray(data))).unwrap();
                 }
             },
             move |err| {

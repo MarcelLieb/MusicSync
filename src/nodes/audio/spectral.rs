@@ -35,13 +35,16 @@ impl DataHandler for FFT {
         }
         match data {
             Data::FloatArray(data) => {
+                let mut data = data;
                 let data_len = data.len();
                 let window_len = self.window.read().unwrap().len();
                 if window_len != data_len && window_len <= self.fft_size {
                     let mut window_ = self.window.write().unwrap();
                     *window_ = window(data_len, self.window_type).into();
                 }
-                let mut data = data.into_iter().zip(self.window.read().unwrap().iter()).map(|(a, b)| a * b).collect::<Vec<f32>>();
+                let pointer = Arc::make_mut(&mut data);
+                pointer.iter_mut().zip(self.window.read().unwrap().iter()).for_each(|(a, b)| *a = *a * b);
+                let mut data: Vec<f32> = Vec::<f32>::from(&*data);
                 if data_len < self.fft_size {
                     data.resize(self.fft_size, 0.0);
                 }
