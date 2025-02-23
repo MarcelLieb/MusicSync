@@ -126,7 +126,7 @@ impl<T: Clone + Send + 'static> WorkerPoolStd<T> {
     {
         let (inner_sender, inner_receiver) = kanal::bounded(0);
         let inner_tx = inner_sender.clone();
-        let dispatcher = std::thread::spawn(move || {
+        let dispatcher = std::thread::Builder::new().name("Dispatcher".into()).spawn(move || {
             let mut work_queue: BinaryHeap<PrioT<T>> = BinaryHeap::new();
             let batch_size = 2;
             loop {
@@ -156,16 +156,16 @@ impl<T: Clone + Send + 'static> WorkerPoolStd<T> {
                     }
                 }
             }
-        });
+        }).unwrap();
         let workers = (0..num_workers)
             .map(|_| {
                 let f_inner = f.clone();
                 let rx = inner_receiver.clone();
-                std::thread::spawn(move || {
+                std::thread::Builder::new().name("Worker".into()).spawn(move || {
                     while let Ok((prio, data)) = rx.recv() {
                         f_inner(prio, data);
                     }
-                })
+                }).unwrap()
             })
             .collect();
         Self { workers, sender: tx, inner_sender, inner_receiver, dispatcher }
