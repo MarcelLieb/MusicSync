@@ -1,5 +1,7 @@
 mod utils;
-use ort::{CUDAExecutionProvider, DirectMLExecutionProvider, TensorRTExecutionProvider};
+use ort::execution_providers::{
+    CUDAExecutionProvider, DirectMLExecutionProvider, TensorRTExecutionProvider,
+};
 
 use std::error::Error;
 

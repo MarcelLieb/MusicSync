@@ -5,7 +5,11 @@ use tracing::info;
 
 use super::{
     audioprocessing::{
-        self, hfc::{Hfc, HfcSettings}, ml::MLDetector, spectral_flux::{SpecFlux, SpecFluxSettings}, ProcessingSettings
+        self,
+        hfc::{Hfc, HfcSettings},
+        ml::MLDetector,
+        spectral_flux::{SpecFlux, SpecFluxSettings},
+        ProcessingSettings,
     },
     lights::{
         console::Console,
@@ -214,7 +218,8 @@ impl Config {
                     let alg = MLDetector::init(
                         self.audio_processing.sample_rate as u32,
                         self.audio_processing.fft_size as u32,
-                    ).unwrap();
+                    )
+                    .unwrap();
                     Box::new(alg)
                 }
             };

@@ -1,7 +1,9 @@
 use std::collections::VecDeque;
 
 use ndarray::{s, ArrayView};
-use ort::{inputs, Session};
+use ort::inputs;
+use ort::session::builder::GraphOptimizationLevel;
+use ort::session::Session;
 
 use crate::utils::audioprocessing::Onset;
 
@@ -80,9 +82,9 @@ impl MLDetector {
     pub fn init(sample_rate: u32, fft_size: u32) -> ort::Result<Self> {
         let n_mels = 96;
         let receptive_field = 13;
-        let filter_bank = MelFilterBank::init(sample_rate, fft_size, n_mels, 20_000);
+        let filter_bank = MelFilterBank::init(sample_rate, fft_size, n_mels, 20.0, 20_000.0);
         let session = Session::builder()?
-            .with_optimization_level(ort::GraphOptimizationLevel::Level3)?
+            .with_optimization_level(GraphOptimizationLevel::Level3)?
             .commit_from_file("./cnn96mels.onnx")?;
 
         let threshold = ThresholdBank::default();
@@ -107,7 +109,11 @@ impl OnsetDetector for MLDetector {
         self.filter_bank.filter(&log_spec, &mut self.vec_buffer);
         self.ring_buffer.drain(..self.n_mels);
         self.ring_buffer.extend(&self.vec_buffer);
-        let array = ArrayView::from_shape((1, self.n_mels, self.receptive_field), self.ring_buffer.make_contiguous()).unwrap();
+        let array = ArrayView::from_shape(
+            (1, self.n_mels, self.receptive_field),
+            self.ring_buffer.make_contiguous(),
+        )
+        .unwrap();
 
         // TODO: Log errors
         let inputs = inputs![array].unwrap();
@@ -119,7 +125,11 @@ impl OnsetDetector for MLDetector {
             .unwrap()
             .into_owned();
         println!("{:?}", output);
-        let output: Vec<_> = output.slice(s![0, .., -1]).iter().map(|x| 1. / (1. + (-x).exp())).collect();
+        let output: Vec<_> = output
+            .slice(s![0, .., -1])
+            .iter()
+            .map(|x| 1. / (1. + (-x).exp()))
+            .collect();
         println!("{:?}", output);
         let mut onsets = Vec::new();
 

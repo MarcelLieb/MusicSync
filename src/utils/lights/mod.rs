@@ -4,14 +4,13 @@ use std::{
 };
 
 use bytes::Bytes;
-use tracing::{info, trace};
 use tokio::{
     select,
     sync::oneshot::{self, Sender},
     task::JoinHandle,
     time,
 };
-use tracing::{error, info, trace};
+use tracing::{info, trace};
 
 use super::audioprocessing::Onset;
 
@@ -134,7 +133,10 @@ impl PollingHelper {
             }
         });
 
-        PollingHelper { tx: Some(tx), handle }
+        PollingHelper {
+            tx: Some(tx),
+            handle,
+        }
     }
 }
 

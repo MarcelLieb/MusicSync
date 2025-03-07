@@ -218,7 +218,9 @@ impl Buffer {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Clone, Default, Copy, Deserialize, Serialize, PartialEq, PartialOrd, Eq, Hash, Ord)]
+#[derive(
+    Debug, Clone, Default, Copy, Deserialize, Serialize, PartialEq, PartialOrd, Eq, Hash, Ord,
+)]
 pub enum WindowType {
     #[default]
     Hann,
@@ -296,7 +298,10 @@ impl MelFilterBank {
         min_frequency: f32,
         max_frequency: f32,
     ) -> MelFilterBank {
-        assert!(min_frequency < max_frequency, "min_frequency must be less than max_frequency");
+        assert!(
+            min_frequency < max_frequency,
+            "min_frequency must be less than max_frequency"
+        );
         let num_points = bands + 2;
         let mel_min = Self::hertz_to_mel(min_frequency);
         let mel_max = Self::hertz_to_mel(max_frequency);
