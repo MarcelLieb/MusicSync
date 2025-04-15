@@ -1,6 +1,7 @@
-use std::{collections::VecDeque, sync::{Arc, Mutex}};
+use std::{collections::VecDeque, sync::Arc};
 
 use log::warn;
+use parking_lot::Mutex;
 
 use crate::nodes::{DataHandler, PortId};
 
@@ -28,7 +29,7 @@ impl DataHandler for Aggregate<f32> {
         }
         match data {
             crate::nodes::Data::Float(data) => {
-                let mut buffer = self.buffer.lock().unwrap();
+                let mut buffer = self.buffer.lock();
                 buffer.push_back(data);
                 if buffer.len() >= self.size {
                     let data: Arc<[f32]> = Arc::from(buffer.make_contiguous()[..self.size].to_vec());
@@ -94,7 +95,7 @@ impl DataHandler for Window<f32> {
             crate::nodes::Data::FloatArray(data) => {
                 let mut out = Vec::new();
                 {
-                    let mut buffer = self.buffer.lock().unwrap();
+                    let mut buffer = self.buffer.lock();
                     buffer.extend(data.iter());
                     while buffer.len() >= self.size {
                         let data: Arc<[f32]> = Arc::from(buffer.make_contiguous()[..self.size].to_vec());

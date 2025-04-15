@@ -5,6 +5,7 @@ use std::{
 
 use dashmap::DashMap;
 use kanal::Sender;
+use parking_lot::RwLock;
 use uuid::Uuid;
 
 use crate::utils::worker_pool::{Prio, WorkerPoolStd};

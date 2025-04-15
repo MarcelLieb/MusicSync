@@ -1,4 +1,6 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+
+use parking_lot::Mutex;
 
 use crate::{nodes::{Data, DataHandler, DataType, PortId}, utils::audioprocessing::threshold};
 
@@ -28,7 +30,7 @@ impl DataHandler for PeakPickingNode {
         match data {
             Data::Float(data) => {
                 let peak = {
-                    let mut picker = self.picker.lock().unwrap();
+                    let mut picker = self.picker.lock();
                     picker.is_above(data)
                 };
                 if peak {

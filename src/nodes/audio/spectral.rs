@@ -1,6 +1,7 @@
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use log::warn;
+use parking_lot::RwLock;
 use realfft::{RealFftPlanner, RealToComplex};
 
 use crate::{nodes::{Data, DataHandler, DataType, PortId}, utils::audioprocessing::{window, WindowType}};
@@ -37,13 +38,13 @@ impl DataHandler for FFT {
             Data::FloatArray(data) => {
                 let mut data = data;
                 let data_len = data.len();
-                let window_len = self.window.read().unwrap().len();
+                let window_len = self.window.read().len();
                 if window_len != data_len && window_len <= self.fft_size {
-                    let mut window_ = self.window.write().unwrap();
+                    let mut window_ = self.window.write();
                     *window_ = window(data_len, self.window_type).into();
                 }
                 let pointer = Arc::make_mut(&mut data);
-                pointer.iter_mut().zip(self.window.read().unwrap().iter()).for_each(|(a, b)| *a = *a * b);
+                pointer.iter_mut().zip(self.window.read().iter()).for_each(|(a, b)| *a = *a * b);
                 let mut data: Vec<f32> = Vec::<f32>::from(&*data);
                 if data_len < self.fft_size {
                     data.resize(self.fft_size, 0.0);
