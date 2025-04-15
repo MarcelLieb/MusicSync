@@ -115,7 +115,7 @@ impl Hfc {
         let index_of_max_mid = (freq_bins[mids_weight_low_cutoff..mids_weight_high_cutoff]
             .iter()
             .enumerate()
-            .max_by(|(_, &a), (_, &b)| a.total_cmp(&b))
+            .max_by(|&(_, &a), &(_, &b)| a.total_cmp(&b))
             .unwrap()
             .0 as f32
             * self.bin_resolution) as usize;
