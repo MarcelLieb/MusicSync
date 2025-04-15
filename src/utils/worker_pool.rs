@@ -1,4 +1,6 @@
-use std::{collections::BinaryHeap, sync::Arc};
+use std::{collections::BinaryHeap, hint, sync::Arc};
+
+use log::error;
 #[allow(dead_code)]
 pub struct WorkerPoolTokio<T> {
     rt: Arc<tokio::runtime::Runtime>,
@@ -50,6 +52,7 @@ impl<T: Send + 'static> WorkerPoolTokio<T>{
     }
 }
 
+pub type Prio = u32;
 
 enum PrioT<T> {
     Tuple((Prio, T)),
@@ -107,7 +110,7 @@ pub struct WorkerPoolStd<T> {
     pub sender: kanal::Sender<(Prio, T)>,
     inner_sender: kanal::Sender<(Prio, T)>,
     inner_receiver: kanal::Receiver<(Prio, T)>,
-    dispatcher: std::thread::JoinHandle<()>,
+    dispatcher: Option<std::thread::JoinHandle<()>>,
 }
 
 #[allow(dead_code)]
@@ -135,13 +138,15 @@ impl<T: Clone + Send + 'static> WorkerPoolStd<T> {
                     let mut option = Option::Some(data.unwrap());
                     if let Ok(success) = inner_tx.try_send_option(&mut option) {
                         if !success {
-                            // If all threads are busy readd it to the queue
+                            // If all threads are busy read it to the queue
                             work_queue.push(option.unwrap().into());
                         }
                         // Check for new data without blocking
                         for _ in 0..batch_size {
                             if let Ok(Some(data)) = rx.try_recv() {
                                 work_queue.push(data.into());
+                            } else {
+                                hint::spin_loop();
                             }
                         }
                     } else {
@@ -156,6 +161,7 @@ impl<T: Clone + Send + 'static> WorkerPoolStd<T> {
                     }
                 }
             }
+            drop(work_queue);
         }).unwrap();
         let workers = (0..num_workers)
             .map(|_| {
@@ -168,17 +174,24 @@ impl<T: Clone + Send + 'static> WorkerPoolStd<T> {
                 }).unwrap()
             })
             .collect();
-        Self { workers, sender: tx, inner_sender, inner_receiver, dispatcher }
+        Self { workers, sender: tx, inner_sender, inner_receiver, dispatcher: Some(dispatcher) }
     }
 }
 
 impl<T> Drop for WorkerPoolStd<T> {
     fn drop(&mut self) {
-        self.inner_sender.close();
-        self.inner_receiver.close();
-        self.sender.close();
+        if let Err(e) = self.inner_sender.close() {
+            error!("{e}");
+        }
+        if let Err(e) = self.sender.close() {
+            error!("{e}");
+        }
         while let Some(worker) = self.workers.pop() {
             worker.join().unwrap();
+        }
+        let dispatcher = self.dispatcher.take().unwrap();
+        if let Err(e) = dispatcher.join() {
+            error!("{e:?}");
         }
     }
 }
