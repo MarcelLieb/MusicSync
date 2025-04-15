@@ -1,12 +1,13 @@
 use std::{
-    fmt::Debug, sync::{atomic::{AtomicU16, AtomicUsize, Ordering}, Arc, RwLock}
+    fmt::Debug, sync::{atomic::{AtomicU16, AtomicUsize, Ordering}, Arc}
 };
+
 
 use dashmap::DashMap;
 use kanal::Sender;
 use uuid::Uuid;
 
-use crate::utils::worker_pool::WorkerPoolStd;
+use crate::utils::worker_pool::{Prio, WorkerPoolStd};
 mod audio;
 mod general;
 pub mod test;
@@ -44,16 +45,19 @@ impl Clone for Data {
     }
 }
 
-type Address = (u128, usize);
+type NodeId = u128;
+type PortId = u8;
+
+type Address = (NodeId, PortId);
 
 pub trait DataHandler {
-    fn handle(&self, port: usize, data: Data) -> Vec<(usize, Data)>;
+    fn handle(&self, port: PortId, data: Data) -> Vec<(PortId, Data)>;
 
-    fn num_input_ports(&self) -> usize;
+    fn num_input_ports(&self) -> PortId;
 
-    fn num_output_ports(&self) -> usize;
+    fn num_output_ports(&self) -> PortId;
 
-    fn get_input_name(&self, port: usize) -> Option<Arc<str>> {
+    fn get_input_name(&self, port: PortId) -> Option<Arc<str>> {
         let num_ports = self.num_input_ports();
         if port >= num_ports {
             return None;
@@ -64,7 +68,7 @@ pub trait DataHandler {
         Some("Input".into())
     }
 
-    fn get_output_name(&self, port: usize) -> Option<Arc<str>> {
+    fn get_output_name(&self, port: PortId) -> Option<Arc<str>> {
         let num_ports = self.num_output_ports();
         if port >= num_ports {
             return None;
@@ -75,14 +79,14 @@ pub trait DataHandler {
         Some("Output".into())
     }
 
-    fn get_input_type(&self, port: usize) -> Option<DataType>;
+    fn get_input_type(&self, port: PortId) -> Option<DataType>;
 
-    fn get_output_type(&self, port: usize) -> Option<DataType>;
+    fn get_output_type(&self, port: PortId) -> Option<DataType>;
 }
 
 pub struct DataGraph {
-    nodes: DashMap<u128, Arc<dyn DataHandler + Send + Sync>>,
-    follow_graph: DashMap<u128, Arc<[RwLock<Vec<(u128, usize)>>]>>,
+    nodes: DashMap<NodeId, Arc<dyn DataHandler + Send + Sync>>,
+    follow_graph: DashMap<NodeId, Arc<[RwLock<Vec<(NodeId, PortId)>>]>>,
 }
 
 impl DataGraph {
@@ -93,22 +97,22 @@ impl DataGraph {
         }
     }
 
-    pub fn add_node(&self, handler: impl DataHandler + Send + Sync + 'static) -> u128 {
+    pub fn add_node(&self, handler: impl DataHandler + Send + Sync + 'static) -> NodeId {
         let port_count = handler.num_output_ports();
-        let id:u128 = self.add_reference(port_count);
+        let id: NodeId = self.add_reference(port_count);
         self.nodes.insert(id.clone(), Arc::new(handler));
         id
     }
 
-    fn add_reference(&self, num_ports: usize) -> u128 {
-        let id: u128 = Uuid::new_v4().to_u128_le();
+    fn add_reference(&self, num_ports: PortId) -> NodeId {
+        let id: NodeId = Uuid::new_v4().to_u128_le();
         self.follow_graph.insert(id, (0..num_ports).map(|_| RwLock::new(Vec::new())).collect::<Arc<[_]>>());
         id
     }
 
-    pub fn follow(&self, source: u128, target: u128, port_1: usize, port_2: usize) {
-        let follow_graph = &self.follow_graph.get(&source).unwrap()[port_1];
-        let mut follow_graph = follow_graph.write().unwrap();
+    pub fn follow(&self, source: NodeId, target: NodeId, port_1: PortId, port_2: PortId) {
+        let follow_graph = &self.follow_graph.get(&source).unwrap()[port_1 as usize];
+        let mut follow_graph = follow_graph.write();
         follow_graph.push((target.into(), port_2));
     }
 
@@ -119,21 +123,21 @@ impl DataGraph {
 
         let followers_per_port = self.follow_graph.get(&node_id).unwrap();
         let results = data.into_iter().flat_map(|(port, data)| {
-            let followers = followers_per_port[port].read().unwrap();
+            let followers = followers_per_port[port as usize].read();
             followers.iter().map(|(follower, port)| ((follower.clone(), *port), data.clone())).collect::<Vec<_>>()
         }).collect();
         return results;
     }
 
-    pub fn get_followers(&self, node: u128, port: usize) -> Option<Vec<(u128, usize)>> {
+    pub fn get_followers(&self, node: NodeId, port: PortId) -> Option<Vec<(NodeId, PortId)>> {
         let followers_per_port = self.follow_graph.get(&node)?;
-        let followers = followers_per_port[port].read().unwrap();
+        let followers = followers_per_port[port as usize].read();
         Some(followers.clone())
     }
 }
 
 pub struct DataGraphManager {
-    work_queue: Sender<(usize, (Address, Data))>,
+    work_queue: Sender<(Prio, (Address, Data))>,
     graph: Arc<DataGraph>,
     time_index: Arc<AtomicU16>,
     input_queue: Sender<(Address, Data)>,
@@ -147,10 +151,10 @@ impl DataGraphManager {
         let graph_inner = graph.clone();
         let time_index = Arc::new(AtomicU16::new(0));
 
-        let (tx, rx) = kanal::unbounded::<(usize, (Address, Data))>();
+        let (tx, rx) = kanal::unbounded::<(Prio, (Address, Data))>();
         let tx_inner = tx.clone();
 
-        let pool: WorkerPoolStd<((u128, usize), Data)> = WorkerPoolStd::with_channel(12, tx_inner.clone(), rx, move |prio, (address, data)| {
+        let pool: WorkerPoolStd<(Address, Data)> = WorkerPoolStd::with_channel(12, tx_inner.clone(), rx, move |prio, (address, data)| {
             let outputs = {
                 graph_inner.handle_data(address, data)
             };
@@ -171,7 +175,7 @@ impl DataGraphManager {
                 };
                 if let Some(followers) = followers {
                     for (follower, port) in followers {
-                        tx_inner.send(((time << 16) as usize, ((follower, port), data.clone()))).unwrap();
+                        tx_inner.send(((time << 16) as Prio, ((follower, port), data.clone()))).unwrap();
                     }
                 }
             }
@@ -192,14 +196,14 @@ impl DataGraphManager {
     pub fn handle_data(&self, address: Address, data: Data) {
         // Max heap prioritize older data
         let time = self.time_index.fetch_sub(1, Ordering::Acquire) as u32;
-        let _ = self.work_queue.send(((time << 16) as usize, (address, data)));
+        let _ = self.work_queue.send(((time << 16) as Prio, (address, data)));
     }
 
-    pub fn add_node(&mut self, handler: impl DataHandler + Send + Sync + 'static) -> u128 {
+    pub fn add_node(&mut self, handler: impl DataHandler + Send + Sync + 'static) -> NodeId {
         self.graph.add_node(handler)
     }
 
-    pub fn add_reference(&self, ports: usize) -> u128 {
+    pub fn add_reference(&self, ports: PortId) -> NodeId {
         self.graph.add_reference(ports)
     }
 
@@ -207,7 +211,7 @@ impl DataGraphManager {
         self.input_queue.clone()
     }
 
-    pub fn follow(&self, follower: u128, followee: u128, port_1: usize, port_2: usize) {
+    pub fn follow(&self, follower: NodeId, followee: NodeId, port_1: PortId, port_2: PortId) {
         self.graph.follow(follower, followee, port_1, port_2);
     }
 }
@@ -224,7 +228,7 @@ impl PrintNode {
 }
 
 impl DataHandler for PrintNode {
-    fn handle(&self, port: usize, data: Data) -> Vec<(usize, Data)> {
+    fn handle(&self, port: PortId, data: Data) -> Vec<(PortId, Data)> {
         if port != 0 {
             return vec![];
         }
@@ -236,22 +240,22 @@ impl DataHandler for PrintNode {
         vec![(port, data)]
     }
 
-    fn num_input_ports(&self) -> usize {
+    fn num_input_ports(&self) -> PortId {
         1
     }
 
-    fn num_output_ports(&self) -> usize {
+    fn num_output_ports(&self) -> PortId {
         1
     }
 
-    fn get_input_type(&self, port: usize) -> Option<DataType> {
+    fn get_input_type(&self, port: PortId) -> Option<DataType> {
         match port {
             0 => Some(DataType::Float),
             _ => None,
         }
     }
 
-    fn get_output_type(&self, port: usize) -> Option<DataType> {
+    fn get_output_type(&self, port: PortId) -> Option<DataType> {
         match port {
             0 => Some(DataType::Float),
             _ => None,

@@ -52,19 +52,19 @@ impl<T: Send + 'static> WorkerPoolTokio<T>{
 
 
 enum PrioT<T> {
-    Tuple((usize, T)),
+    Tuple((Prio, T)),
 }
 
 impl<T> PrioT<T> {
-    fn unwrap(self) -> (usize, T) {
+    fn unwrap(self) -> (Prio, T) {
         match self {
             PrioT::Tuple((prio, data)) => (prio, data),
         }
     }
 }
 
-impl<T> From<(usize, T)> for PrioT<T> {
-    fn from(tuple: (usize, T)) -> Self {
+impl<T> From<(Prio, T)> for PrioT<T> {
+    fn from(tuple: (Prio, T)) -> Self {
         PrioT::Tuple(tuple)
     }
 }
@@ -104,9 +104,9 @@ impl<T: Clone> Clone for PrioT<T> {
 #[allow(dead_code)]
 pub struct WorkerPoolStd<T> {
     workers: Vec<std::thread::JoinHandle<()>>,
-    pub sender: kanal::Sender<(usize, T)>,
-    inner_sender: kanal::Sender<(usize, T)>,
-    inner_receiver: kanal::Receiver<(usize, T)>,
+    pub sender: kanal::Sender<(Prio, T)>,
+    inner_sender: kanal::Sender<(Prio, T)>,
+    inner_receiver: kanal::Receiver<(Prio, T)>,
     dispatcher: std::thread::JoinHandle<()>,
 }
 
@@ -114,15 +114,15 @@ pub struct WorkerPoolStd<T> {
 impl<T: Clone + Send + 'static> WorkerPoolStd<T> {
     pub fn new<F>(num_workers: usize, f: F) -> Self
     where
-        F: Fn(usize, T) -> () + Send + Clone + 'static,
+        F: Fn(Prio, T) -> () + Send + Clone + 'static,
     {
         let (tx, rx) = kanal::unbounded();
         Self::with_channel(num_workers, tx, rx, f)
     }
 
-    pub fn with_channel<F>(num_workers: usize, tx: kanal::Sender<(usize, T)>, rx: kanal::Receiver<(usize, T)>, f: F) -> Self
+    pub fn with_channel<F>(num_workers: usize, tx: kanal::Sender<(Prio, T)>, rx: kanal::Receiver<(Prio, T)>, f: F) -> Self
     where
-        F: Fn(usize, T) -> () + Send + Clone + 'static,
+        F: Fn(Prio, T) -> () + Send + Clone + 'static,
     {
         let (inner_sender, inner_receiver) = kanal::bounded(0);
         let inner_tx = inner_sender.clone();

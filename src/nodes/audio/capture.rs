@@ -7,10 +7,10 @@ use cpal::{
 };
 use log::error;
 
-use crate::nodes::{DataGraphManager, DataHandler, DataType};
+use crate::nodes::{DataGraphManager, DataHandler, DataType, NodeId, PortId};
 
 pub struct LoopbackNode {
-    pub id: u128,
+    pub id: NodeId,
     channels: u16,
     stream: cpal::Stream,
 }
@@ -48,7 +48,7 @@ impl LoopbackNode {
             buffer_size: cpal::BufferSize::Default,
         };
 
-        let id = manager.add_reference(channels as usize);
+        let id = manager.add_reference(channels as PortId);
         let tx = manager.get_input_queue();
 
         let stream = out.build_input_stream(
@@ -68,7 +68,7 @@ impl LoopbackNode {
                     }).collect::<Arc<[f32]>>()
                 }).collect::<Vec<_>>();
                 for (i, data) in audio.into_iter().enumerate() {
-                    tx.send(((id, i), crate::nodes::Data::FloatArray(data))).unwrap();
+                    tx.send(((id, i as PortId), crate::nodes::Data::FloatArray(data))).unwrap();
                 }
             },
             move |err| {
@@ -85,37 +85,37 @@ impl LoopbackNode {
 impl DataHandler for LoopbackNode {
     fn handle(
         &self,
-        _: usize,
+        _: PortId,
         _: crate::nodes::Data,
-    ) -> Vec<(usize, crate::nodes::Data)> {
+    ) -> Vec<(PortId, crate::nodes::Data)> {
         vec![]
     }
 
-    fn num_input_ports(&self) -> usize {
+    fn num_input_ports(&self) -> PortId {
         0
     }
 
-    fn num_output_ports(&self) -> usize {
-        self.channels as usize
+    fn num_output_ports(&self) -> PortId {
+        self.channels as PortId
     }
 
-    fn get_input_name(&self, _: usize) -> Option<Arc<str>> {
+    fn get_input_name(&self, _: PortId) -> Option<Arc<str>> {
         None
     }
 
-    fn get_output_name(&self, port: usize) -> Option<Arc<str>> {
-        if port > self.channels as usize {
+    fn get_output_name(&self, port: PortId) -> Option<Arc<str>> {
+        if port > self.channels as PortId {
             return None;
         }
         Some(format!("Channel {}", port).into())
     }
     
-    fn get_input_type(&self, _: usize) -> Option<DataType> {
+    fn get_input_type(&self, _: PortId) -> Option<DataType> {
         None
     }
     
-    fn get_output_type(&self, port: usize) -> Option<DataType> {
-        if port < self.channels as usize {
+    fn get_output_type(&self, port: PortId) -> Option<DataType> {
+        if port < self.channels as PortId {
             Some(crate::nodes::DataType::FloatArray)
         } else {
             None

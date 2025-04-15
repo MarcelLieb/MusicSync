@@ -4,7 +4,7 @@ use biquad::{Biquad, Coefficients, DirectForm2Transposed, ToHertz, Q_BUTTERWORTH
 use log::warn;
 
 use crate::{
-    nodes::{self, Data, DataHandler}, utils::audioprocessing::MelFilterBank
+    nodes::{self, Data, DataHandler, PortId}, utils::audioprocessing::MelFilterBank
 };
 
 pub struct MelFilterBankNode {
@@ -29,7 +29,7 @@ impl MelFilterBankNode {
 }
 
 impl DataHandler for MelFilterBankNode {
-    fn handle(&self, port: usize, data: crate::nodes::Data) -> Vec<(usize, crate::nodes::Data)> {
+    fn handle(&self, port: PortId, data: crate::nodes::Data) -> Vec<(PortId, crate::nodes::Data)> {
         if port != 0 {
             warn!("Invalid port");
             return vec![];
@@ -46,36 +46,36 @@ impl DataHandler for MelFilterBankNode {
         }
     }
 
-    fn num_input_ports(&self) -> usize {
+    fn num_input_ports(&self) -> PortId {
         1
     }
 
-    fn num_output_ports(&self) -> usize {
+    fn num_output_ports(&self) -> PortId {
         1
     }
 
-    fn get_input_name(&self, port: usize) -> Option<Arc<str>> {
+    fn get_input_name(&self, port: PortId) -> Option<Arc<str>> {
         match port {
             0 => Some("FFT".into()),
             _ => None,
         }
     }
 
-    fn get_output_name(&self, port: usize) -> Option<Arc<str>> {
+    fn get_output_name(&self, port: PortId) -> Option<Arc<str>> {
         match port {
             0 => Some("Frequencies".into()),
             _ => None,
         }
     }
 
-    fn get_input_type(&self, port: usize) -> Option<crate::nodes::DataType> {
+    fn get_input_type(&self, port: PortId) -> Option<crate::nodes::DataType> {
         match port {
             0 => Some(crate::nodes::DataType::FloatArray),
             _ => None,
         }
     }
 
-    fn get_output_type(&self, port: usize) -> Option<crate::nodes::DataType> {
+    fn get_output_type(&self, port: PortId) -> Option<crate::nodes::DataType> {
         match port {
             0 => Some(crate::nodes::DataType::FloatArray),
             _ => None,
@@ -111,7 +111,7 @@ impl ThreeBandFilter {
 }
 
 impl DataHandler for ThreeBandFilter {
-    fn handle(&self, port: usize, data: crate::nodes::Data) -> Vec<(usize, crate::nodes::Data)> {
+    fn handle(&self, port: PortId, data: crate::nodes::Data) -> Vec<(PortId, crate::nodes::Data)> {
         if port != 0 {
             return vec![];
         }
@@ -127,36 +127,36 @@ impl DataHandler for ThreeBandFilter {
         }
     }
 
-    fn num_input_ports(&self) -> usize {
+    fn num_input_ports(&self) -> PortId {
         1
     }
 
-    fn num_output_ports(&self) -> usize {
+    fn num_output_ports(&self) -> PortId {
         3
     }
 
-    fn get_input_type(&self, port: usize) -> Option<crate::nodes::DataType> {
+    fn get_input_type(&self, port: PortId) -> Option<crate::nodes::DataType> {
         if port == 0 {
             return Some(nodes::DataType::Float)
         }
         None
     }
 
-    fn get_output_type(&self, port: usize) -> Option<crate::nodes::DataType> {
+    fn get_output_type(&self, port: PortId) -> Option<crate::nodes::DataType> {
         match port {
             0 | 1 | 2 => Some(nodes::DataType::Float),
             _ => None
         }
     }
 
-    fn get_input_name(&self, port: usize) -> Option<Arc<str>> {
+    fn get_input_name(&self, port: PortId) -> Option<Arc<str>> {
         if port == 0 {
             return Some("Signal".into())
         }
         None
     }
 
-    fn get_output_name(&self, port: usize) -> Option<Arc<str>> {
+    fn get_output_name(&self, port: PortId) -> Option<Arc<str>> {
         match port {
             0 => Some("low".into()),
             1 => Some("mid".into()),

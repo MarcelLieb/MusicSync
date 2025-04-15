@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use log::warn;
 
-use crate::nodes::DataHandler;
+use crate::nodes::{DataHandler, PortId};
 
 
 
@@ -19,7 +19,7 @@ impl SpecFlux {
 }
 
 impl DataHandler for SpecFlux {
-    fn handle(&self, port: usize, data: crate::nodes::Data) -> Vec<(usize, crate::nodes::Data)> {
+    fn handle(&self, port: PortId, data: crate::nodes::Data) -> Vec<(PortId, crate::nodes::Data)> {
         if port != 0 {
             warn!("Invalid port");
             return vec![];
@@ -42,36 +42,36 @@ impl DataHandler for SpecFlux {
         }
     }
 
-    fn num_input_ports(&self) -> usize {
+    fn num_input_ports(&self) -> PortId {
         1
     }
 
-    fn num_output_ports(&self) -> usize {
+    fn num_output_ports(&self) -> PortId {
         1
     }
 
-    fn get_input_name(&self, port: usize) -> Option<Arc<str>> {
+    fn get_input_name(&self, port: PortId) -> Option<Arc<str>> {
         match port {
             0 => Some("Frequencies".into()),
             _ => None,
         }
     }
 
-    fn get_output_name(&self, port: usize) -> Option<Arc<str>> {
+    fn get_output_name(&self, port: PortId) -> Option<Arc<str>> {
         match port {
             0 => Some("Activation".into()),
             _ => None,
         }
     }
 
-    fn get_input_type(&self, port: usize) -> Option<crate::nodes::DataType> {
+    fn get_input_type(&self, port: PortId) -> Option<crate::nodes::DataType> {
         match port {
             0 => Some(crate::nodes::DataType::FloatArray),
             _ => None,
         }
     }
 
-    fn get_output_type(&self, port: usize) -> Option<crate::nodes::DataType> {
+    fn get_output_type(&self, port: PortId) -> Option<crate::nodes::DataType> {
         match port {
             0 => Some(crate::nodes::DataType::Float),
             _ => None,
@@ -93,7 +93,7 @@ impl HFC {
 }
 
 impl DataHandler for HFC {
-    fn handle(&self, port: usize, data: crate::nodes::Data) -> Vec<(usize, crate::nodes::Data)> {
+    fn handle(&self, port: PortId, data: crate::nodes::Data) -> Vec<(PortId, crate::nodes::Data)> {
         if port != 0 {
             warn!("Invalid port");
             return vec![];
@@ -110,36 +110,36 @@ impl DataHandler for HFC {
         }
     }
 
-    fn num_input_ports(&self) -> usize {
+    fn num_input_ports(&self) -> PortId {
         1
     }
 
-    fn num_output_ports(&self) -> usize {
+    fn num_output_ports(&self) -> PortId {
         1
     }
 
-    fn get_input_name(&self, port: usize) -> Option<Arc<str>> {
+    fn get_input_name(&self, port: PortId) -> Option<Arc<str>> {
         match port {
             0 => Some("FFT".into()),
             _ => None,
         }
     }
 
-    fn get_output_name(&self, port: usize) -> Option<Arc<str>> {
+    fn get_output_name(&self, port: PortId) -> Option<Arc<str>> {
         match port {
             0 => Some("Activation".into()),
             _ => None,
         }
     }
 
-    fn get_input_type(&self, port: usize) -> Option<crate::nodes::DataType> {
+    fn get_input_type(&self, port: PortId) -> Option<crate::nodes::DataType> {
         match port {
             0 => Some(crate::nodes::DataType::FloatArray),
             _ => None,
         }
     }
 
-    fn get_output_type(&self, port: usize) -> Option<crate::nodes::DataType> {
+    fn get_output_type(&self, port: PortId) -> Option<crate::nodes::DataType> {
         match port {
             0 => Some(crate::nodes::DataType::Float),
             _ => None,

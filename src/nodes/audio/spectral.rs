@@ -3,7 +3,7 @@ use std::sync::{Arc, RwLock};
 use log::warn;
 use realfft::{RealFftPlanner, RealToComplex};
 
-use crate::{nodes::{Data, DataHandler, DataType}, utils::audioprocessing::{window, WindowType}};
+use crate::{nodes::{Data, DataHandler, DataType, PortId}, utils::audioprocessing::{window, WindowType}};
 
 
 
@@ -28,7 +28,7 @@ impl FFT {
 }
 
 impl DataHandler for FFT {
-    fn handle(&self, port: usize, data: Data) -> Vec<(usize, Data)> {
+    fn handle(&self, port: PortId, data: Data) -> Vec<(PortId, Data)> {
         if port != 0 {
             warn!("Invalid port");
             return vec![];
@@ -66,36 +66,36 @@ impl DataHandler for FFT {
         }
     }
 
-    fn num_input_ports(&self) -> usize {
+    fn num_input_ports(&self) -> PortId {
         1
     }
 
-    fn num_output_ports(&self) -> usize {
+    fn num_output_ports(&self) -> PortId {
         1
     }
 
-    fn get_input_name(&self, port: usize) -> Option<Arc<str>> {
+    fn get_input_name(&self, port: PortId) -> Option<Arc<str>> {
         match port {
             0 => Some("Signal".into()),
             _ => None,
         }
     }
 
-    fn get_output_name(&self, port: usize) -> Option<Arc<str>> {
+    fn get_output_name(&self, port: PortId) -> Option<Arc<str>> {
         match port {
             0 => Some("FFT".into()),
             _ => None,
         }
     }
 
-    fn get_input_type(&self, port: usize) -> Option<DataType> {
+    fn get_input_type(&self, port: PortId) -> Option<DataType> {
         match port {
             0 => Some(DataType::FloatArray),
             _ => None,
         }
     }
 
-    fn get_output_type(&self, port: usize) -> Option<DataType> {
+    fn get_output_type(&self, port: PortId) -> Option<DataType> {
         match port {
             0 => Some(DataType::FloatArray),
             _ => None,
