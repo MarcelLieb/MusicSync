@@ -9,6 +9,11 @@ use crate::utils::config::{Config, ConfigError};
 use log::{debug, error, info, warn};
 use nodes::test::test_chain;
 
+use mimalloc::MiMalloc;
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
+
 #[tokio::main]
 async fn main() {
     pretty_env_logger::formatted_builder()
