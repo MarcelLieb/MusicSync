@@ -348,6 +348,8 @@ impl LEDStripSpectrum {
             settings.min_brightness,
             samples_per_led,
             settings.onset_decay_rate,
+            settings.low_end_crossover,
+            settings.high_end_crossover,
             settings.center,
             settings.timeout,
         );
@@ -413,6 +415,8 @@ impl SpectrumState {
         min_brightness: f32,
         samples_per_led: u32,
         onset_decay_rate: f32,
+        low_end_crossover: f32,
+        high_end_crossover: f32,
         center: bool,
         timeout: u8,
     ) -> Self {
@@ -421,7 +425,7 @@ impl SpectrumState {
             Coefficients::<f32>::from_params(
                 Type::LowPass,
                 sampling_frequency.hz(),
-                240.hz(),
+                low_end_crossover.hz(),
                 Q_BUTTERWORTH_F32,
             )
             .unwrap(),
@@ -430,7 +434,7 @@ impl SpectrumState {
             Coefficients::<f32>::from_params(
                 Type::HighPass,
                 sampling_frequency.hz(),
-                2.4.khz(),
+                high_end_crossover.hz(),
                 Q_BUTTERWORTH_F32,
             )
             .unwrap(),
